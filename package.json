@@ -1,0 +1,17 @@
+{
+  "name": "snake-onlines",
+  "version": "1.0.0",
+  "description": "Multiplayer Snake.io online game (Express + Socket.IO)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.5",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
