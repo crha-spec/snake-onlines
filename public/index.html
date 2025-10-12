@@ -373,6 +373,13 @@ this.socket.on('roomCreated', (data) => {
     this.clearChat();    
     this.startRoomTimeout();
 });
+this.socket.on('roomExpired', () => {
+    alert('Oda süresi dolduğu için kapatıldı!');
+    this.leaveRoom();
+});
+this.socket.on('roomError', (data) => {
+    alert(data.error);
+});
     
 this.socket.on('roomJoined', (data) => {
     this.roomCode = data.roomCode;
@@ -565,23 +572,34 @@ this.snakeColor = 'random';
                 });
             }
             
-            joinRoom() {
-                const name = document.getElementById('playerName').value.trim();
-                const code = document.getElementById('roomCode').value.trim();
-                
-                if (!name || !code) { 
-                    alert('İsim ve oda kodu gerekli!'); 
-                    return; 
-                }
-                
-                this.playerName = name;
-                
-                this.socket.emit('joinRoom', { 
-                    roomCode: code,
-                    playerId: this.playerId, 
-                    playerName: name 
-                });
-            }
+joinRoom() {
+    const name = document.getElementById('playerName').value.trim();
+    const code = document.getElementById('roomCode').value.trim().toUpperCase();
+    
+    if (!name || !code) { 
+        alert('İsim ve oda kodu gerekli!'); 
+        return; 
+    }
+    
+    // Oda kodu validasyonu - EKLENDİ
+    if (code.length !== 7) {
+        alert('Oda kodu 7 haneli olmalıdır!');
+        return;
+    }
+    
+    if (!/^[A-Z0-9]{7}$/.test(code)) {
+        alert('Oda kodu sadece büyük harf ve rakamlardan oluşmalıdır!');
+        return;
+    }
+    
+    this.playerName = name;
+    
+    this.socket.emit('joinRoom', { 
+        roomCode: code,
+        playerId: this.playerId, 
+        playerName: name 
+    });
+}
             
             showRoomUI() {
                 document.getElementById('displayRoomCode').textContent = this.roomCode;
