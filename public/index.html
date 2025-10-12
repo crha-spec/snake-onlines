@@ -72,9 +72,138 @@
         .death-stats { margin: 30px 0; font-size: 1.2em; }
         .death-stats span { color: #667eea; font-weight: bold; }
         .death-actions { display: flex; gap: 15px; justify-content: center; }
-        .enemy-tracker { position: absolute; top: 20px; right: 20px; background: rgba(0, 0, 0, 0.7); color: white; padding: 15px; border-radius: 10px; min-width: 150px; }
-        .enemy-tracker h3 { margin-bottom: 10px; text-align: center; }
-        .tracker-display { display: flex; flex-direction: column; align-items: center; }
+.enemy-tracker {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 15px;
+    border-radius: 15px;
+    min-width: 150px;
+    border: 2px solid rgba(255, 59, 59, 0.5);
+    backdrop-filter: blur(10px);
+}
+
+.enemy-tracker h3 {
+    margin-bottom: 15px;
+    text-align: center;
+    color: #ff3b3b;
+    font-size: 14px;
+}
+
+.tracker-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.tracker-circle {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    /* Tek tracker-circle olacak şekilde birleştirdim: */
+    background: 
+        radial-gradient(circle at center, transparent 40%, rgba(0, 255, 0, 0.1) 100%),
+        linear-gradient(0deg, transparent 49%, rgba(255, 255, 255, 0.1) 50%, transparent 51%),
+        linear-gradient(90deg, transparent 49%, rgba(255, 255, 255, 0.1) 50%, transparent 51%);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Radar tarama efekti */
+.tracker-circle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, transparent 40%, rgba(0, 255, 0, 0.3) 50%, transparent 60%);
+    animation: radar-sweep 4s linear infinite;
+    border-radius: 50%;
+}
+
+@keyframes radar-sweep {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.tracker-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: #00ff00;
+    border-radius: 50%;
+    border: 2px solid white;
+    z-index: 2; /* Radar çizgilerinin üstünde görünsün */
+}
+
+.tracker-dot {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #ff3b3b;
+    border-radius: 50%;
+    border: 2px solid white;
+    transform: translate(-50%, -50%);
+    transition: all 0.3s ease;
+    box-shadow: 0 0 10px rgba(255, 59, 59, 0.7);
+    z-index: 3; /* En üstte görünsün */
+}
+
+.tracker-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.tracker-distance {
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.tracker-direction {
+    font-size: 12px;
+    color: #ccc;
+    background: rgba(255, 59, 59, 0.3);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* Yakın düşman için uyarı efekti */
+.tracker-dot.danger {
+    animation: pulse 1s infinite;
+    background: #ff0000;
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
+}
+
+@keyframes pulse {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.3); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Yön çizgileri */
+.tracker-circle::after {
+    content: 'N';
+    position: absolute;
+    top: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 10px;
+    font-weight: bold;
+    z-index: 1;
+}
         .tracker-arrow { width: 40px; height: 40px; margin: 10px 0; transition: transform 0.2s; }
         .tracker-distance { font-size: 16px; font-weight: bold; }
         .bottom-ui { position: absolute; bottom: 30px; right: 30px; display: flex; gap: 15px; }
@@ -170,16 +299,19 @@
                     <div class="length-display">Uzunluk: <span id="lengthValue">10</span></div>
                 </div>
                 <div class="leaderboard"><h3>🏆 Sıralama</h3><ol id="leaderboardList"></ol></div>
-                <div class="enemy-tracker">
-                    <h3>Düşman Takip</h3>
-                    <div class="tracker-display">
-                        <svg class="tracker-arrow" viewBox="0 0 100 100">
-                            <polygon points="50,10 90,90 10,90" fill="white" />
-                        </svg>
-                        <div class="tracker-distance" id="enemyDistance">-- m</div>
-                    </div>
-                </div>
-            </div>
+<div class="enemy-tracker">
+    <h3>🚨 Düşman Takip</h3>
+    <div class="tracker-display">
+        <div class="tracker-circle">
+            <div class="tracker-center"></div>
+            <div class="tracker-dot" id="enemyDot"></div>
+        </div>
+        <div class="tracker-info">
+            <div class="tracker-distance" id="enemyDistance">-- m</div>
+            <div class="tracker-direction" id="enemyDirection">--</div>
+        </div>
+    </div>
+</div>
             <button class="settings-btn" id="settingsBtn">⚙️</button>
             <div id="settingsMenu" class="settings-menu hidden">
                 <h3>Ayarlar</h3>
@@ -264,6 +396,9 @@
 
         class Game {
             constructor() {
+                this.minFoodDistance = 80; // Diğer yemeklerden minimum mesafe
+    this.minPlayerDistance = 150; // Oyunculara minimum mesafe
+    this.minWallDistance = 100; // Duvarlardan minimum mesafe    
                 this.roomTimeout = null; // Oda zaman aşımı timer'ı
                 this.roomExpireTime = null; // Oda sona erme zamanı    
                 this.canvas = document.getElementById('gameCanvas');
@@ -868,6 +1003,104 @@ refreshTimerDisplay() {
                 return food;
             }
             
+            
+    
+
+
+// Rastgele pozisyonda yemek oluştur
+generateFoodAtRandomPosition() {
+    let newX, newY;
+    let attempts = 0;
+    const maxAttempts = 200;
+    
+    do {
+        // Tamamen rastgele pozisyon (duvarlardan uzak)
+        newX = Math.random() * (WORLD_SIZE - this.minWallDistance * 2) + this.minWallDistance;
+        newY = Math.random() * (WORLD_SIZE - this.minWallDistance * 2) + this.minWallDistance;
+        attempts++;
+        
+        // Eğer çok denediysek ve hala uygun yer bulamadıysak, zorla ekle
+        if (attempts >= maxAttempts) {
+            console.log("Uygun yemek pozisyonu bulmak için maksimum deneme sayısına ulaşıldı");
+            // Son çare olarak mevcut yemeklerden uzak bir yer bulmaya çalış
+            let foundPosition = false;
+            for (let i = 0; i < 10; i++) {
+                newX = Math.random() * (WORLD_SIZE - 100) + 50;
+                newY = Math.random() * (WORLD_SIZE - 100) + 50;
+                if (!this.isTooCloseToOtherFood(newX, newY, 50)) {
+                    foundPosition = true;
+                    break;
+                }
+            }
+            if (!foundPosition) {
+                console.log("Acil yemek pozisyonu oluşturuluyor");
+            }
+            break;
+        }
+        
+    } while (this.isFoodPositionOccupied(newX, newY));
+    
+    return { 
+        x: newX, 
+        y: newY, 
+        color: `hsl(${Math.random() * 360}, 80%, 60%)` 
+    };
+}
+
+// Yemek pozisyonunun meşgul olup olmadığını kontrol et
+isFoodPositionOccupied(x, y) {
+    // Diğer yemeklere çok yakın mı kontrol et
+    if (this.isTooCloseToOtherFood(x, y, this.minFoodDistance)) {
+        return true;
+    }
+    
+    // Oyunculara çok yakın mı kontrol et
+    if (this.isTooCloseToPlayers(x, y, this.minPlayerDistance)) {
+        return true;
+    }
+    
+    return false;
+}
+
+// Diğer yemeklere yakın mı kontrol et
+isTooCloseToOtherFood(x, y, minDistance) {
+    for (const existingFood of this.food) {
+        const dx = x - existingFood.x;
+        const dy = y - existingFood.y;
+        const distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared < minDistance * minDistance) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Oyunculara yakın mı kontrol et
+isTooCloseToPlayers(x, y, minDistance) {
+    for (const player of this.players.values()) {
+        if (player.alive) {
+            const dx = x - player.x;
+            const dy = y - player.y;
+            const distanceSquared = dx * dx + dy * dy;
+            if (distanceSquared < minDistance * minDistance) {
+                return true;
+            }
+            
+            // Yılan segmentlerine de yakın mı kontrol et
+            if (player.segments) {
+                for (const segment of player.segments) {
+                    const segDx = x - segment.x;
+                    const segDy = y - segment.y;
+                    const segDistanceSquared = segDx * segDx + segDy * segDy;
+                    if (segDistanceSquared < (minDistance * 0.7) * (minDistance * 0.7)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
             startUpdateLoop() { 
                 this.updateInterval = setInterval(() => { 
                     if (this.myPlayer) this.broadcastMyState(); 
@@ -1028,13 +1261,15 @@ refreshTimerDisplay() {
                     }, 5000);
                 }
             }
-            
 checkFoodCollision() {
     for (let i = this.food.length - 1; i >= 0; i--) {
-        const f = this.food[i], dx = this.myPlayer.x - f.x, dy = this.myPlayer.y - f.y;
+        const f = this.food[i];
+        const dx = this.myPlayer.x - f.x;
+        const dy = this.myPlayer.y - f.y;
+        
         if (dx * dx + dy * dy < 400) {
-            // Yemeği sil (hemen ekleme!)
-            this.food.splice(i, 1); 
+            // Yemeği hemen kaldır
+            const eatenFood = this.food.splice(i, 1)[0];
             
             this.myPlayer.score += 10;
             this.totalPoints += 10;
@@ -1047,24 +1282,22 @@ checkFoodCollision() {
             this.eatSound.currentTime = 0;
             this.eatSound.play().catch(e => console.log("Ses oynatma hatası: ", e));
             
-            // 3 saniye sonra yeni yemek ekle
+            // 3 saniye sonra AKILLI POZİSYONDA yeni yemek ekle
             setTimeout(() => {
-                const newFood = { 
-                    x: Math.random() * WORLD_SIZE, 
-                    y: Math.random() * WORLD_SIZE, 
-                    color: `hsl(${Math.random() * 360}, 80%, 60%)` 
-                };
+                const newFood = this.generateFoodAtRandomPosition(); // ✅ DEĞİŞTİRİLDİ
                 this.food.push(newFood);
                 
                 // Server'a bildir
                 this.socket.emit('foodEaten', { 
                     roomCode: this.roomCode, 
-                    foodIndex: i,
+                    eatenFood: eatenFood,
                     newFood: newFood
                 });
-            }, 3000); // 3 saniye bekleme
+            }, 3000);
             
             if (this.myPlayer.score >= MAX_SCORE) this.gameWon();
+            
+            break; // ✅ EKLENDİ - Sadece bir yemeği ye
         }
     }
 }
@@ -1221,38 +1454,95 @@ leaveRoom() {
                 }
             }
             
-            updateEnemyTracker() {
-                let closestEnemy = null;
-                let minDistance = Infinity;
-                
-                for (const [id, player] of this.players) {
-                    if (id === this.playerId || !player.alive || player.invisibility) continue;
-                    
-                    const dx = player.x - this.myPlayer.x;
-                    const dy = player.y - this.myPlayer.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        closestEnemy = player;
-                    }
-                }
-                
-                const arrow = document.querySelector('.tracker-arrow');
-                const distanceDisplay = document.getElementById('enemyDistance');
-                
-                if (closestEnemy && minDistance < Infinity) {
-                    const dx = closestEnemy.x - this.myPlayer.x;
-                    const dy = closestEnemy.y - this.myPlayer.y;
-                    const angle = Math.atan2(dy, dx);
-                    
-                    arrow.style.transform = `rotate(${angle}rad)`;
-                    distanceDisplay.textContent = `${Math.round(minDistance)} m`;
-                } else {
-                    arrow.style.transform = 'rotate(0rad)';
-                    distanceDisplay.textContent = '-- m';
-                }
-            }
+// Mevcut updateEnemyTracker fonksiyonunu BUNUNLA DEĞİŞTİR:
+updateEnemyTracker() {
+    let closestEnemy = null;
+    let minDistance = Infinity;
+    
+    // Tüm düşmanları kontrol et
+    for (const [id, player] of this.players) {
+        if (id === this.playerId || !player.alive || player.invisibility) continue;
+        
+        const dx = player.x - this.myPlayer.x;
+        const dy = player.y - this.myPlayer.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestEnemy = player;
+        }
+    }
+    
+    const enemyDot = document.getElementById('enemyDot');
+    const distanceDisplay = document.getElementById('enemyDistance');
+    const directionDisplay = document.getElementById('enemyDirection');
+    
+    if (closestEnemy && minDistance < Infinity) {
+        const dx = closestEnemy.x - this.myPlayer.x;
+        const dy = closestEnemy.y - this.myPlayer.y;
+        const angle = Math.atan2(dy, dx);
+        
+        // 360 derece radar sistemi
+        const radarSize = 100; // Radar çemberinin boyutu
+        const maxRadarDistance = 2000; // Radarın gösterdiği maksimum mesafe
+        
+        // Mesafeyi radar boyutuna göre normalize et
+        const normalizedDistance = Math.min(minDistance / maxRadarDistance, 1);
+        const radarDistance = normalizedDistance * (radarSize / 2 - 10); // Merkezden uzaklık
+        
+        // Açıya göre konum hesapla
+        const dotX = 50 + Math.cos(angle) * radarDistance;
+        const dotY = 50 + Math.sin(angle) * radarDistance;
+        
+        // Noktayı güncelle
+        enemyDot.style.left = dotX + '%';
+        enemyDot.style.top = dotY + '%';
+        
+        // Mesafeyi göster
+        distanceDisplay.textContent = `${Math.round(minDistance)} m`;
+        
+        // Yönü hesapla ve göster
+        const direction = this.getCompassDirection(angle);
+        directionDisplay.textContent = direction;
+        
+        // Yakın düşman için uyarı
+        if (minDistance < 500) {
+            enemyDot.classList.add('danger');
+            distanceDisplay.style.color = '#ff4444';
+        } else {
+            enemyDot.classList.remove('danger');
+            distanceDisplay.style.color = '#fff';
+        }
+        
+        // Görünür yap
+        enemyDot.style.display = 'block';
+        
+    } else {
+        // Düşman yoksa gizle
+        enemyDot.style.display = 'none';
+        distanceDisplay.textContent = '-- m';
+        directionDisplay.textContent = '--';
+        distanceDisplay.style.color = '#fff';
+    }
+}
+
+// Pusula yönünü hesapla
+getCompassDirection(angle) {
+    // Açıyı dereceye çevir ve 0-360 arasına getir
+    let degrees = (angle * 180 / Math.PI + 360) % 360;
+    
+    // Yönlere göre sınıflandır
+    if (degrees >= 337.5 || degrees < 22.5) return 'DOĞU';
+    if (degrees >= 22.5 && degrees < 67.5) return 'KD';
+    if (degrees >= 67.5 && degrees < 112.5) return 'KUZEY';
+    if (degrees >= 112.5 && degrees < 157.5) return 'KB';
+    if (degrees >= 157.5 && degrees < 202.5) return 'BATI';
+    if (degrees >= 202.5 && degrees < 247.5) return 'GB';
+    if (degrees >= 247.5 && degrees < 292.5) return 'GÜNEY';
+    if (degrees >= 292.5 && degrees < 337.5) return 'GD';
+    
+    return '--';
+}
             
 drawSnakeEyes(ctx, x, y, angle, headSize = 15) {
     const eyeRadius = headSize * 0.2; // Baş boyutuna göre
