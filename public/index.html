@@ -29,6 +29,12 @@
         .players-list h3 { margin-bottom: 10px; color: #333; }
         .players-list ul { list-style: none; background: white; padding: 10px; border-radius: 5px; }
         .players-list li { padding: 8px; border-bottom: 1px solid #eee; }
+        .chat-container { margin: 15px 0; background: white; border-radius: 10px; padding: 10px; }
+        .chat-messages { height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
+        .chat-message { margin: 5px 0; font-size: 14px; line-height: 1.4; }
+        .chat-input { display: flex; gap: 10px; }
+        .chat-input input { flex: 1; padding: 10px; }
+        .chat-input button { padding: 10px 20px; }
         .room-actions { display: flex; gap: 10px; margin-top: 15px; }
         .room-actions button { flex: 1; }
         #gameCanvas { display: block; background: #1a1a2e; }
@@ -105,6 +111,13 @@
                     <div class="players-list">
                         <h3>Oyuncular:</h3>
                         <ul id="playersListItems"></ul>
+                    </div>
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chatMessages"></div>
+                        <div class="chat-input">
+                            <input type="text" id="chatInput" placeholder="Mesaj yaz..." maxlength="100">
+                            <button class="btn btn-primary" id="sendChatBtn">Gönder</button>
+                        </div>
                     </div>
                     <div class="room-actions">
                         <button class="btn btn-success" id="startGameBtn">Maçı Başlat</button>
@@ -230,11 +243,8 @@
         <source src="https://www.soundjay.com/buttons/sounds/button-10.mp3" type="audio/mpeg">
     </audio>
     
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-        const SUPABASE_URL = 'https://zzlrltqrzxjwmtpuvhsi.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6bHJsdHFyenhqd210cHV2aHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1MzU1MTEsImV4cCI6MjA3MzExMTUxMX0.nEW-3ctSbAaQj-d-I01AzkvTM70QzoXBiZmHdC1Yv8g';
-        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
         const WORLD_SIZE = 5000, SEGMENT_SIZE = 15, FOOD_COUNT = 300, MAX_SCORE = 100000;
 
         class Game {
@@ -250,14 +260,13 @@
                 this.playerId = 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
                 this.isRoomOwner = false;
                 this.gameRunning = false;
-                this.channel = null;
+                this.socket = io();
                 this.joystickActive = false;
                 this.joystickAngle = 0;
                 this.updateInterval = null;
-                this.playerListInterval = null;
                 this.lastUpdateTime = Date.now();
                 
-                // Yeni özellikler - localStorage kullanarak SQL gerektirmeden
+                // Özellikler
                 this.totalPoints = parseInt(localStorage.getItem('totalPoints')) || 0;
                 this.hasInvisibility = localStorage.getItem('hasInvisibility') === 'true';
                 this.premiumColorActive = false;
@@ -271,33 +280,29 @@
                 this.musicEnabled = localStorage.getItem('musicEnabled') !== 'false';
                 this.musicVolume = parseInt(localStorage.getItem('musicVolume')) || 50;
                 
-                // Yılan uzunluğu için değişkenler
                 this.initialLength = 10;
                 this.lengthGrowthPerFood = 3;
                 
-                // YENİ: Tahmin sistemi için değişkenler
                 this.lastBroadcastTime = 0;
-                this.broadcastInterval = 16; // ~60 FPS
-                this.playerPredictions = new Map(); // Diğer oyuncular için tahmin
+                this.broadcastInterval = 16;
+                this.playerPredictions = new Map();
                 
                 this.resizeCanvas();
                 window.addEventListener('resize', () => this.resizeCanvas());
                 this.setupEventListeners();
+                this.setupSocketIO();
                 this.setupJoystick();
                 this.updateTotalPointsDisplay();
                 this.checkPremiumColorStatus();
                 
-                // Ayarları yükle
                 document.getElementById('snakeAppearance').value = this.snakeAppearance;
                 document.getElementById('snakeColor').value = this.snakeColor;
                 document.getElementById('musicToggle').value = this.musicEnabled ? 'on' : 'off';
                 document.getElementById('musicVolume').value = this.musicVolume;
                 
-                // Müzik ses seviyesini ayarla
                 this.backgroundMusic = document.getElementById('backgroundMusic');
                 this.backgroundMusic.volume = this.musicVolume / 100;
                 
-                // Performans optimizasyonu
                 this.lastFrameTime = 0;
                 this.frameCount = 0;
                 this.fps = 0;
@@ -331,16 +336,107 @@
                 document.getElementById('buyInvisibilityBtn').addEventListener('click', () => this.buyInvisibility());
                 document.getElementById('buyPremiumColorBtn').addEventListener('click', () => this.buyPremiumColor());
                 
-                // Müzik ve ses elementlerini al
                 this.backgroundMusic = document.getElementById('backgroundMusic');
                 this.eatSound = document.getElementById('eatSound');
                 this.collisionSound = document.getElementById('collisionSound');
                 
-                // Müziği başlat
                 this.backgroundMusic.volume = this.musicVolume / 100;
                 if (this.musicEnabled) {
                     this.backgroundMusic.play().catch(e => console.log("Müzik otomatik oynatma engellendi: ", e));
                 }
+                
+                this.setupChat();
+            }
+            
+            setupSocketIO() {
+                this.socket.on('roomCreated', (data) => {
+                    this.roomCode = data.roomCode;
+                    this.isRoomOwner = true;
+                    this.showRoomUI();
+                    this.updatePlayersList(data.players);
+                });
+                
+                this.socket.on('roomJoined', (data) => {
+                    this.roomCode = data.roomCode;
+                    this.showRoomUI();
+                    this.updatePlayersList(data.players);
+                });
+                
+                this.socket.on('roomNotFound', () => {
+                    alert('Oda bulunamadı!');
+                });
+                
+                this.socket.on('playersUpdate', (players) => {
+                    this.updatePlayersList(players);
+                });
+                
+                this.socket.on('gameStarted', (data) => {
+                    this.food = data.food;
+                    this.initGame();
+                });
+                
+                this.socket.on('playerMoved', (data) => {
+                    this.handlePlayerUpdate(data);
+                });
+                
+                this.socket.on('foodUpdate', (data) => {
+                    this.food = data.food;
+                });
+                
+                this.socket.on('scoreTransfer', (data) => {
+                    if (data.toId === this.playerId && this.myPlayer) {
+                        this.myPlayer.score += data.amount;
+                    }
+                });
+                
+                this.socket.on('chatMessage', (data) => {
+                    this.addChatMessage(data);
+                });
+                
+                this.socket.on('chatHistory', (messages) => {
+                    messages.forEach(msg => this.addChatMessage(msg));
+                });
+                
+                this.socket.on('playerDiedFood', (data) => {
+                    this.food.push(...data.segments);
+                });
+            }
+            
+            setupChat() {
+                document.getElementById('sendChatBtn').addEventListener('click', () => this.sendChat());
+                document.getElementById('chatInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.sendChat();
+                });
+            }
+
+            sendChat() {
+                const input = document.getElementById('chatInput');
+                const message = input.value.trim();
+                if (!message || !this.roomCode) return;
+                
+                this.socket.emit('chatMessage', {
+                    roomCode: this.roomCode,
+                    playerId: this.playerId,
+                    playerName: this.playerName,
+                    message: message
+                });
+                
+                input.value = '';
+            }
+
+            addChatMessage(data) {
+                const container = document.getElementById('chatMessages');
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-message';
+                
+                const time = new Date(data.timestamp).toLocaleTimeString('tr-TR', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                msgDiv.innerHTML = `<span style="color: #999; font-size: 12px;">${time}</span> <strong>${data.playerName}:</strong> ${data.message}`;
+                container.appendChild(msgDiv);
+                container.scrollTop = container.scrollHeight;
             }
             
             toggleMusic(state) {
@@ -388,7 +484,7 @@
                     this.premiumColorEndTime = 0;
                     localStorage.removeItem('premiumColorEndTime');
                     if (this.snakeColor === 'premium') {
-                        this.snakeColor = 'random';
+this.snakeColor = 'random';
                         localStorage.setItem('snakeColor', 'random');
                         document.getElementById('snakeColor').value = 'random';
                     }
@@ -432,37 +528,37 @@
                 });
             }
             
-            async createRoom() {
+            createRoom() {
                 const name = document.getElementById('playerName').value.trim();
-                if (!name) { alert('Lütfen isminizi girin!'); return; }
-                this.playerName = name;
-                this.roomCode = Math.floor(1000 + Math.random() * 9000).toString();
-                this.isRoomOwner = true;
-                const { error } = await supabase.from('game_rooms').insert({ 
-                    room_code: this.roomCode, 
-                    owner_id: this.playerId, 
-                    status: 'waiting', 
-                    players: [{ id: this.playerId, name: name }], 
-                    food: this.generateInitialFood() 
-                });
-                if (error) { 
-                    console.error('HATA DETAYI:', JSON.stringify(error, null, 2)); 
-                    alert('HATA: ' + (error.message || 'Bilinmeyen hata') + '\n\nKod: ' + (error.code || 'yok') + '\n\nDetay: ' + (error.details || 'yok') + '\n\nİpucu: ' + (error.hint || 'yok')); 
+                if (!name) { 
+                    alert('Lütfen isminizi girin!'); 
                     return; 
                 }
-                this.showRoomUI();
-                this.subscribeToRoom();
+                
+                this.playerName = name;
+                
+                this.socket.emit('createRoom', { 
+                    playerId: this.playerId, 
+                    playerName: name 
+                });
             }
             
-            async joinRoom() {
-                const name = document.getElementById('playerName').value.trim(), code = document.getElementById('roomCode').value.trim();
-                if (!name || !code) { alert('İsim ve oda kodu gerekli!'); return; }
-                this.playerName = name; this.roomCode = code;
-                const { data, error } = await supabase.from('game_rooms').select('*').eq('room_code', code).single();
-                if (error || !data) { alert('Oda bulunamadı!'); return; }
-                const updatedPlayers = [...data.players, { id: this.playerId, name: name }];
-                await supabase.from('game_rooms').update({ players: updatedPlayers }).eq('room_code', code);
-                this.showRoomUI(); this.subscribeToRoom();
+            joinRoom() {
+                const name = document.getElementById('playerName').value.trim();
+                const code = document.getElementById('roomCode').value.trim();
+                
+                if (!name || !code) { 
+                    alert('İsim ve oda kodu gerekli!'); 
+                    return; 
+                }
+                
+                this.playerName = name;
+                
+                this.socket.emit('joinRoom', { 
+                    roomCode: code,
+                    playerId: this.playerId, 
+                    playerName: name 
+                });
             }
             
             showRoomUI() {
@@ -520,42 +616,18 @@
                 }
             }
             
-            async subscribeToRoom() {
-                this.channel = supabase.channel('room_' + this.roomCode);
-                this.channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_rooms', filter: `room_code=eq.${this.roomCode}` }, (payload) => this.handleRoomUpdate(payload.new))
-                    .on('broadcast', { event: 'player_update' }, (payload) => this.handlePlayerUpdate(payload.payload))
-                    .on('broadcast', { event: 'game_start' }, () => { if (!this.gameRunning) this.initGame(); })
-                    .on('broadcast', { event: 'score_transfer' }, (payload) => this.handleScoreTransfer(payload.payload))
-                    .subscribe();
-                this.playerListInterval = setInterval(() => this.updatePlayersList(), 3000);
-                this.updatePlayersList();
-            }
-            
-            async updatePlayersList() {
-                const { data } = await supabase.from('game_rooms').select('players').eq('room_code', this.roomCode).single();
-                if (data) document.getElementById('playersListItems').innerHTML = data.players.map(p => `<li>${p.name}</li>`).join('');
-            }
-            
-            handleRoomUpdate(room) { 
-                if (room.status === 'playing' && !this.gameRunning) { 
-                    this.food = room.food; 
-                    this.initGame(); 
-                } 
-            }
-            
-            handleScoreTransfer(data) { 
-                if (data.toId === this.playerId && this.myPlayer) this.myPlayer.score += data.amount; 
+            updatePlayersList(players) {
+                const list = document.getElementById('playersListItems');
+                list.innerHTML = players.map(p => `<li>${p.name}</li>`).join('');
             }
             
             handlePlayerUpdate(data) { 
                 if (data.id === this.playerId) return;
                 
-                // YENİ: Tahmin sistemi - gelen veriyi hemen uygula
                 const now = Date.now();
                 const player = this.players.get(data.id);
                 
                 if (player) {
-                    // Mevcut oyuncu için tahmin verilerini güncelle
                     player.x = data.x;
                     player.y = data.y;
                     player.angle = data.angle;
@@ -565,15 +637,12 @@
                     player.appearance = data.appearance;
                     player.targetLength = data.targetLength;
                     
-                    // Segmentleri güncelle (ilk 100 segment)
                     if (data.segments && data.segments.length > 0) {
                         player.segments = data.segments;
                     }
                     
-                    // Son güncelleme zamanını kaydet
                     player.lastUpdate = now;
                 } else {
-                    // Yeni oyuncu
                     this.players.set(data.id, {
                         ...data,
                         lastUpdate: now
@@ -581,18 +650,20 @@
                 }
             }
             
-            async startGame() {
-                await supabase.from('game_rooms').update({ status: 'playing' }).eq('room_code', this.roomCode);
-                this.channel.send({ type: 'broadcast', event: 'game_start' });
-                this.initGame();
+            startGame() {
+                if (!this.isRoomOwner) return;
+                
+                this.socket.emit('startGame', { 
+                    roomCode: this.roomCode 
+                });
             }
             
-            async initGame() {
+            initGame() {
                 if (this.gameRunning) return;
+                
                 document.getElementById('menuScreen').classList.add('hidden');
                 document.getElementById('gameScreen').classList.remove('hidden');
-                const { data } = await supabase.from('game_rooms').select('food').eq('room_code', this.roomCode).single();
-                if (data) this.food = data.food;
+                
                 this.gameRunning = true;
                 this.createMySnake();
                 this.startUpdateLoop();
@@ -655,10 +726,9 @@
             }
             
             startUpdateLoop() { 
-                // YENİ: Daha hızlı güncelleme
                 this.updateInterval = setInterval(() => { 
                     if (this.myPlayer) this.broadcastMyState(); 
-                }, 16); // 60 FPS
+                }, 16);
             }
             
             broadcastMyState() { 
@@ -666,7 +736,9 @@
                 if (now - this.lastBroadcastTime < this.broadcastInterval) return;
                 
                 this.lastBroadcastTime = now;
-                this.channel.send({ type: 'broadcast', event: 'player_update', payload: { 
+                
+                this.socket.emit('playerMove', { 
+                    roomCode: this.roomCode,
                     id: this.playerId, 
                     name: this.playerName, 
                     x: this.myPlayer.x, 
@@ -679,7 +751,7 @@
                     appearance: this.myPlayer.appearance,
                     invisibility: this.invisibilityActive,
                     targetLength: this.myPlayer.targetLength
-                } }); 
+                }); 
             }
             
             updateMySnake() {
@@ -708,7 +780,7 @@
                 this.myPlayer.segments.unshift({ x: this.myPlayer.x, y: this.myPlayer.y });
                 
                 if (this.myPlayer.segments.length < this.myPlayer.targetLength) {
-                    // Yeterli segment yoksa, kuyruktan segment çıkarma
+                    // Segment ekleniyor
                 } else {
                     while (this.myPlayer.segments.length > this.myPlayer.targetLength) {
                         this.myPlayer.segments.pop();
@@ -720,22 +792,18 @@
                 this.updateAbilityCooldowns();
             }
             
-            // YENİ: Diğer oyuncuları tahmin et
             predictOtherPlayers() {
                 const now = Date.now();
                 for (const [id, player] of this.players) {
                     if (id === this.playerId) continue;
                     
-                    // Son güncellemeden bu yana geçen süre
                     const timeSinceUpdate = now - (player.lastUpdate || now);
                     
-                    // Eğer veri güncel değilse, tahmin et
                     if (timeSinceUpdate > 50 && player.alive) {
-                        const predictSpeed = 4; // Varsayılan hız
+                        const predictSpeed = 4;
                         player.x += Math.cos(player.angle) * predictSpeed * (timeSinceUpdate / 1000);
                         player.y += Math.sin(player.angle) * predictSpeed * (timeSinceUpdate / 1000);
                         
-                        // Segmentleri de güncelle
                         if (player.segments && player.segments.length > 0) {
                             player.segments.unshift({ x: player.x, y: player.y });
                             if (player.segments.length > player.targetLength) {
@@ -818,7 +886,7 @@
                 }
             }
             
-            async checkFoodCollision() {
+            checkFoodCollision() {
                 for (let i = this.food.length - 1; i >= 0; i--) {
                     const f = this.food[i], dx = this.myPlayer.x - f.x, dy = this.myPlayer.y - f.y;
                     if (dx * dx + dy * dy < 400) {
@@ -834,8 +902,15 @@
                         this.eatSound.currentTime = 0;
                         this.eatSound.play().catch(e => console.log("Ses oynatma hatası: ", e));
                         
-                        this.food.push({ x: Math.random() * WORLD_SIZE, y: Math.random() * WORLD_SIZE, color: `hsl(${Math.random() * 360}, 80%, 60%)` });
-                        await supabase.from('game_rooms').update({ food: this.food }).eq('room_code', this.roomCode);
+                        const newFood = { x: Math.random() * WORLD_SIZE, y: Math.random() * WORLD_SIZE, color: `hsl(${Math.random() * 360}, 80%, 60%)` };
+                        this.food.push(newFood);
+                        
+                        this.socket.emit('foodEaten', { 
+                            roomCode: this.roomCode, 
+                            foodIndex: i,
+                            newFood: newFood
+                        });
+                        
                         if (this.myPlayer.score >= MAX_SCORE) this.gameWon();
                     }
                 }
@@ -857,7 +932,12 @@
                             
                             this.playerDie();
                             const bonus = Math.floor(this.myPlayer.score / 2);
-                            this.channel.send({ type: 'broadcast', event: 'score_transfer', payload: { fromId: this.playerId, toId: id, amount: bonus } });
+                            this.socket.emit('scoreTransfer', { 
+                                roomCode: this.roomCode,
+                                fromId: this.playerId, 
+                                toId: id, 
+                                amount: bonus 
+                            });
                             return;
                         }
                     }
@@ -878,7 +958,18 @@
                 this.myPlayer.alive = false;
                 this.broadcastMyState();
                 
-                for (const seg of this.myPlayer.segments) this.food.push({ x: seg.x, y: seg.y, color: this.myPlayer.color });
+                const segments = this.myPlayer.segments.map(seg => ({
+                    x: seg.x,
+                    y: seg.y,
+                    color: this.myPlayer.color
+                }));
+                
+                this.socket.emit('playerDied', {
+                    roomCode: this.roomCode,
+                    playerId: this.playerId,
+                    segments: segments
+                });
+                
                 document.getElementById('finalScore').textContent = this.myPlayer.score;
                 document.getElementById('finalLength').textContent = this.myPlayer.targetLength;
                 document.getElementById('deathScreen').classList.remove('hidden');
@@ -892,15 +983,19 @@
                 document.getElementById('winScreen').classList.remove('hidden'); 
             }
             
-            async respawn() { 
+            respawn() { 
                 document.getElementById('deathScreen').classList.add('hidden'); 
                 this.createMySnake(); 
             }
             
-            async leaveRoom() {
+            leaveRoom() {
                 if (this.updateInterval) clearInterval(this.updateInterval);
-                if (this.playerListInterval) clearInterval(this.playerListInterval);
-                if (this.channel) await this.channel.unsubscribe();
+                
+                this.socket.emit('leaveRoom', { 
+                    roomCode: this.roomCode, 
+                    playerId: this.playerId 
+                });
+                
                 this.exitGame();
             }
             
@@ -1068,7 +1163,6 @@
             }
             
             render() {
-                // YENİ: FPS hesaplama
                 const now = performance.now();
                 this.frameCount++;
                 if (now - this.lastFrameTime >= 1000) {
@@ -1098,8 +1192,7 @@
                 
                 for (const p of this.players.values()) {
                     if (!p.alive || !p.segments || (p.invisibility && p.id !== this.playerId)) continue;
-                    
-                    let segmentColor = p.color;
+let segmentColor = p.color;
                     if (p.color === 'premium') {
                         const time = Date.now() / 1000;
                         const r = Math.floor(Math.sin(time) * 127 + 128);
@@ -1124,7 +1217,6 @@
                 
                 this.ctx.restore();
                 
-                // YENİ: FPS göstergesi (geliştirme için)
                 this.ctx.fillStyle = 'white';
                 this.ctx.font = '12px Arial';
                 this.ctx.fillText(`FPS: ${this.fps}`, 10, 20);
@@ -1142,7 +1234,6 @@
             gameLoop() {
                 if (!this.gameRunning) return;
                 
-                // YENİ: Tahmin sistemi
                 this.predictOtherPlayers();
                 
                 this.updateMySnake(); 
@@ -1153,24 +1244,7 @@
             }
         }
         
-// Oyunu başlat
         new Game();
     </script>
-
-    <!-- 🔽 Multiplayer kodunu buraya ekle -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-      const socket = io();
-
-      function updatePlayerPosition(x, y) {
-        socket.emit("move", { x, y });
-      }
-
-      socket.on("playerMoved", (data) => {});
-      socket.on("newPlayer", (data) => {});
-      socket.on("playerDisconnected", (id) => {});
-    </script>
-    <!-- 🔼 Buraya kadar -->
-
 </body>
-</html>
+</html>                                        
