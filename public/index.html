@@ -1246,5 +1246,69 @@ let segmentColor = p.color;
         
         new Game();
     </script>
+    
+<div id="debugInfo" style="position: fixed; bottom: 0; left: 0; right: 0; background: black; color: lime; padding: 15px; font-size: 12px; z-index: 9999; max-height: 200px; overflow-y: auto; font-family: monospace;">
+    <strong>🔍 DEBUG EKRANI</strong><br>
+    <span id="debugLog">Kontrol ediliyor...</span>
+</div>
+
+<script>
+const debugLog = document.getElementById('debugLog');
+
+function log(msg) {
+    debugLog.innerHTML += '<br>' + msg;
+}
+
+setTimeout(() => {
+    log('1️⃣ Script başladı');
+    
+    if (typeof io === 'undefined') {
+        log('❌ HATA: Socket.IO yüklenmedi!');
+        log('➡️ /socket.io/socket.io.js dosyası bulunamadı');
+        log('➡️ Server çalışmıyor olabilir');
+    } else {
+        log('✅ Socket.IO yüklendi');
+        
+        try {
+            const testSocket = io();
+            log('2️⃣ Bağlantı deneniyor...');
+            
+            testSocket.on('connect', () => {
+                log('✅ BAĞLANTI BAŞARILI!');
+                log('Socket ID: ' + testSocket.id);
+                
+                // Oda oluşturma testi
+                testSocket.emit('createRoom', {
+                    playerId: 'test123',
+                    playerName: 'TestUser'
+                });
+                log('3️⃣ createRoom emit edildi');
+            });
+            
+            testSocket.on('roomCreated', (data) => {
+                log('✅ Oda oluşturuldu! Kod: ' + data.roomCode);
+            });
+            
+            testSocket.on('connect_error', (error) => {
+                log('❌ Bağlantı hatası: ' + error.message);
+            });
+            
+            testSocket.on('disconnect', (reason) => {
+                log('⚠️ Bağlantı kesildi: ' + reason);
+            });
+            
+            // 10 saniye sonra sonuç
+            setTimeout(() => {
+                log('--- 10 SANİYE GEÇTİ ---');
+                log('Eğer yukarıda "roomCreated" yoksa:');
+                log('➡️ Server createRoom event\'ini dinlemiyor');
+            }, 10000);
+            
+        } catch (e) {
+            log('❌ Hata oluştu: ' + e.message);
+        }
+    }
+}, 1000);
+</script>
 </body>
 </html>                                        
