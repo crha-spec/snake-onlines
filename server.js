@@ -23,6 +23,7 @@ const PORT = process.env.PORT || 3000;
 // Oyun verileri
 const rooms = new Map();
 const chatHistory = new Map();
+const roomTimeouts = new Map(); // Oda zaman aşımı için EKLENDİ
 
 // Yemek oluştur fonksiyonu
 function generateFood() {
@@ -41,14 +42,62 @@ function generateFood() {
     return food;
 }
 
+// Benzersiz 7 haneli oda kodu oluştur EKLENDİ
+function generateRoomCode() {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    
+    let attempts = 0;
+    const maxAttempts = 100;
+    
+    do {
+        result = '';
+        for (let i = 0; i < 7; i++) {
+            result += characters.charAt(Math.floor(Math.random() * characters.length));
+        }
+        attempts++;
+        
+        if (attempts >= maxAttempts) {
+            result = 'RM' + Date.now().toString().slice(-5);
+            break;
+        }
+    } while (rooms.has(result));
+    
+    return result;
+}
+
+// Oda zaman aşımını başlat EKLENDİ
+function startRoomTimeout(roomCode) {
+    // Önceki zamanlayıcıyı temizle
+    if (roomTimeouts.has(roomCode)) {
+        clearTimeout(roomTimeouts.get(roomCode));
+    }
+    
+    const timeout = setTimeout(() => {
+        console.log(`⏰ Oda süresi doldu: ${roomCode}`);
+        
+        // Tüm oyunculara bildir
+        io.to(roomCode).emit('roomExpired');
+        
+        // Verileri temizle
+        rooms.delete(roomCode);
+        chatHistory.delete(roomCode);
+        roomTimeouts.delete(roomCode);
+        
+        console.log(`🗑️ Oda silindi: ${roomCode}`);
+    }, 3600000); // 1 saat
+    
+    roomTimeouts.set(roomCode, timeout);
+}
+
 io.on('connection', socket => {
     console.log('✅ Oyuncu bağlandı:', socket.id);
     
-    // Oda oluştur
+    // Oda oluştur - GÜNCELLENDİ
     socket.on('createRoom', (data) => {
         console.log('🎮 Oda oluşturma isteği:', data);
         
-        const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+        const roomCode = generateRoomCode(); // GÜNCELLENDİ
         const players = [{ id: data.playerId, name: data.playerName }];
         
         rooms.set(roomCode, {
@@ -60,6 +109,9 @@ io.on('connection', socket => {
         
         chatHistory.set(roomCode, []);
         
+        // Oda zaman aşımını başlat - EKLENDİ
+        startRoomTimeout(roomCode);
+        
         socket.join(roomCode);
         
         socket.emit('roomCreated', {
@@ -70,7 +122,7 @@ io.on('connection', socket => {
         console.log('✅ Oda oluşturuldu:', roomCode);
     });
     
-    // Odaya katıl
+    // Odaya katıl - GÜNCELLENDİ
     socket.on('joinRoom', (data) => {
         console.log('🚪 Odaya katılma isteği:', data);
         
@@ -82,7 +134,16 @@ io.on('connection', socket => {
             return;
         }
         
+        // Oda kodu validasyonu - EKLENDİ
+        if (data.roomCode.length !== 7) {
+            socket.emit('roomError', { error: 'Oda kodu 7 haneli olmalıdır!' });
+            return;
+        }
+        
         room.players.push({ id: data.playerId, name: data.playerName });
+        
+        // Zaman aşımını sıfırla - EKLENDİ
+        startRoomTimeout(data.roomCode);
         
         socket.join(data.roomCode);
         
@@ -165,7 +226,31 @@ io.on('connection', socket => {
         console.log('💬 Chat:', data.playerName, '→', data.message);
     });
     
-    // Odadan çık
+    // Oda zaman aşımı ayarı - EKLENDİ
+    socket.on('setRoomTimeout', (data) => {
+        startRoomTimeout(data.roomCode);
+    });
+    
+    // Chat temizleme - EKLENDİ
+    socket.on('clearChat', (data) => {
+        if (chatHistory.has(data.roomCode)) {
+            chatHistory.set(data.roomCode, []);
+            io.to(data.roomCode).emit('chatCleared');
+        }
+    });
+    
+    // Mesaj silme - EKLENDİ
+    socket.on('deleteMessage', (data) => {
+        const history = chatHistory.get(data.roomCode);
+        if (history) {
+            // Bu özellik için daha gelişmiş bir implementasyon gerekebilir
+            io.to(data.roomCode).emit('messageDeleted', { 
+                messageId: data.messageId 
+            });
+        }
+    });
+    
+    // Odadan çık - GÜNCELLENDİ
     socket.on('leaveRoom', (data) => {
         socket.leave(data.roomCode);
         
@@ -174,6 +259,11 @@ io.on('connection', socket => {
             room.players = room.players.filter(p => p.id !== data.playerId);
             
             if (room.players.length === 0) {
+                // Son oyuncu çıktığında zamanlayıcıyı temizle
+                if (roomTimeouts.has(data.roomCode)) {
+                    clearTimeout(roomTimeouts.get(data.roomCode));
+                    roomTimeouts.delete(data.roomCode);
+                }
                 rooms.delete(data.roomCode);
                 chatHistory.delete(data.roomCode);
                 console.log('🗑️ Oda silindi:', data.roomCode);
@@ -185,7 +275,7 @@ io.on('connection', socket => {
         console.log('👋 Oyuncu çıktı:', data.playerId);
     });
     
-    // Bağlantı kesildi
+    // Bağlantı kesildi - GÜNCELLENDİ
     socket.on('disconnect', () => {
         console.log('❌ Oyuncu ayrıldı:', socket.id);
         
@@ -196,6 +286,11 @@ io.on('connection', socket => {
                 room.players.splice(playerIndex, 1);
                 
                 if (room.players.length === 0) {
+                    // Son oyuncu çıktığında zamanlayıcıyı temizle
+                    if (roomTimeouts.has(roomCode)) {
+                        clearTimeout(roomTimeouts.get(roomCode));
+                        roomTimeouts.delete(roomCode);
+                    }
                     rooms.delete(roomCode);
                     chatHistory.delete(roomCode);
                 } else {
