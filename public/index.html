@@ -3,1869 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake.IO - Online Multiplayer</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); overflow: hidden; width: 100vw; height: 100vh; touch-action: none; }
-        .hidden { display: none !important; }
-        #menuScreen { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; }
-        .menu-container { background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 40px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); max-width: 500px; width: 90%; }
-        .game-title { font-size: 3em; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 30px; }
-        .menu-content { display: flex; flex-direction: column; gap: 20px; }
-        input[type="text"] { padding: 15px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px; }
-        input[type="text"]:focus { outline: none; border-color: #667eea; }
-        .btn { padding: 15px 30px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }
-        .btn:hover { transform: translateY(-2px); }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn-secondary { background: #6c757d; color: white; }
-        .btn-success { background: #28a745; color: white; }
-        .btn-danger { background: #dc3545; color: white; }
-        .divider { text-align: center; color: #999; margin: 10px 0; }
-        .join-room { display: flex; gap: 10px; }
-        .join-room input { flex: 1; }
-        .room-timer {
-            margin-top: 10px;
-            padding: 8px 12px;
-            background: rgba(255, 193, 7, 0.2);
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: bold;
-            color: #ff9800;
-            border: 1px solid rgba(255, 193, 7, 0.3);
-        }
-        .room-timer span {
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
-        }
-        .room-info { background: #f8f9fa; padding: 20px; border-radius: 10px; }
-        .room-code-display { text-align: center; margin-bottom: 20px; }
-        .room-code { font-size: 2em; font-weight: bold; color: #667eea; letter-spacing: 5px; }
-        .players-list h3 { margin-bottom: 10px; color: #333; }
-        .players-list ul { list-style: none; background: white; padding: 10px; border-radius: 5px; }
-        .players-list li { padding: 8px; border-bottom: 1px solid #eee; }
-        .chat-container { margin: 15px 0; background: white; border-radius: 10px; padding: 10px; }
-        .chat-messages { height: 150px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 10px; margin-bottom: 10px; background: #f9f9f9; }
-        .chat-message { margin: 5px 0; font-size: 14px; line-height: 1.4; }
-        .chat-input { display: flex; gap: 10px; }
-        .chat-input input { flex: 1; padding: 10px; }
-        .chat-input button { padding: 10px 20px; }
-        .room-actions { display: flex; gap: 10px; margin-top: 15px; }
-        .room-actions button { flex: 1; }
-        #gameCanvas { display: block; background: #1a1a2e; }
-        #gameUI { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        #gameUI > * { pointer-events: auto; }
-        .top-ui { 
-            position: absolute; 
-            top: 20px; 
-            left: 20px; 
-            right: 20px; 
-            display: flex; 
-            justify-content: space-between; 
-            gap: 20px; 
-            align-items: flex-start;
-            flex-wrap: wrap;
-        }
-        .top-ui-left {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            min-width: 200px;
-        }
-        .score-display { 
-            background: rgba(0, 0, 0, 0.7); 
-            color: white; 
-            padding: 15px 25px; 
-            border-radius: 10px; 
-            font-size: 18px; 
-            font-weight: bold; 
-            min-width: 200px;
-        }
-        .leaderboard { 
-            background: rgba(0, 0, 0, 0.7); 
-            color: white; 
-            padding: 15px; 
-            border-radius: 10px; 
-            min-width: 200px;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .leaderboard h3 { margin-bottom: 10px; }
-        .leaderboard ol { list-style: none; padding: 0; font-size: 14px; }
-        .leaderboard li { padding: 5px 0; display: flex; justify-content: space-between; }
-        
-        /* JOYSTICK DÜZENLEMESİ */
-        .joystick { 
-            position: absolute; 
-            bottom: 30px; 
-            left: 30px; 
-            width: 150px; 
-            height: 150px; 
-            z-index: 100;
-        }
-        .joystick-outer { width: 100%; height: 100%; background: rgba(255, 255, 255, 0.2); border-radius: 50%; position: relative; border: 3px solid rgba(255, 255, 255, 0.5); }
-        .joystick-inner { width: 60px; height: 60px; background: rgba(255, 255, 255, 0.8); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: all 0.1s; }
-        
-        /* ENEMY TRACKER DÜZENLEMESİ */
-        .enemy-tracker {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 15px;
-            min-width: 150px;
-            border: 2px solid rgba(255, 59, 59, 0.5);
-            backdrop-filter: blur(10px);
-            z-index: 50;
-        }
-
-        .enemy-tracker h3 {
-            margin-bottom: 15px;
-            text-align: center;
-            color: #ff3b3b;
-            font-size: 14px;
-        }
-
-        .tracker-display {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .tracker-circle {
-            position: relative;
-            width: 100px;
-            height: 100px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            background: 
-                radial-gradient(circle at center, transparent 40%, rgba(0, 255, 0, 0.1) 100%),
-                linear-gradient(0deg, transparent 49%, rgba(255, 255, 255, 0.1) 50%, transparent 51%),
-                linear-gradient(90deg, transparent 49%, rgba(255, 255, 255, 0.1) 50%, transparent 51%);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .tracker-circle::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(45deg, transparent 40%, rgba(0, 255, 0, 0.3) 50%, transparent 60%);
-            animation: radar-sweep 4s linear infinite;
-            border-radius: 50%;
-        }
-
-        @keyframes radar-sweep {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .tracker-center {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 8px;
-            height: 8px;
-            background: #00ff00;
-            border-radius: 50%;
-            border: 2px solid white;
-            z-index: 2;
-        }
-
-        .tracker-dot {
-            position: absolute;
-            width: 12px;
-            height: 12px;
-            background: #ff3b3b;
-            border-radius: 50%;
-            border: 2px solid white;
-            transform: translate(-50%, -50%);
-            transition: all 0.3s ease;
-            box-shadow: 0 0 10px rgba(255, 59, 59, 0.7);
-            z-index: 3;
-            display: none;
-        }
-
-        .tracker-info {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .tracker-distance {
-            font-size: 16px;
-            font-weight: bold;
-            color: #fff;
-        }
-
-        .tracker-direction {
-            font-size: 12px;
-            color: #ccc;
-            background: rgba(255, 59, 59, 0.3);
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-
-        .tracker-dot.danger {
-            animation: pulse 1s infinite;
-            background: #ff0000;
-            box-shadow: 0 0 15px rgba(255, 0, 0, 0.9);
-        }
-
-        @keyframes pulse {
-            0% { transform: translate(-50%, -50%) scale(1); }
-            50% { transform: translate(-50%, -50%) scale(1.3); }
-            100% { transform: translate(-50%, -50%) scale(1); }
-        }
-
-        .tracker-circle::after {
-            content: 'N';
-            position: absolute;
-            top: 5px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 10px;
-            font-weight: bold;
-            z-index: 1;
-        }
-        
-        .bottom-ui { 
-            position: absolute; 
-            bottom: 30px; 
-            right: 30px; 
-            display: flex; 
-            gap: 15px; 
-            z-index: 90;
-        }
-        .ability-btn { background: rgba(0, 0, 0, 0.7); color: white; border: none; border-radius: 10px; padding: 15px; font-size: 14px; font-weight: bold; cursor: pointer; min-width: 120px; transition: all 0.3s; }
-        .ability-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .ability-btn.active { background: rgba(76, 175, 80, 0.7); }
-        
-        /* AYARLAR BUTONU */
-        .settings-btn { 
-            position: absolute; 
-            top: 20px; 
-            right: 20px; 
-            background: rgba(0, 0, 0, 0.7); 
-            color: white; 
-            border: none; 
-            border-radius: 50%; 
-            width: 50px; 
-            height: 50px; 
-            font-size: 20px; 
-            cursor: pointer; 
-            z-index: 100;
-        }
-        .settings-menu { 
-            position: absolute; 
-            top: 80px; 
-            right: 20px; 
-            background: rgba(0, 0, 0, 0.9); 
-            color: white; 
-            border-radius: 10px; 
-            padding: 20px; 
-            min-width: 200px; 
-            z-index: 1000; 
-        }
-        .settings-menu h3 { margin-bottom: 15px; text-align: center; }
-        .settings-option { margin-bottom: 15px; }
-        .settings-option label { display: block; margin-bottom: 5px; }
-        .settings-option select { width: 100%; padding: 8px; border-radius: 5px; background: #333; color: white; border: 1px solid #555; }
-        .total-points { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 20px; border-radius: 10px; font-size: 16px; font-weight: bold; }
-        .shop-menu { background: rgba(0, 0, 0, 0.9); color: white; border-radius: 10px; padding: 20px; max-width: 400px; margin: 0 auto; }
-        .shop-item { background: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
-        .shop-item-info h4 { margin-bottom: 5px; }
-        .shop-item-info p { font-size: 14px; opacity: 0.8; }
-        .shop-item button { background: #28a745; color: white; border: none; border-radius: 5px; padding: 8px 15px; cursor: pointer; }
-        .shop-item button:disabled { background: #6c757d; cursor: not-allowed; }
-        .premium-color { background: linear-gradient(90deg, #ff0000, #ff8000, #ffff00, #80ff00, #00ff00, #00ff80, #00ffff, #0080ff, #0000ff, #8000ff, #ff00ff, #ff0080) !important; }
-        .collision-effect { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, rgba(255,0,0,0.5) 0%, transparent 70%); animation: collisionFlash 0.5s; pointer-events: none; }
-        @keyframes collisionFlash {
-            0% { opacity: 1; }
-            100% { opacity: 0; }
-        }
-        .length-display { background: rgba(0, 0, 0, 0.7); color: white; padding: 10px 15px; border-radius: 10px; font-size: 14px; font-weight: bold; margin-top: 10px; }
-        
-        /* ÖLÜM EKRANI */
-        .death-screen { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(0, 0, 0, 0.8); 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            z-index: 2000;
-        }
-        .death-container { 
-            background: white; 
-            padding: 40px; 
-            border-radius: 20px; 
-            text-align: center; 
-            min-width: 300px;
-        }
-        .win-container { 
-            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); 
-            padding: 40px;
-            border-radius: 20px;
-            text-align: center;
-            min-width: 300px;
-        }
-        .death-container h2 { font-size: 2.5em; margin-bottom: 20px; color: #dc3545; }
-        .win-container h2 { font-size: 3em; color: #333; }
-        .death-stats { margin: 30px 0; font-size: 1.2em; }
-        .death-stats span { color: #667eea; font-weight: bold; }
-        .death-actions { display: flex; gap: 15px; justify-content: center; }
-    </style>
+    <title>InstaChat - Anlık Mesajlaşma</title>
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div id="menuScreen">
-        <div class="menu-container">
-            <h1 class="game-title">🐍 SNAKE.IO</h1>
-            <div class="menu-content">
-                <input type="text" id="playerName" placeholder="İsminizi girin" maxlength="15">
-                <div id="roomOptions">
-                    <button class="btn btn-primary" id="createRoomBtn">Oda Oluştur</button>
-                    <div class="divider">VEYA</div>
-                    <div class="join-room">
-                        <input type="text" id="roomCode" placeholder="Oda Kodu" maxlength="7">
-                        <button class="btn btn-secondary" id="joinRoomBtn">Katıl</button>
+    <!-- Giriş/Kayıt Ekranı -->
+    <div id="authScreen" class="screen active">
+        <div class="auth-container">
+            <div class="logo">
+                <svg width="50" height="50" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2Z" fill="currentColor"/>
+                    <path d="M19 7H5C3.9 7 3 7.9 3 9V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V9C21 7.9 20.1 7 19 7Z" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <h1>InstaChat</h1>
+            </div>
+            <div class="auth-form">
+                <h2>Gmail ile Giriş Yap</h2>
+                <form id="loginForm">
+                    <div class="input-group">
+                        <input type="email" id="loginEmail" placeholder="Gmail adresiniz" required>
                     </div>
-                    <button class="btn btn-success" id="shopBtn">Mağaza</button>
-                </div>
-                <div id="roomInfo" class="room-info hidden">
-                    <div class="room-code-display">
-                        <span>Oda Kodu: </span>
-                        <span id="displayRoomCode" class="room-code">----</span>
+                    <div class="input-group">
+                        <input type="password" id="loginPassword" placeholder="Şifreniz" required minlength="8">
                     </div>
-                    <div class="players-list">
-                        <h3>Oyuncular:</h3>
-                        <ul id="playersListItems"></ul>
+                    <button type="submit" class="btn btn-primary">Giriş Yap</button>
+                </form>
+                <div class="divider">VEYA</div>
+                <form id="registerForm">
+                    <div class="input-group">
+                        <input type="email" id="registerEmail" placeholder="Gmail adresiniz" required>
                     </div>
-                    <div class="chat-container">
-                        <div class="chat-messages" id="chatMessages"></div>
-                        <div class="chat-input">
-                            <input type="text" id="chatInput" placeholder="Mesaj yaz..." maxlength="100">
-                            <button class="btn btn-primary" id="sendChatBtn">Gönder</button>
-                        </div>
+                    <div class="input-group">
+                        <input type="password" id="registerPassword" placeholder="Şifreniz (min 8 karakter)" required minlength="8">
                     </div>
-                    <div class="room-actions">
-                        <button class="btn btn-success" id="startGameBtn">Maçı Başlat</button>
-                        <button class="btn btn-danger" id="leaveRoomBtn">Odadan Çık</button>
-                    </div>
-                </div>
-                <div id="shopMenu" class="shop-menu hidden">
-                    <h3>🏪 Mağaza</h3>
-                    <div class="shop-item">
-                        <div class="shop-item-info">
-                            <h4>Görünmezlik</h4>
-                            <p>5 saniye boyunca görünmez olursunuz. 120 saniye bekleme süresi.</p>
-                        </div>
-                        <button id="buyInvisibilityBtn" disabled>100.000 Puan</button>
-                    </div>
-                    <div class="shop-item">
-                        <div class="shop-item-info">
-                            <h4>Premium Renk</h4>
-                            <p>5 dakika boyunca özel RGB renk efekti.</p>
-                        </div>
-                        <button id="buyPremiumColorBtn">Reklam İzle</button>
-                    </div>
-                    <button class="btn btn-secondary" id="closeShopBtn">Kapat</button>
+                    <button type="submit" class="btn btn-secondary">Kayıt Ol</button>
+                </form>
+                <div class="auth-footer">
+                    <p>Devam ederek <a href="#">Hizmet Şartları</a> ve <a href="#">Gizlilik Politikası</a>'nı kabul etmiş olursunuz.</p>
                 </div>
             </div>
         </div>
     </div>
-    <div id="gameScreen" class="hidden">
-        <canvas id="gameCanvas"></canvas>
-        <div id="gameUI">
-            <div class="total-points">Toplam Puan: <span id="totalPointsValue">0</span></div>
-            <div class="top-ui">
-                <div class="top-ui-left">
-                    <div class="score-display">
-                        Puan: <span id="scoreValue">0</span>/100000
-                        <div class="length-display">Uzunluk: <span id="lengthValue">10</span></div>
-                    </div>
-                    <div class="leaderboard">
-                        <h3>🏆 Sıralama</h3>
-                        <ol id="leaderboardList"></ol>
-                    </div>
+
+    <!-- Ana Uygulama Ekranı -->
+    <div id="appScreen" class="screen">
+        <!-- Üst Navigasyon -->
+        <nav class="top-nav">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2Z"/>
+                        <path d="M19 7H5C3.9 7 3 7.9 3 9V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V9C21 7.9 20.1 7 19 7Z" stroke="currentColor" stroke-width="2"/>
+                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>InstaChat</span>
                 </div>
-                <div class="enemy-tracker">
-                    <h3>🚨 Düşman Takip</h3>
-                    <div class="tracker-display">
-                        <div class="tracker-circle">
-                            <div class="tracker-center"></div>
-                            <div class="tracker-dot" id="enemyDot"></div>
+                <div class="nav-search">
+                    <input type="text" placeholder="Ara...">
+                </div>
+                <div class="nav-icons">
+                    <button class="icon-btn" id="homeBtn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" id="chatBtn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+                        </svg>
+                    </button>
+                    <button class="icon-btn" id="profileBtn">
+                        <div class="avatar small">
+                            <img id="navAvatar" src="" alt="Profil">
                         </div>
-                        <div class="tracker-info">
-                            <div class="tracker-distance" id="enemyDistance">-- m</div>
-                            <div class="tracker-direction" id="enemyDirection">--</div>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Ana İçerik -->
+        <main class="main-content">
+            <!-- Mesajlaşma Bölümü -->
+            <div id="chatSection" class="content-section active">
+                <div class="chat-container">
+                    <!-- Sohbet Listesi -->
+                    <div class="chat-list">
+                        <div class="chat-header">
+                            <h2>Mesajlar</h2>
+                            <button class="icon-btn" id="newChatBtn">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="chat-search">
+                            <input type="text" placeholder="Mesajlarda ara...">
+                        </div>
+                        <div class="chat-items" id="chatItems">
+                            <!-- Sohbet öğeleri buraya dinamik olarak eklenecek -->
+                        </div>
+                    </div>
+
+                    <!-- Aktif Sohbet -->
+                    <div class="active-chat">
+                        <div class="chat-header">
+                            <div class="chat-user">
+                                <div class="avatar">
+                                    <img id="activeChatAvatar" src="" alt="Kullanıcı">
+                                </div>
+                                <div class="user-info">
+                                    <h3 id="activeChatName">Sohbet Seçin</h3>
+                                    <span id="activeChatStatus">Çevrimiçi</span>
+                                </div>
+                            </div>
+                            <div class="chat-actions">
+                                <button class="icon-btn">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                                    </svg>
+                                </button>
+                                <button class="icon-btn">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chat-messages" id="chatMessages">
+                            <!-- Mesajlar buraya dinamik olarak eklenecek -->
+                            <div class="no-chat-selected">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+                                </svg>
+                                <p>Bir sohbet seçin veya yeni bir mesaj başlatın</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-container">
+                            <div class="chat-input">
+                                <button class="icon-btn">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+                                    </svg>
+                                </button>
+                                <input type="text" id="messageInput" placeholder="Mesaj yazın..." disabled>
+                                <button class="icon-btn" id="sendMessageBtn" disabled>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <button class="settings-btn" id="settingsBtn">⚙️</button>
-            <div id="settingsMenu" class="settings-menu hidden">
-                <h3>Ayarlar</h3>
-                <div class="settings-option">
-                    <label for="musicToggle">Müzik</label>
-                    <select id="musicToggle">
-                        <option value="on">Açık</option>
-                        <option value="off">Kapalı</option>
-                    </select>
-                </div>
-                <div class="settings-option">
-                    <label for="musicVolume">Müzik Ses Seviyesi</label>
-                    <input type="range" id="musicVolume" min="0" max="100" value="50">
-                </div>
-                <div class="settings-option">
-                    <label for="snakeAppearance">Yılan Görünümü</label>
-                    <select id="snakeAppearance">
-                        <option value="original">Orijinal</option>
-                        <option value="triangle">Üçgen</option>
-                        <option value="spiked">Tırtıklı</option>
-                    </select>
-                </div>
-                <div class="settings-option">
-                    <label for="snakeColor">Yılan Rengi</label>
-                    <select id="snakeColor">
-                        <option value="random">Rastgele</option>
-                        <option value="red">Kırmızı</option>
-                        <option value="blue">Mavi</option>
-                        <option value="green">Yeşil</option>
-                        <option value="yellow">Sarı</option>
-                        <option value="purple">Mor</option>
-                        <option value="premium">Premium (Reklam Gerekli)</option>
-                    </select>
-                </div>
-            </div>
-            <div id="joystick" class="joystick">
-                <div class="joystick-outer"><div class="joystick-inner"></div></div>
-            </div>
-            <div class="bottom-ui">
-                <button class="ability-btn" id="boostBtn" disabled>Boost (60s)</button>
-                <button class="ability-btn" id="invisibilityBtn" disabled>Görünmezlik (120s)</button>
-            </div>
-        </div>
-        <div id="deathScreen" class="death-screen hidden">
-            <div class="death-container">
-                <h2>💀 Öldünüz!</h2>
-                <div class="death-stats">
-                    <p>Puan: <span id="finalScore">0</span></p>
-                    <p>Uzunluk: <span id="finalLength">10</span></p>
-                </div>
-                <div class="death-actions">
-                    <button class="btn btn-primary" id="respawnBtn">Yeniden Doğ</button>
-                    <button class="btn btn-secondary" id="exitGameBtn">Çıkış</button>
+
+            <!-- Profil Bölümü -->
+            <div id="profileSection" class="content-section">
+                <div class="profile-container">
+                    <div class="profile-header">
+                        <div class="profile-avatar">
+                            <div class="avatar large">
+                                <img id="profileAvatarImg" src="" alt="Profil Fotoğrafı">
+                            </div>
+                            <button class="edit-avatar-btn" id="changeAvatarBtn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="profile-info">
+                            <div class="profile-name">
+                                <h1 id="profileUsername">Kullanıcı Adı</h1>
+                                <button class="btn btn-outline" id="editProfileBtn">Profili Düzenle</button>
+                            </div>
+                            <div class="profile-stats">
+                                <div class="stat">
+                                    <span class="stat-number" id="postCount">0</span>
+                                    <span class="stat-label">Gönderi</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-number" id="followerCount">0</span>
+                                    <span class="stat-label">Takipçi</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-number" id="followingCount">0</span>
+                                    <span class="stat-label">Takip</span>
+                                </div>
+                            </div>
+                            <div class="profile-bio">
+                                <p id="profileBio">Hakkında bilgisi bulunmuyor</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div id="winScreen" class="win-screen hidden">
-            <div class="win-container">
-                <h2>🏆 KAZANDIN!</h2>
-                <div class="death-stats">
-                    <p>100.000 Puana Ulaştınız!</p>
-                    <p>Uzunluk: <span id="winLength">10</span></p>
-                </div>
-                <div class="death-actions"><button class="btn btn-primary" id="newGameBtn">Yeni Oyun</button></div>
+        </main>
+    </div>
+
+    <!-- Profil Düzenleme Modalı -->
+    <div id="editProfileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Profili Düzenle</h2>
+                <button class="icon-btn close-modal" id="closeEditProfileModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editProfileForm">
+                    <div class="input-group">
+                        <label for="editUsername">Kullanıcı Adı</label>
+                        <input type="text" id="editUsername" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="editBio">Hakkında</label>
+                        <textarea id="editBio" rows="4" placeholder="Kendiniz hakkında bir şeyler yazın..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label for="editAvatar">Profil Fotoğrafı URL</label>
+                        <input type="url" id="editAvatar" placeholder="https://example.com/avatar.jpg">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary close-modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-    
-    <audio id="backgroundMusic" loop>
-        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="eatSound" preload="auto">
-        <source src="https://www.soundjay.com/buttons/sounds/button-09.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="collisionSound" preload="auto">
-        <source src="https://www.soundjay.com/buttons/sounds/button-10.mp3" type="audio/mpeg">
-    </audio>
-    
+
+    <!-- Yeni Sohbet Modalı -->
+    <div id="newChatModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Yeni Mesaj</h2>
+                <button class="icon-btn close-modal" id="closeNewChatModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="search-users">
+                    <input type="text" id="searchUsersInput" placeholder="Kullanıcı ara...">
+                </div>
+                <div class="users-list" id="usersList">
+                    <!-- Kullanıcılar buraya dinamik olarak eklenecek -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Çıkış Onay Modalı -->
+    <div id="logoutModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-body">
+                <h3>Çıkış Yap</h3>
+                <p>Hesabınızdan çıkış yapmak istediğinizden emin misiniz?</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="cancelLogout">İptal</button>
+                    <button class="btn btn-primary" id="confirmLogout">Çıkış Yap</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Bildirimleri -->
+    <div id="toastContainer" class="toast-container"></div>
+
     <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const WORLD_SIZE = 5000, SEGMENT_SIZE = 15, FOOD_COUNT = 300, MAX_SCORE = 100000;
-
-        class Game {
-            constructor() {
-                this.minFoodDistance = 80;
-                this.minPlayerDistance = 150;
-                this.minWallDistance = 100;
-                this.roomTimeout = null;
-                this.roomExpireTime = null;
-                this.canvas = document.getElementById('gameCanvas');
-                this.ctx = this.canvas.getContext('2d');
-                this.players = new Map();
-                this.food = [];
-                this.myPlayer = null;
-                this.camera = { x: 0, y: 0 };
-                this.roomCode = null;
-                this.playerName = '';
-                this.playerId = 'p_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                this.isRoomOwner = false;
-                this.gameRunning = false;
-                this.socket = io();
-                this.joystickActive = false;
-                this.joystickAngle = 0;
-                this.updateInterval = null;
-                this.lastUpdateTime = Date.now();
-                
-                // Özellikler
-                this.totalPoints = parseInt(localStorage.getItem('totalPoints')) || 0;
-                this.hasInvisibility = localStorage.getItem('hasInvisibility') === 'true';
-                this.premiumColorActive = false;
-                this.premiumColorEndTime = parseInt(localStorage.getItem('premiumColorEndTime')) || 0;
-                this.boostCooldown = 0;
-                this.invisibilityCooldown = 0;
-                this.boostActive = false;
-                this.invisibilityActive = false;
-                this.snakeAppearance = localStorage.getItem('snakeAppearance') || 'original';
-                this.snakeColor = localStorage.getItem('snakeColor') || 'random';
-                this.musicEnabled = localStorage.getItem('musicEnabled') !== 'false';
-                this.musicVolume = parseInt(localStorage.getItem('musicVolume')) || 50;
-                this.baseSegmentSize = 15;
-                this.maxSegmentSize = 25;
-                this.initialLength = 10;
-                this.lengthGrowthPerFood = 3;
-                
-                this.lastBroadcastTime = 0;
-                this.broadcastInterval = 16;
-                this.playerPredictions = new Map();
-                
-                // Yemek yönetimi
-                this.minFoodCount = 50;
-                this.maxFoodCount = 100;
-                this.foodCheckInterval = null;
-                
-                this.resizeCanvas();
-                window.addEventListener('resize', () => this.resizeCanvas());
-                this.setupEventListeners();
-                this.setupSocketIO();
-                this.setupJoystick();
-                this.updateTotalPointsDisplay();
-                this.checkPremiumColorStatus();
-                
-                document.getElementById('snakeAppearance').value = this.snakeAppearance;
-                document.getElementById('snakeColor').value = this.snakeColor;
-                document.getElementById('musicToggle').value = this.musicEnabled ? 'on' : 'off';
-                document.getElementById('musicVolume').value = this.musicVolume;
-                
-                this.backgroundMusic = document.getElementById('backgroundMusic');
-                this.backgroundMusic.volume = this.musicVolume / 100;
-                
-                this.lastFrameTime = 0;
-                this.frameCount = 0;
-                this.fps = 0;
-                this.respawnCount = 0;
-            }
-            
-            resizeCanvas() { 
-                this.canvas.width = window.innerWidth; 
-                this.canvas.height = window.innerHeight; 
-            }
-            
-            setupEventListeners() {
-                console.log('🔄 Event listenerlar kuruluyor...');
-                
-                document.getElementById('createRoomBtn').addEventListener('click', () => this.createRoom());
-                document.getElementById('joinRoomBtn').addEventListener('click', () => this.joinRoom());
-                document.getElementById('startGameBtn').addEventListener('click', () => this.startGame());
-                document.getElementById('leaveRoomBtn').addEventListener('click', () => this.leaveRoom());
-                
-                // RESPAWN BUTONU - KESİN ÇÖZÜM
-                document.getElementById('respawnBtn').addEventListener('click', () => {
-                    console.log('🔄 Respawn butonuna tıklandı');
-                    this.respawn();
-                });
-                
-                document.getElementById('exitGameBtn').addEventListener('click', () => this.exitGame());
-                document.getElementById('newGameBtn').addEventListener('click', () => this.exitGame());
-                document.getElementById('settingsBtn').addEventListener('click', () => this.toggleSettingsMenu());
-                document.getElementById('musicToggle').addEventListener('change', (e) => this.toggleMusic(e.target.value));
-                document.getElementById('musicVolume').addEventListener('input', (e) => this.changeMusicVolume(e.target.value));
-                document.getElementById('snakeAppearance').addEventListener('change', (e) => {
-                    this.snakeAppearance = e.target.value;
-                    localStorage.setItem('snakeAppearance', this.snakeAppearance);
-                });
-                document.getElementById('snakeColor').addEventListener('change', (e) => this.changeSnakeColor(e.target.value));
-                document.getElementById('boostBtn').addEventListener('click', () => this.activateBoost());
-                document.getElementById('invisibilityBtn').addEventListener('click', () => this.activateInvisibility());
-                document.getElementById('shopBtn').addEventListener('click', () => this.showShop());
-                document.getElementById('closeShopBtn').addEventListener('click', () => this.hideShop());
-                document.getElementById('buyInvisibilityBtn').addEventListener('click', () => this.buyInvisibility());
-                document.getElementById('buyPremiumColorBtn').addEventListener('click', () => this.buyPremiumColor());
-                
-                this.backgroundMusic = document.getElementById('backgroundMusic');
-                this.eatSound = document.getElementById('eatSound');
-                this.collisionSound = document.getElementById('collisionSound');
-                
-                this.backgroundMusic.volume = this.musicVolume / 100;
-                if (this.musicEnabled) {
-                    this.backgroundMusic.play().catch(e => console.log("Müzik otomatik oynatma engellendi: ", e));
-                }
-                
-                this.setupChat();
-                
-                console.log('✅ Event listenerlar kuruldu');
-            }
-            
-            setupSocketIO() {
-                this.socket.on('roomCreated', (data) => {
-                    this.roomCode = data.roomCode;
-                    this.isRoomOwner = true;
-                    this.showRoomUI();
-                    this.updatePlayersList(data.players);
-                    this.clearChat();
-                    this.startRoomTimeout();
-                });
-                
-                this.socket.on('roomExpired', () => {
-                    alert('Oda süresi dolduğu için kapatıldı!');
-                    this.leaveRoom();
-                });
-                
-                this.socket.on('roomError', (data) => {
-                    alert(data.error);
-                });
-                
-                this.socket.on('roomJoined', (data) => {
-                    this.roomCode = data.roomCode;
-                    this.showRoomUI();
-                    this.updatePlayersList(data.players);
-                    this.clearChat();
-                    if (data.roomExpireTime) {
-                        this.updateRoomTimer(data.roomExpireTime);
-                    }
-                });
-                
-                this.socket.on('roomNotFound', () => {
-                    alert('Oda bulunamadı!');
-                });
-                
-                this.socket.on('playersUpdate', (players) => {
-                    this.updatePlayersList(players);
-                });
-                
-                this.socket.on('gameStarted', (data) => {
-                    this.food = data.food;
-                    this.initGame();
-                });
-                
-                this.socket.on('playerMoved', (data) => {
-                    this.handlePlayerUpdate(data);
-                });
-                
-                this.socket.on('foodUpdate', (data) => {
-                    this.food = data.food;
-                });
-                
-                this.socket.on('scoreTransfer', (data) => {
-                    if (data.toId === this.playerId && this.myPlayer) {
-                        this.myPlayer.score += data.amount;
-                    }
-                });
-                
-                this.socket.on('chatMessage', (data) => {
-                    this.addChatMessage(data);
-                });
-                
-                this.socket.on('chatHistory', (messages) => {
-                    messages.forEach(msg => this.addChatMessage(msg));
-                });
-                
-                this.socket.on('playerDiedFood', (data) => {
-                    this.food.push(...data.segments);
-                });
-            }
-            
-            setupChat() {
-                document.getElementById('sendChatBtn').addEventListener('click', () => this.sendChat());
-                document.getElementById('chatInput').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') this.sendChat();
-                });
-            }
-
-            sendChat() {
-                const input = document.getElementById('chatInput');
-                const message = input.value.trim();
-                if (!message || !this.roomCode) return;
-                
-                this.socket.emit('chatMessage', {
-                    roomCode: this.roomCode,
-                    playerId: this.playerId,
-                    playerName: this.playerName,
-                    message: message
-                });
-                
-                input.value = '';
-            }
-
-            addChatMessage(data) {
-                const container = document.getElementById('chatMessages');
-                const msgDiv = document.createElement('div');
-                msgDiv.className = 'chat-message';
-                
-                const time = new Date(data.timestamp).toLocaleTimeString('tr-TR', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-                
-                msgDiv.innerHTML = `<span style="color: #999; font-size: 12px;">${time}</span> <strong>${data.playerName}:</strong> ${data.message}`;
-                container.appendChild(msgDiv);
-                container.scrollTop = container.scrollHeight;
-            }
-            
-            toggleMusic(state) {
-                this.musicEnabled = state === 'on';
-                localStorage.setItem('musicEnabled', this.musicEnabled);
-                if (this.musicEnabled) {
-                    this.backgroundMusic.play().catch(e => console.log("Müzik oynatma hatası: ", e));
-                } else {
-                    this.backgroundMusic.pause();
-                }
-            }
-            
-            changeMusicVolume(volume) {
-                this.musicVolume = parseInt(volume);
-                localStorage.setItem('musicVolume', this.musicVolume);
-                this.backgroundMusic.volume = this.musicVolume / 100;
-            }
-            
-            changeSnakeColor(color) {
-                this.snakeColor = color;
-                localStorage.setItem('snakeColor', this.snakeColor);
-                if (color === 'premium') {
-                    if (confirm("Premium renk için reklam izlemelisiniz. Reklamı izlemek ister misiniz?")) {
-                        this.activatePremiumColor();
-                    } else {
-                        document.getElementById('snakeColor').value = 'random';
-                        this.snakeColor = 'random';
-                        localStorage.setItem('snakeColor', 'random');
-                    }
-                }
-            }
-            
-            activatePremiumColor() {
-                this.premiumColorActive = true;
-                this.premiumColorEndTime = Date.now() + 5 * 60 * 1000;
-                localStorage.setItem('premiumColorEndTime', this.premiumColorEndTime.toString());
-                alert("Premium renk aktif edildi! 5 dakika boyunca kullanabilirsiniz.");
-            }
-            
-            checkPremiumColorStatus() {
-                if (this.premiumColorEndTime && Date.now() < this.premiumColorEndTime) {
-                    this.premiumColorActive = true;
-                } else {
-                    this.premiumColorActive = false;
-                    this.premiumColorEndTime = 0;
-                    localStorage.removeItem('premiumColorEndTime');
-                    if (this.snakeColor === 'premium') {
-                        this.snakeColor = 'random';
-                        localStorage.setItem('snakeColor', 'random');
-                        document.getElementById('snakeColor').value = 'random';
-                    }
-                }
-            }
-            
-            setupJoystick() {
-                const joystick = document.getElementById('joystick');
-                const inner = joystick.querySelector('.joystick-inner');
-                const outer = joystick.querySelector('.joystick-outer');
-                const handleMove = (e) => {
-                    e.preventDefault();
-                    const touch = e.touches ? e.touches[0] : e;
-                    const rect = outer.getBoundingClientRect();
-                    const centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2;
-                    const deltaX = touch.clientX - centerX, deltaY = touch.clientY - centerY;
-                    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-                    if (distance > 10) {
-                        this.joystickActive = true;
-                        this.joystickAngle = Math.atan2(deltaY, deltaX);
-                        const maxDist = rect.width / 2 - 30, clampedDist = Math.min(distance, maxDist);
-                        const x = Math.cos(this.joystickAngle) * clampedDist, y = Math.sin(this.joystickAngle) * clampedDist;
-                        inner.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
-                    }
-                };
-                const resetJoystick = () => { 
-                    this.joystickActive = false; 
-                    inner.style.transform = 'translate(-50%, -50%)'; 
-                };
-                joystick.addEventListener('touchstart', handleMove);
-                joystick.addEventListener('touchmove', handleMove);
-                joystick.addEventListener('touchend', resetJoystick);
-                joystick.addEventListener('mousedown', (e) => {
-                    handleMove(e);
-                    const moveHandler = (e) => handleMove(e);
-                    document.addEventListener('mousemove', moveHandler);
-                    document.addEventListener('mouseup', () => { 
-                        document.removeEventListener('mousemove', moveHandler); 
-                        resetJoystick(); 
-                    }, { once: true });
-                });
-            }
-            
-            createRoom() {
-                const name = document.getElementById('playerName').value.trim();
-                if (!name) { 
-                    alert('Lütfen isminizi girin!'); 
-                    return; 
-                }
-                
-                this.playerName = name;
-                
-                this.socket.emit('createRoom', { 
-                    playerId: this.playerId, 
-                    playerName: name 
-                });
-            }
-            
-            joinRoom() {
-                const name = document.getElementById('playerName').value.trim();
-                const code = document.getElementById('roomCode').value.trim().toUpperCase();
-                
-                if (!name || !code) { 
-                    alert('İsim ve oda kodu gerekli!'); 
-                    return; 
-                }
-                
-                if (code.length !== 7) {
-                    alert('Oda kodu 7 haneli olmalıdır!');
-                    return;
-                }
-                
-                if (!/^[A-Z0-9]{7}$/.test(code)) {
-                    alert('Oda kodu sadece büyük harf ve rakamlardan oluşmalıdır!');
-                    return;
-                }
-                
-                this.playerName = name;
-                
-                this.socket.emit('joinRoom', { 
-                    roomCode: code,
-                    playerId: this.playerId, 
-                    playerName: name 
-                });
-            }
-            
-            showRoomUI() {
-                document.getElementById('displayRoomCode').textContent = this.roomCode;
-                document.getElementById('roomInfo').classList.remove('hidden');
-                document.getElementById('roomOptions').classList.add('hidden');
-                if (!this.isRoomOwner) document.getElementById('startGameBtn').style.display = 'none';
-            }
-            
-            showShop() {
-                document.getElementById('shopMenu').classList.remove('hidden');
-                document.getElementById('roomOptions').classList.add('hidden');
-                document.getElementById('buyInvisibilityBtn').disabled = this.totalPoints < 100000 || this.hasInvisibility;
-                if (this.hasInvisibility) {
-                    document.getElementById('buyInvisibilityBtn').textContent = 'Zaten Sahip';
-                }
-            }
-            
-            hideShop() {
-                document.getElementById('shopMenu').classList.add('hidden');
-                document.getElementById('roomOptions').classList.remove('hidden');
-            }
-            
-            buyInvisibility() {
-                if (this.totalPoints >= 100000 && !this.hasInvisibility) {
-                    this.totalPoints -= 100000;
-                    this.hasInvisibility = true;
-                    localStorage.setItem('totalPoints', this.totalPoints.toString());
-                    localStorage.setItem('hasInvisibility', 'true');
-                    this.updateTotalPointsDisplay();
-                    document.getElementById('buyInvisibilityBtn').disabled = true;
-                    document.getElementById('buyInvisibilityBtn').textContent = 'Zaten Sahip';
-                    alert('Görünmezlik özelliği satın alındı!');
-                }
-            }
-            
-            buyPremiumColor() {
-                if (confirm("Reklam izlemek için hazır mısınız? (Simülasyon - 2 saniye sürecek)")) {
-                    let countdown = 2;
-                    const originalText = document.getElementById('buyPremiumColorBtn').textContent;
-                    document.getElementById('buyPremiumColorBtn').textContent = `Reklam izleniyor... ${countdown}s`;
-                    document.getElementById('buyPremiumColorBtn').disabled = true;
-                    
-                    const interval = setInterval(() => {
-                        countdown--;
-                        if (countdown > 0) {
-                            document.getElementById('buyPremiumColorBtn').textContent = `Reklam izleniyor... ${countdown}s`;
-                        } else {
-                            clearInterval(interval);
-                            document.getElementById('buyPremiumColorBtn').textContent = originalText;
-                            document.getElementById('buyPremiumColorBtn').disabled = false;
-                            this.activatePremiumColor();
-                        }
-                    }, 1000);
-                }
-            }
-            
-            updatePlayersList(players) {
-                const list = document.getElementById('playersListItems');
-                list.innerHTML = players.map(p => `<li>${p.name}</li>`).join('');
-            }
-            
-            handlePlayerUpdate(data) { 
-                if (data.id === this.playerId) return;
-                
-                const now = Date.now();
-                const player = this.players.get(data.id);
-                
-                if (player) {
-                    player.x = data.x;
-                    player.y = data.y;
-                    player.angle = data.angle;
-                    player.score = data.score;
-                    player.alive = data.alive;
-                    player.invisibility = data.invisibility;
-                    player.appearance = data.appearance;
-                    player.targetLength = data.targetLength;
-                    
-                    if (data.segments && data.segments.length > 0) {
-                        player.segments = data.segments;
-                    }
-                    
-                    player.lastUpdate = now;
-                } else {
-                    this.players.set(data.id, {
-                        ...data,
-                        lastUpdate: now
-                    });
-                }
-            }
-            
-            startGame() {
-                if (!this.isRoomOwner) return;
-                
-                this.socket.emit('startGame', { 
-                    roomCode: this.roomCode 
-                });
-            }
-
-            startRoomTimeout() {
-                if (this.roomTimeout) {
-                    clearTimeout(this.roomTimeout);
-                }
-                
-                this.roomExpireTime = Date.now() + 3600000;
-                this.roomTimeout = setTimeout(() => {
-                    this.roomAutoClose();
-                }, 3600000);
-                
-                if (this.isRoomOwner) {
-                    this.socket.emit('setRoomTimeout', {
-                        roomCode: this.roomCode,
-                        expireTime: this.roomExpireTime
-                    });
-                }
-                
-                this.updateRoomTimerDisplay();
-            }
-
-            roomAutoClose() {
-                if (this.isRoomOwner) {
-                    alert('Oda 1 saat dolduğu için otomatik olarak kapatıldı.');
-                } else {
-                    alert('Oda süresi dolduğu için kapatıldı.');
-                }
-                
-                this.leaveRoom();
-            }
-
-            updateRoomTimer(expireTime) {
-                this.roomExpireTime = expireTime;
-                const timeLeft = expireTime - Date.now();
-                
-                if (timeLeft > 0) {
-                    if (this.roomTimeout) {
-                        clearTimeout(this.roomTimeout);
-                    }
-                    
-                    this.roomTimeout = setTimeout(() => {
-                        this.roomAutoClose();
-                    }, timeLeft);
-                    
-                    this.updateRoomTimerDisplay();
-                }
-            }
-
-            updateRoomTimerDisplay() {
-                if (!this.roomExpireTime) return;
-                
-                const timerElement = document.getElementById('roomTimer') || this.createTimerElement();
-                this.refreshTimerDisplay();
-            }
-
-            createTimerElement() {
-                const roomCodeDisplay = document.querySelector('.room-code-display');
-                const timerElement = document.createElement('div');
-                timerElement.id = 'roomTimer';
-                timerElement.className = 'room-timer';
-                timerElement.innerHTML = 'Oda kapanış: <span id="timerValue">60:00</span>';
-                roomCodeDisplay.appendChild(timerElement);
-                
-                this.timerInterval = setInterval(() => {
-                    this.refreshTimerDisplay();
-                }, 1000);
-                
-                return timerElement;
-            }
-
-            refreshTimerDisplay() {
-                if (!this.roomExpireTime) return;
-                
-                const timerValue = document.getElementById('timerValue');
-                if (!timerValue) return;
-                
-                const timeLeft = this.roomExpireTime - Date.now();
-                
-                if (timeLeft <= 0) {
-                    timerValue.textContent = '00:00';
-                    return;
-                }
-                
-                const minutes = Math.floor(timeLeft / 60000);
-                const seconds = Math.floor((timeLeft % 60000) / 1000);
-                timerValue.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                
-                if (timeLeft < 300000) {
-                    timerValue.style.color = '#ff4444';
-                    timerValue.style.fontWeight = 'bold';
-                }
-            }
-
-            initGame() {
-                if (this.gameRunning) return;
-                
-                document.getElementById('menuScreen').classList.add('hidden');
-                document.getElementById('gameScreen').classList.remove('hidden');
-                
-                this.gameRunning = true;
-                this.createMySnake();
-                this.startUpdateLoop();
-                this.startFoodManagement();
-                this.gameLoop();
-                
-                if (this.musicEnabled) {
-                    this.backgroundMusic.play().catch(e => console.log("Müzik oynatma hatası: ", e));
-                }
-                
-                console.log('🎮 Oyun başlatıldı');
-            }
-            
-            getSnakeColor() {
-                if (this.premiumColorActive && this.snakeColor === 'premium') {
-                    return 'premium';
-                } else if (this.snakeColor === 'random') {
-                    return `hsl(${Math.random() * 360}, 70%, 60%)`;
-                } else {
-                    const colorMap = {
-                        red: '#ff0000', blue: '#0000ff', green: '#00ff00', 
-                        yellow: '#ffff00', purple: '#800080'
-                    };
-                    return colorMap[this.snakeColor] || `hsl(${Math.random() * 360}, 70%, 60%)`;
-                }
-            }
-            
-            createMySnake() {
-                const x = Math.random() * (WORLD_SIZE - 1000) + 500;
-                const y = Math.random() * (WORLD_SIZE - 1000) + 500;
-                
-                this.myPlayer = {
-                    id: this.playerId,
-                    name: this.playerName,
-                    x: x,
-                    y: y,
-                    angle: Math.random() * Math.PI * 2,
-                    segments: [],
-                    score: 0,
-                    color: this.getSnakeColor(),
-                    alive: true,
-                    appearance: this.snakeAppearance,
-                    invisibility: false,
-                    targetLength: this.initialLength,
-                    lastUpdate: Date.now()
-                };
-                
-                for (let i = 0; i < this.initialLength; i++) {
-                    this.myPlayer.segments.push({
-                        x: x - Math.cos(this.myPlayer.angle) * i * SEGMENT_SIZE,
-                        y: y - Math.sin(this.myPlayer.angle) * i * SEGMENT_SIZE
-                    });
-                }
-                
-                this.players.set(this.playerId, this.myPlayer);
-                this.updateLengthDisplay();
-                this.updateUI();
-                
-                console.log('🐍 Yeni yılan oluşturuldu:', this.playerName);
-            }
-            
-            startFoodManagement() {
-                this.generateInitialFood();
-                
-                this.foodCheckInterval = setInterval(() => {
-                    this.checkAndGenerateFood();
-                }, 5000);
-            }
-            
-            generateInitialFood() {
-                for (let i = 0; i < FOOD_COUNT; i++) {
-                    const newFood = this.generateFoodAtRandomPosition();
-                    this.food.push(newFood);
-                }
-            }
-            
-            checkAndGenerateFood() {
-                if (this.food.length < this.minFoodCount) {
-                    const needed = this.maxFoodCount - this.food.length;
-                    
-                    for (let i = 0; i < needed; i++) {
-                        const newFood = this.generateFoodAtRandomPosition();
-                        this.food.push(newFood);
-                    }
-                    
-                    console.log(`${needed} yeni yemek oluşturuldu. Toplam: ${this.food.length}`);
-                    
-                    this.socket.emit('foodGenerated', {
-                        roomCode: this.roomCode,
-                        newFood: this.food.slice(-needed)
-                    });
-                }
-            }
-            
-            generateFoodAtRandomPosition() {
-                let newX, newY;
-                let attempts = 0;
-                const maxAttempts = 100;
-                
-                do {
-                    newX = Math.random() * (WORLD_SIZE - this.minWallDistance * 2) + this.minWallDistance;
-                    newY = Math.random() * (WORLD_SIZE - this.minWallDistance * 2) + this.minWallDistance;
-                    attempts++;
-                    
-                    if (attempts >= maxAttempts) {
-                        break;
-                    }
-                    
-                } while (this.isFoodPositionOccupied(newX, newY));
-                
-                return { 
-                    x: newX, 
-                    y: newY, 
-                    color: `hsl(${Math.random() * 360}, 80%, 60%)` 
-                };
-            }
-            
-            isFoodPositionOccupied(x, y) {
-                if (this.isTooCloseToOtherFood(x, y, this.minFoodDistance)) {
-                    return true;
-                }
-                
-                if (this.isTooCloseToPlayers(x, y, this.minPlayerDistance)) {
-                    return true;
-                }
-                
-                return false;
-            }
-            
-            isTooCloseToOtherFood(x, y, minDistance) {
-                for (const existingFood of this.food) {
-                    const dx = x - existingFood.x;
-                    const dy = y - existingFood.y;
-                    const distanceSquared = dx * dx + dy * dy;
-                    if (distanceSquared < minDistance * minDistance) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            
-            isTooCloseToPlayers(x, y, minDistance) {
-                for (const player of this.players.values()) {
-                    if (player.alive) {
-                        const dx = x - player.x;
-                        const dy = y - player.y;
-                        const distanceSquared = dx * dx + dy * dy;
-                        if (distanceSquared < minDistance * minDistance) {
-                            return true;
-                        }
-                        
-                        if (player.segments) {
-                            for (const segment of player.segments) {
-                                const segDx = x - segment.x;
-                                const segDy = y - segment.y;
-                                const segDistanceSquared = segDx * segDx + segDy * segDy;
-                                if (segDistanceSquared < (minDistance * 0.7) * (minDistance * 0.7)) {
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                }
-                return false;
-            }
-            
-            startUpdateLoop() { 
-                this.updateInterval = setInterval(() => { 
-                    if (this.myPlayer && this.gameRunning) this.broadcastMyState(); 
-                }, 16);
-            }
-            
-            broadcastMyState() { 
-                const now = Date.now();
-                if (now - this.lastBroadcastTime < this.broadcastInterval) return;
-                
-                this.lastBroadcastTime = now;
-                
-                if (!this.myPlayer) return;
-                
-                this.socket.emit('playerMove', { 
-                    roomCode: this.roomCode,
-                    id: this.playerId, 
-                    name: this.playerName, 
-                    x: this.myPlayer.x, 
-                    y: this.myPlayer.y, 
-                    angle: this.myPlayer.angle, 
-                    segments: this.myPlayer.segments.slice(0, 100),
-                    score: this.myPlayer.score, 
-                    color: this.myPlayer.color, 
-                    alive: this.myPlayer.alive,
-                    appearance: this.myPlayer.appearance,
-                    invisibility: this.invisibilityActive,
-                    targetLength: this.myPlayer.targetLength
-                }); 
-            }
-            
-            updateMySnake() {
-                if (!this.myPlayer || !this.myPlayer.alive || !this.gameRunning) return;
-                
-                let speed = 4;
-                if (this.boostActive) {
-                    speed = 8;
-                }
-                
-                if (this.joystickActive) {
-                    const targetAngle = this.joystickAngle, angleDiff = targetAngle - this.myPlayer.angle, shortestAngle = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-                    this.myPlayer.angle += shortestAngle * 0.15;
-                }
-                
-                this.myPlayer.x += Math.cos(this.myPlayer.angle) * speed;
-                this.myPlayer.y += Math.sin(this.myPlayer.angle) * speed;
-                
-                const boundary = 50;
-                if (this.myPlayer.x < boundary || this.myPlayer.x > WORLD_SIZE - boundary || 
-                    this.myPlayer.y < boundary || this.myPlayer.y > WORLD_SIZE - boundary) {
-                    this.playerDie();
-                    return;
-                }
-                
-                this.myPlayer.segments.unshift({ x: this.myPlayer.x, y: this.myPlayer.y });
-                
-                if (this.myPlayer.segments.length > this.myPlayer.targetLength) {
-                    this.myPlayer.segments.pop();
-                }
-                
-                this.checkFoodCollision(); 
-                this.checkCollisions();
-                this.updateAbilityCooldowns();
-            }
-            
-            predictOtherPlayers() {
-                const now = Date.now();
-                for (const [id, player] of this.players) {
-                    if (id === this.playerId) continue;
-                    
-                    const timeSinceUpdate = now - (player.lastUpdate || now);
-                    
-                    if (timeSinceUpdate > 50 && player.alive) {
-                        const predictSpeed = 4;
-                        player.x += Math.cos(player.angle) * predictSpeed * (timeSinceUpdate / 1000);
-                        player.y += Math.sin(player.angle) * predictSpeed * (timeSinceUpdate / 1000);
-                        
-                        if (player.segments && player.segments.length > 0) {
-                            player.segments.unshift({ x: player.x, y: player.y });
-                            if (player.segments.length > player.targetLength) {
-                                player.segments.pop();
-                            }
-                        }
-                    }
-                }
-            }
-            
-            updateAbilityCooldowns() {
-                const now = Date.now();
-                
-                if (this.boostCooldown > 0) {
-                    this.boostCooldown = Math.max(0, this.boostCooldown - 16);
-                    const boostBtn = document.getElementById('boostBtn');
-                    if (this.boostCooldown > 0) {
-                        boostBtn.textContent = `Boost (${Math.ceil(this.boostCooldown/1000)}s)`;
-                        boostBtn.disabled = true;
-                    } else {
-                        boostBtn.textContent = 'Boost (Hazır)';
-                        boostBtn.disabled = false;
-                    }
-                }
-                
-                if (this.invisibilityCooldown > 0 && !this.invisibilityActive) {
-                    this.invisibilityCooldown = Math.max(0, this.invisibilityCooldown - 16);
-                    const invisibilityBtn = document.getElementById('invisibilityBtn');
-                    if (this.invisibilityCooldown > 0) {
-                        invisibilityBtn.textContent = `Görünmezlik (${Math.ceil(this.invisibilityCooldown/1000)}s)`;
-                        invisibilityBtn.disabled = true;
-                    } else {
-                        invisibilityBtn.textContent = 'Görünmezlik (Hazır)';
-                        invisibilityBtn.disabled = false;
-                    }
-                }
-                
-                if (this.premiumColorActive && now >= this.premiumColorEndTime) {
-                    this.premiumColorActive = false;
-                    localStorage.removeItem('premiumColorEndTime');
-                    if (this.myPlayer && this.myPlayer.color === 'premium') {
-                        this.myPlayer.color = this.getSnakeColor();
-                    }
-                }
-                
-                if (this.boostActive && now >= this.boostEndTime) {
-                    this.boostActive = false;
-                }
-                
-                if (this.invisibilityActive && now >= this.invisibilityEndTime) {
-                    this.invisibilityActive = false;
-                    this.invisibilityCooldown = 120000;
-                }
-            }
-            
-            activateBoost() {
-                if (this.boostCooldown <= 0) {
-                    this.boostActive = true;
-                    this.boostEndTime = Date.now() + 5000;
-                    this.boostCooldown = 60000;
-                    
-                    const boostBtn = document.getElementById('boostBtn');
-                    boostBtn.classList.add('active');
-                    setTimeout(() => {
-                        boostBtn.classList.remove('active');
-                    }, 5000);
-                }
-            }
-            
-            activateInvisibility() {
-                if (this.hasInvisibility && this.invisibilityCooldown <= 0 && !this.invisibilityActive) {
-                    this.invisibilityActive = true;
-                    this.invisibilityEndTime = Date.now() + 5000;
-                    
-                    const invisibilityBtn = document.getElementById('invisibilityBtn');
-                    invisibilityBtn.classList.add('active');
-                    setTimeout(() => {
-                        invisibilityBtn.classList.remove('active');
-                    }, 5000);
-                }
-            }
-            
-            checkFoodCollision() {
-                for (let i = this.food.length - 1; i >= 0; i--) {
-                    const f = this.food[i];
-                    const dx = this.myPlayer.x - f.x;
-                    const dy = this.myPlayer.y - f.y;
-                    
-                    if (dx * dx + dy * dy < 400) {
-                        const eatenFood = this.food.splice(i, 1)[0];
-                        
-                        this.myPlayer.score += 10;
-                        this.totalPoints += 10;
-                        localStorage.setItem('totalPoints', this.totalPoints.toString());
-                        this.updateTotalPointsDisplay();
-                        
-                        this.myPlayer.targetLength += this.lengthGrowthPerFood;
-                        this.updateLengthDisplay();
-                        
-                        this.eatSound.currentTime = 0;
-                        this.eatSound.play().catch(e => console.log("Ses oynatma hatası: ", e));
-                        
-                        this.socket.emit('foodEaten', { 
-                            roomCode: this.roomCode, 
-                            eatenFood: eatenFood
-                        });
-                        
-                        if (this.myPlayer.score >= MAX_SCORE) this.gameWon();
-                        
-                        break;
-                    }
-                }
-            }
-            
-            checkCollisions() {
-                if (!this.myPlayer || !this.myPlayer.alive || this.invisibilityActive) return;
-                
-                const head = this.myPlayer.segments[0];
-                for (const [id, player] of this.players) {
-                    if (!player.alive || !player.segments || id === this.playerId || player.invisibility) continue;
-                    
-                    const enemyHead = player.segments[0];
-                    if (enemyHead) {
-                        const dx = head.x - enemyHead.x, dy = head.y - enemyHead.y;
-                        if (dx * dx + dy * dy < 225) {
-                            this.collisionSound.currentTime = 0;
-                            this.collisionSound.play().catch(e => console.log("Ses oynatma hatası: ", e));
-                            
-                            this.showCollisionEffect();
-                            this.playerDie();
-                            
-                            const bonus = Math.floor(this.myPlayer.score / 2);
-                            this.socket.emit('scoreTransfer', { 
-                                roomCode: this.roomCode,
-                                fromId: this.playerId, 
-                                toId: id, 
-                                amount: bonus 
-                            });
-                            return;
-                        }
-                    }
-                }
-            }
-            
-            showCollisionEffect() {
-                const effect = document.createElement('div');
-                effect.className = 'collision-effect';
-                document.getElementById('gameScreen').appendChild(effect);
-                
-                setTimeout(() => {
-                    effect.remove();
-                }, 500);
-            }
-            
-            playerDie() {
-                console.log('💀 playerDie fonksiyonu çağrıldı');
-                
-                if (!this.myPlayer || !this.myPlayer.alive) return;
-                
-                this.myPlayer.alive = false;
-                this.gameRunning = false;
-                
-                if (this.updateInterval) {
-                    clearInterval(this.updateInterval);
-                    this.updateInterval = null;
-                }
-                
-                this.broadcastMyState();
-                
-                const segments = this.myPlayer.segments.map(seg => ({
-                    x: seg.x,
-                    y: seg.y,
-                    color: this.myPlayer.color
-                }));
-                
-                this.socket.emit('playerDied', {
-                    roomCode: this.roomCode,
-                    playerId: this.playerId,
-                    segments: segments
-                });
-                
-                document.getElementById('finalScore').textContent = this.myPlayer.score;
-                document.getElementById('finalLength').textContent = this.myPlayer.targetLength;
-                
-                const deathScreen = document.getElementById('deathScreen');
-                deathScreen.classList.remove('hidden');
-                
-                console.log('✅ Ölüm ekranı gösterildi');
-            }
-            
-            respawn() {
-                console.log('🔄 Respawn fonksiyonu çağrıldı');
-                
-                const deathScreen = document.getElementById('deathScreen');
-                deathScreen.classList.add('hidden');
-                
-                if (this.myPlayer) {
-                    this.players.delete(this.playerId);
-                    this.myPlayer = null;
-                }
-                
-                this.createMySnake();
-                this.gameRunning = true;
-                
-                this.startUpdateLoop();
-                this.gameLoop();
-                
-                this.respawnCount++;
-                console.log('✅ Yeniden doğuldu. Can:', this.respawnCount);
-            }
-            
-            gameWon() { 
-                this.gameRunning = false; 
-                this.myPlayer.alive = false; 
-                this.broadcastMyState(); 
-                document.getElementById('winLength').textContent = this.myPlayer.targetLength;
-                document.getElementById('winScreen').classList.remove('hidden'); 
-            }
-            
-            clearChat() {
-                document.getElementById('chatMessages').innerHTML = '';
-            }
-            
-            leaveRoom() {
-                console.log('👋 Odadan çıkılıyor');
-                
-                if (this.updateInterval) {
-                    clearInterval(this.updateInterval);
-                    this.updateInterval = null;
-                }
-                
-                if (this.foodCheckInterval) {
-                    clearInterval(this.foodCheckInterval);
-                    this.foodCheckInterval = null;
-                }
-                
-                if (this.roomTimeout) {
-                    clearTimeout(this.roomTimeout);
-                    this.roomTimeout = null;
-                }
-                
-                if (this.timerInterval) {
-                    clearInterval(this.timerInterval);
-                    this.timerInterval = null;
-                }
-                
-                this.socket.emit('leaveRoom', { 
-                    roomCode: this.roomCode, 
-                    playerId: this.playerId 
-                });
-                
-                this.clearChat();
-                this.exitGame();
-            }
-            
-            exitGame() {
-                console.log('🚪 Oyun terk ediliyor');
-                
-                this.gameRunning = false;
-                
-                if (this.updateInterval) clearInterval(this.updateInterval);
-                if (this.foodCheckInterval) clearInterval(this.foodCheckInterval);
-                
-                document.getElementById('gameScreen').classList.add('hidden');
-                document.getElementById('menuScreen').classList.remove('hidden');
-                document.getElementById('roomInfo').classList.add('hidden');
-                document.getElementById('roomOptions').classList.remove('hidden');
-                document.getElementById('deathScreen').classList.add('hidden');
-                document.getElementById('winScreen').classList.add('hidden');
-                document.getElementById('settingsMenu').classList.add('hidden');
-                
-                this.players.clear(); 
-                this.myPlayer = null;
-                this.food = [];
-                
-                this.backgroundMusic.pause();
-                this.backgroundMusic.currentTime = 0;
-                
-                console.log('✅ Oyun terk edildi');
-            }
-            
-            updateCamera() { 
-                if (!this.myPlayer) return; 
-                this.camera.x = this.myPlayer.x - this.canvas.width / 2; 
-                this.camera.y = this.myPlayer.y - this.canvas.height / 2; 
-            }
-            
-            updateUI() {
-                if (!this.myPlayer) return;
-                
-                document.getElementById('scoreValue').textContent = this.myPlayer.score;
-                
-                const sorted = Array.from(this.players.values())
-                    .filter(p => p.alive)
-                    .sort((a, b) => b.score - a.score);
-                
-                document.getElementById('leaderboardList').innerHTML = sorted
-                    .slice(0, 5)
-                    .map(p => `<li><span>${p.name}</span><span>${p.score}</span></li>`)
-                    .join('');
-                
-                this.updateEnemyTracker();
-                
-                const invisibilityBtn = document.getElementById('invisibilityBtn');
-                if (this.hasInvisibility) {
-                    invisibilityBtn.style.display = 'block';
-                    if (this.invisibilityActive) {
-                        invisibilityBtn.textContent = 'Görünmez (5s)';
-                        invisibilityBtn.disabled = true;
-                    } else if (this.invisibilityCooldown > 0) {
-                        invisibilityBtn.textContent = `Görünmezlik (${Math.ceil(this.invisibilityCooldown/1000)}s)`;
-                        invisibilityBtn.disabled = true;
-                    } else {
-                        invisibilityBtn.textContent = 'Görünmezlik (Hazır)';
-                        invisibilityBtn.disabled = false;
-                    }
-                } else {
-                    invisibilityBtn.style.display = 'none';
-                }
-            }
-            
-            updateLengthDisplay() {
-                if (this.myPlayer) {
-                    document.getElementById('lengthValue').textContent = this.myPlayer.targetLength;
-                }
-            }
-            
-            updateEnemyTracker() {
-                let closestEnemy = null;
-                let minDistance = Infinity;
-                
-                for (const [id, player] of this.players) {
-                    if (id === this.playerId || !player.alive || player.invisibility) continue;
-                    
-                    const dx = player.x - this.myPlayer.x;
-                    const dy = player.y - this.myPlayer.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        closestEnemy = player;
-                    }
-                }
-                
-                const enemyDot = document.getElementById('enemyDot');
-                const distanceDisplay = document.getElementById('enemyDistance');
-                const directionDisplay = document.getElementById('enemyDirection');
-                
-                if (closestEnemy && minDistance < Infinity) {
-                    const dx = closestEnemy.x - this.myPlayer.x;
-                    const dy = closestEnemy.y - this.myPlayer.y;
-                    const angle = Math.atan2(dy, dx);
-                    
-                    const radarSize = 100;
-                    const maxRadarDistance = 2000;
-                    
-                    const normalizedDistance = Math.min(minDistance / maxRadarDistance, 1);
-                    const radarDistance = normalizedDistance * (radarSize / 2 - 10);
-                    
-                    const dotX = 50 + Math.cos(angle) * radarDistance;
-                    const dotY = 50 + Math.sin(angle) * radarDistance;
-                    
-                    enemyDot.style.left = dotX + '%';
-                    enemyDot.style.top = dotY + '%';
-                    enemyDot.style.display = 'block';
-                    
-                    distanceDisplay.textContent = `${Math.round(minDistance)} m`;
-                    
-                    const direction = this.getCompassDirection(angle);
-                    directionDisplay.textContent = direction;
-                    
-                    if (minDistance < 500) {
-                        enemyDot.classList.add('danger');
-                        distanceDisplay.style.color = '#ff4444';
-                    } else {
-                        enemyDot.classList.remove('danger');
-                        distanceDisplay.style.color = '#fff';
-                    }
-                    
-                } else {
-                    enemyDot.style.display = 'none';
-                    distanceDisplay.textContent = '-- m';
-                    directionDisplay.textContent = '--';
-                    distanceDisplay.style.color = '#fff';
-                }
-            }
-            
-            getCompassDirection(angle) {
-                let degrees = (angle * 180 / Math.PI + 360) % 360;
-                
-                if (degrees >= 337.5 || degrees < 22.5) return 'DOĞU';
-                if (degrees >= 22.5 && degrees < 67.5) return 'KD';
-                if (degrees >= 67.5 && degrees < 112.5) return 'KUZEY';
-                if (degrees >= 112.5 && degrees < 157.5) return 'KB';
-                if (degrees >= 157.5 && degrees < 202.5) return 'BATI';
-                if (degrees >= 202.5 && degrees < 247.5) return 'GB';
-                if (degrees >= 247.5 && degrees < 292.5) return 'GÜNEY';
-                if (degrees >= 292.5 && degrees < 337.5) return 'GD';
-                
-                return '--';
-            }
-            
-            drawSnakeEyes(ctx, x, y, angle, headSize = 15) {
-                const eyeRadius = headSize * 0.2;
-                const eyeOffset = headSize * 0.5;
-                
-                ctx.fillStyle = 'white';
-                
-                const leftEyeX = x + Math.cos(angle - Math.PI/4) * eyeOffset;
-                const leftEyeY = y + Math.sin(angle - Math.PI/4) * eyeOffset;
-                ctx.beginPath();
-                ctx.arc(leftEyeX, leftEyeY, eyeRadius, 0, Math.PI * 2);
-                ctx.fill();
-                
-                const rightEyeX = x + Math.cos(angle + Math.PI/4) * eyeOffset;
-                const rightEyeY = y + Math.sin(angle + Math.PI/4) * eyeOffset;
-                ctx.beginPath();
-                ctx.arc(rightEyeX, rightEyeY, eyeRadius, 0, Math.PI * 2);
-                ctx.fill();
-                
-                ctx.fillStyle = 'black';
-                const pupilOffset = eyeRadius * 0.7;
-                
-                const leftPupilX = leftEyeX + Math.cos(angle) * pupilOffset;
-                const leftPupilY = leftEyeY + Math.sin(angle) * pupilOffset;
-                ctx.beginPath();
-                ctx.arc(leftPupilX, leftPupilY, eyeRadius/2, 0, Math.PI * 2);
-                ctx.fill();
-                
-                const rightPupilX = rightEyeX + Math.cos(angle) * pupilOffset;
-                const rightPupilY = rightEyeY + Math.sin(angle) * pupilOffset;
-                ctx.beginPath();
-                ctx.arc(rightPupilX, rightPupilY, eyeRadius/2, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            
-            drawSnakeSegment(ctx, seg, appearance, color, isHead, angle, segmentIndex, totalLength) {
-                const lengthFactor = Math.min(totalLength / 50, 1);
-                const currentSize = this.baseSegmentSize + (this.maxSegmentSize - this.baseSegmentSize) * lengthFactor;
-                
-                const positionFactor = 1 - Math.abs(segmentIndex - totalLength / 2) / (totalLength / 2);
-                const segmentSize = currentSize * (0.8 + 0.2 * positionFactor);
-                
-                if (appearance === 'triangle' && isHead) {
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.moveTo(seg.x, seg.y - segmentSize);
-                    ctx.lineTo(seg.x - segmentSize, seg.y + segmentSize);
-                    ctx.lineTo(seg.x + segmentSize, seg.y + segmentSize);
-                    ctx.closePath();
-                    ctx.fill();
-                    
-                    this.drawSnakeEyes(ctx, seg.x, seg.y, angle, segmentSize);
-                } else if (appearance === 'spiked' && isHead) {
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    const spikes = 8;
-                    for (let i = 0; i < spikes; i++) {
-                        const spikeAngle = (i / spikes) * Math.PI * 2;
-                        const radius = i % 2 === 0 ? segmentSize : segmentSize * 0.7;
-                        const x = seg.x + Math.cos(spikeAngle) * radius;
-                        const y = seg.y + Math.sin(spikeAngle) * radius;
-                        if (i === 0) {
-                            ctx.moveTo(x, y);
-                        } else {
-                            ctx.lineTo(x, y);
-                        }
-                    }
-                    ctx.closePath();
-                    ctx.fill();
-                    
-                    this.drawSnakeEyes(ctx, seg.x, seg.y, angle, segmentSize);
-                } else {
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.arc(seg.x, seg.y, segmentSize * 0.8, 0, Math.PI * 2);
-                    ctx.fill();
-                    
-                    if (isHead) {
-                        this.drawSnakeEyes(ctx, seg.x, seg.y, angle, segmentSize);
-                    }
-                }
-            }
-            
-            render() {
-                const now = performance.now();
-                this.frameCount++;
-                if (now - this.lastFrameTime >= 1000) {
-                    this.fps = this.frameCount;
-                    this.frameCount = 0;
-                    this.lastFrameTime = now;
-                }
-                
-                this.ctx.fillStyle = '#0f0f1e'; 
-                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-                
-                this.ctx.save(); 
-                this.ctx.translate(-this.camera.x, -this.camera.y);
-                
-                this.ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
-                this.ctx.fillRect(0, 0, WORLD_SIZE, 50);
-                this.ctx.fillRect(0, 0, 50, WORLD_SIZE);
-                this.ctx.fillRect(0, WORLD_SIZE - 50, WORLD_SIZE, 50);
-                this.ctx.fillRect(WORLD_SIZE - 50, 0, 50, WORLD_SIZE);
-                
-                for (const f of this.food) { 
-                    this.ctx.fillStyle = f.color; 
-                    this.ctx.beginPath(); 
-                    this.ctx.arc(f.x, f.y, 7, 0, Math.PI * 2); 
-                    this.ctx.fill(); 
-                }
-                
-                for (const p of this.players.values()) {
-                    if (!p.alive || !p.segments || (p.invisibility && p.id !== this.playerId)) continue;
-                    
-                    let segmentColor = p.color;
-                    if (p.color === 'premium') {
-                        const time = Date.now() / 1000;
-                        const r = Math.floor(Math.sin(time) * 127 + 128);
-                        const g = Math.floor(Math.sin(time + 2) * 127 + 128);
-                        const b = Math.floor(Math.sin(time + 4) * 127 + 128);
-                        segmentColor = `rgb(${r}, ${g}, ${b})`;
-                    }
-                    
-                    const totalLength = p.segments.length;
-                    
-                    for (let i = p.segments.length - 1; i >= 0; i--) { 
-                        const seg = p.segments[i]; 
-                        const isHead = i === 0;
-                        this.drawSnakeSegment(this.ctx, seg, p.appearance, segmentColor, isHead, p.angle, i, totalLength);
-                    }
-                    
-                    if (!p.invisibility || p.id === this.playerId) {
-                        this.ctx.fillStyle = 'white'; 
-                        this.ctx.font = 'bold 16px Arial'; 
-                        this.ctx.textAlign = 'center'; 
-                        this.ctx.fillText(p.name, p.x, p.y - 25);
-                    }
-                }
-                
-                this.ctx.restore();
-                
-                this.ctx.fillStyle = 'white';
-                this.ctx.font = '12px Arial';
-                this.ctx.fillText(`FPS: ${this.fps}`, 10, 20);
-            }
-            
-            toggleSettingsMenu() {
-                const menu = document.getElementById('settingsMenu');
-                menu.classList.toggle('hidden');
-            }
-            
-            updateTotalPointsDisplay() {
-                document.getElementById('totalPointsValue').textContent = this.totalPoints;
-            }
-            
-            gameLoop() {
-                if (!this.gameRunning) return;
-                
-                this.predictOtherPlayers();
-                this.updateMySnake(); 
-                this.updateCamera(); 
-                this.updateUI(); 
-                this.render();
-                requestAnimationFrame(() => this.gameLoop());
-            }
-        }
-        
-        // Oyunu başlat
-        const game = new Game();
-        console.log('🎮 Snake.IO oyunu hazır!');
-    </script>
+    <script src="js/app.js"></script>
 </body>
 </html>
