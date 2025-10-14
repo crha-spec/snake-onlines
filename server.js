@@ -1,397 +1,392 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIo = require('socket.io');
 const path = require('path');
-require('dotenv').config();
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
-
-// CORS ve transport ayarları
-const io = new Server(server, { 
-    cors: { 
-        origin: '*',
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
         methods: ["GET", "POST"]
-    }, 
-    transports: ['websocket', 'polling']
+    }
 });
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
-// Oyun verileri
-const rooms = new Map();
-const chatHistory = new Map();
-const roomTimeouts = new Map();
+// Veri saklama (gerçek uygulamada veritabanı kullanın)
+let users = [];
+let chats = [];
+let messages = [];
+let onlineUsers = new Map();
 
-// Yemek oluştur fonksiyonu - GÜNCELLENDİ
-function generateFood(count = 300) {
-    const food = [];
-    const WORLD_SIZE = 5000;
+// Middleware
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Yardımcı fonksiyonlar
+
+// Kullanıcıyı ID'ye göre bul
+function findUserById(id) {
+    return users.find(user => user.id === id);
+}
+
+// Kullanıcıyı email'e göre bul
+function findUserByEmail(email) {
+    return users.find(user => user.email === email);
+}
+
+// Kullanıcıyı deviceId'ye göre bul
+function findUserByDeviceId(deviceId) {
+    return users.find(user => user.devices && user.devices.includes(deviceId));
+}
+
+// Sohbeti bul veya oluştur
+function findOrCreateChat(user1Id, user2Id) {
+    let chat = chats.find(c => 
+        c.participants.includes(user1Id) && c.participants.includes(user2Id)
+    );
     
-    for (let i = 0; i < count; i++) {
-        food.push({
-            x: Math.random() * WORLD_SIZE,
-            y: Math.random() * WORLD_SIZE,
-            color: `hsl(${Math.random() * 360}, 80%, 60%)`
-        });
+    if (!chat) {
+        chat = {
+            id: uuidv4(),
+            participants: [user1Id, user2Id],
+            createdAt: new Date().toISOString()
+        };
+        chats.push(chat);
     }
     
-    return food;
+    return chat;
 }
 
-// Benzersiz 7 haneli oda kodu oluştur
-function generateRoomCode() {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    
-    let attempts = 0;
-    const maxAttempts = 100;
-    
-    do {
-        result = '';
-        for (let i = 0; i < 7; i++) {
-            result += characters.charAt(Math.floor(Math.random() * characters.length));
-        }
-        attempts++;
-        
-        if (attempts >= maxAttempts) {
-            result = 'RM' + Date.now().toString().slice(-5);
-            break;
-        }
-    } while (rooms.has(result));
-    
-    return result;
-}
-
-// Oda zaman aşımını başlat
-function startRoomTimeout(roomCode) {
-    // Önceki zamanlayıcıyı temizle
-    if (roomTimeouts.has(roomCode)) {
-        clearTimeout(roomTimeouts.get(roomCode));
-    }
-    
-    const timeout = setTimeout(() => {
-        console.log(`⏰ Oda süresi doldu: ${roomCode}`);
-        
-        // Tüm oyunculara bildir
-        io.to(roomCode).emit('roomExpired');
-        
-        // Verileri temizle
-        rooms.delete(roomCode);
-        chatHistory.delete(roomCode);
-        roomTimeouts.delete(roomCode);
-        
-        console.log(`🗑️ Oda silindi: ${roomCode}`);
-    }, 3600000); // 1 saat
-    
-    roomTimeouts.set(roomCode, timeout);
-}
-
-// Yeni yemek oluşturma fonksiyonu - EKLENDİ
-function generateFoodAtRandomPosition(existingFood = [], players = []) {
-    const WORLD_SIZE = 5000;
-    const minFoodDistance = 80;
-    const minPlayerDistance = 150;
-    const minWallDistance = 100;
-    
-    let newX, newY;
-    let attempts = 0;
-    const maxAttempts = 200;
-    
-    do {
-        newX = Math.random() * (WORLD_SIZE - minWallDistance * 2) + minWallDistance;
-        newY = Math.random() * (WORLD_SIZE - minWallDistance * 2) + minWallDistance;
-        attempts++;
-        
-        if (attempts >= maxAttempts) {
-            console.log("Uygun yemek pozisyonu bulmak için maksimum deneme sayısına ulaşıldı");
-            break;
-        }
-        
-    } while (isFoodPositionOccupied(newX, newY, existingFood, players, minFoodDistance, minPlayerDistance));
-    
-    return { 
-        x: newX, 
-        y: newY, 
-        color: `hsl(${Math.random() * 360}, 80%, 60%)` 
-    };
-}
-
-// Yemek pozisyonunun meşgul olup olmadığını kontrol et - EKLENDİ
-function isFoodPositionOccupied(x, y, existingFood, players, minFoodDistance, minPlayerDistance) {
-    // Diğer yemeklere çok yakın mı kontrol et
-    for (const food of existingFood) {
-        const dx = x - food.x;
-        const dy = y - food.y;
-        const distanceSquared = dx * dx + dy * dy;
-        if (distanceSquared < minFoodDistance * minFoodDistance) {
-            return true;
-        }
-    }
-    
-    // Oyunculara çok yakın mı kontrol et
-    for (const player of players) {
-        const dx = x - (player.x || 0);
-        const dy = y - (player.y || 0);
-        const distanceSquared = dx * dx + dy * dy;
-        if (distanceSquared < minPlayerDistance * minPlayerDistance) {
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-io.on('connection', socket => {
-    console.log('✅ Oyuncu bağlandı:', socket.id);
-    
-    // Oda oluştur
-    socket.on('createRoom', (data) => {
-        console.log('🎮 Oda oluşturma isteği:', data);
-        
-        const roomCode = generateRoomCode();
-        const players = [{ id: data.playerId, name: data.playerName }];
-        
-        rooms.set(roomCode, {
-            owner: data.playerId,
-            players: players,
-            status: 'waiting',
-            food: generateFood()
-        });
-        
-        chatHistory.set(roomCode, []);
-        
-        // Oda zaman aşımını başlat
-        startRoomTimeout(roomCode);
-        
-        socket.join(roomCode);
-        
-        socket.emit('roomCreated', {
-            roomCode: roomCode,
-            players: players
-        });
-        
-        console.log('✅ Oda oluşturuldu:', roomCode);
-    });
-    
-    // Odaya katıl
-    socket.on('joinRoom', (data) => {
-        console.log('🚪 Odaya katılma isteği:', data);
-        
-        const room = rooms.get(data.roomCode);
-        
-        if (!room) {
-            console.log('❌ Oda bulunamadı:', data.roomCode);
-            socket.emit('roomNotFound');
-            return;
-        }
-        
-        // Oda kodu validasyonu
-        if (data.roomCode.length !== 7) {
-            socket.emit('roomError', { error: 'Oda kodu 7 haneli olmalıdır!' });
-            return;
-        }
-        
-        // Aynı ID'li oyuncu kontrolü
-        const existingPlayer = room.players.find(p => p.id === data.playerId);
-        if (!existingPlayer) {
-            room.players.push({ id: data.playerId, name: data.playerName });
-        }
-        
-        // Zaman aşımını sıfırla
-        startRoomTimeout(data.roomCode);
-        
-        socket.join(data.roomCode);
-        
-        socket.emit('roomJoined', {
-            roomCode: data.roomCode,
-            players: room.players,
-            roomExpireTime: Date.now() + 3600000 // 1 saat
-        });
-        
-        io.to(data.roomCode).emit('playersUpdate', room.players);
-        
-        const history = chatHistory.get(data.roomCode) || [];
-        socket.emit('chatHistory', history);
-        
-        console.log('✅ Oyuncu katıldı:', data.playerName, '→', data.roomCode);
-    });
-    
-    // Oyunu başlat
-    socket.on('startGame', (data) => {
-        console.log('🎮 Oyun başlatılıyor:', data.roomCode);
-        
-        const room = rooms.get(data.roomCode);
-        if (room) {
-            room.status = 'playing';
-            io.to(data.roomCode).emit('gameStarted', {
-                food: room.food
-            });
-            console.log('✅ Oyun başladı:', data.roomCode);
-        }
-    });
-    
-    // Oyuncu hareketi
-    socket.on('playerMove', (data) => {
-        socket.to(data.roomCode).emit('playerMoved', data);
-    });
-    
-    // Yemek yenildi - GÜNCELLENDİ
-    socket.on('foodEaten', (data) => {
-        const room = rooms.get(data.roomCode);
-        if (room) {
-            // Yenen yemeği kaldır
-            const foodIndex = room.food.findIndex(f => 
-                f.x === data.eatenFood.x && f.y === data.eatenFood.y
-            );
+// Kullanıcının sohbetlerini getir
+function getUserChats(userId) {
+    return chats
+        .filter(chat => chat.participants.includes(userId))
+        .map(chat => {
+            const otherUserId = chat.participants.find(id => id !== userId);
+            const otherUser = findUserById(otherUserId);
+            const chatMessages = messages.filter(msg => msg.chatId === chat.id);
             
-            if (foodIndex !== -1) {
-                room.food.splice(foodIndex, 1);
-                
-                // ESKİ KOD: Otomatik yeni yemek ekleme KALDIRILDI
-                // Yeni yemek, client tarafındaki food management sistemi tarafından eklenecek
-                
-                io.to(data.roomCode).emit('foodUpdate', {
-                    food: room.food
-                });
-                
-                console.log('🍎 Yemek yenildi:', data.roomCode);
-            }
-        }
-    });
-    
-    // Yeni yemek oluştur - EKLENDİ
-    socket.on('foodGenerated', (data) => {
-        const room = rooms.get(data.roomCode);
-        if (room) {
-            // Yeni yemekleri ekle
-            room.food.push(...data.newFood);
+            return {
+                ...chat,
+                participants: [findUserById(userId), otherUser].filter(Boolean),
+                messages: chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            };
+        })
+        .sort((a, b) => {
+            const aLastMessage = a.messages[a.messages.length - 1];
+            const bLastMessage = b.messages[b.messages.length - 1];
             
-            io.to(data.roomCode).emit('foodUpdate', {
-                food: room.food
-            });
+            if (!aLastMessage && !bLastMessage) return 0;
+            if (!aLastMessage) return 1;
+            if (!bLastMessage) return -1;
             
-            console.log('🍎 Yeni yemekler eklendi:', data.newFood.length, '→', data.roomCode);
-        }
-    });
-    
-    // Skor transferi
-    socket.on('scoreTransfer', (data) => {
-        io.to(data.roomCode).emit('scoreTransfer', data);
-    });
-    
-    // Oyuncu öldü
-    socket.on('playerDied', (data) => {
-        io.to(data.roomCode).emit('playerDiedFood', {
-            segments: data.segments
+            return new Date(bLastMessage.timestamp) - new Date(aLastMessage.timestamp);
         });
-    });
+}
+
+// API Routes
+
+// Cihaz doğrulama
+app.post('/api/verify-device', (req, res) => {
+    const { deviceId } = req.body;
     
-    // Chat mesajı
-    socket.on('chatMessage', (data) => {
-        const message = {
-            playerName: data.playerName,
-            message: data.message,
-            timestamp: Date.now()
+    if (!deviceId) {
+        return res.json({ success: false, message: 'Cihaz ID gerekli' });
+    }
+    
+    const user = findUserByDeviceId(deviceId);
+    
+    if (user) {
+        // Hassas bilgileri çıkar
+        const { password, devices, ...safeUser } = user;
+        res.json({ success: true, user: safeUser });
+    } else {
+        res.json({ success: false, message: 'Cihaz kayıtlı değil' });
+    }
+});
+
+// Kullanıcı kaydı
+app.post('/api/register', async (req, res) => {
+    const { email, password, deviceId } = req.body;
+    
+    if (!email || !password) {
+        return res.json({ success: false, message: 'Email ve şifre gerekli' });
+    }
+    
+    // Email formatı kontrolü (Gmail)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const gmailRegex = /@gmail\.com$/i;
+    
+    if (!emailRegex.test(email) || !gmailRegex.test(email)) {
+        return res.json({ success: false, message: 'Geçerli bir Gmail adresi girin' });
+    }
+    
+    if (password.length < 8) {
+        return res.json({ success: false, message: 'Şifre en az 8 karakter olmalıdır' });
+    }
+    
+    // Email kontrolü
+    if (findUserByEmail(email)) {
+        return res.json({ success: false, message: 'Bu email zaten kayıtlı' });
+    }
+    
+    try {
+        // Şifreyi hash'le
+        const hashedPassword = await bcrypt.hash(password, 12);
+        
+        // Yeni kullanıcı oluştur
+        const newUser = {
+            id: uuidv4(),
+            email,
+            password: hashedPassword,
+            username: email.split('@')[0], // Varsayılan kullanıcı adı
+            bio: '',
+            avatar: '',
+            devices: deviceId ? [deviceId] : [],
+            createdAt: new Date().toISOString()
         };
         
-        const history = chatHistory.get(data.roomCode) || [];
-        history.push(message);
+        users.push(newUser);
         
-        if (history.length > 50) {
-            history.shift();
+        // Hassas bilgileri çıkar
+        const { password: _, devices, ...safeUser } = newUser;
+        
+        res.json({ 
+            success: true, 
+            user: safeUser,
+            message: 'Hesap başarıyla oluşturuldu'
+        });
+    } catch (error) {
+        console.error('Kayıt hatası:', error);
+        res.json({ success: false, message: 'Kayıt sırasında bir hata oluştu' });
+    }
+});
+
+// Giriş
+app.post('/api/login', async (req, res) => {
+    const { email, password, deviceId } = req.body;
+    
+    if (!email || !password) {
+        return res.json({ success: false, message: 'Email ve şifre gerekli' });
+    }
+    
+    const user = findUserByEmail(email);
+    
+    if (!user) {
+        return res.json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+    
+    try {
+        // Şifre kontrolü
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        
+        if (!isPasswordValid) {
+            return res.json({ success: false, message: 'Geçersiz şifre' });
         }
         
-        chatHistory.set(data.roomCode, history);
+        // Cihaz ID'sini kaydet
+        if (deviceId && !user.devices.includes(deviceId)) {
+            user.devices.push(deviceId);
+        }
         
-        io.to(data.roomCode).emit('chatMessage', message);
+        // Hassas bilgileri çıkar
+        const { password: _, devices, ...safeUser } = user;
         
-        console.log('💬 Chat:', data.playerName, '→', data.message);
+        res.json({ 
+            success: true, 
+            user: safeUser,
+            message: 'Başarıyla giriş yapıldı'
+        });
+    } catch (error) {
+        console.error('Giriş hatası:', error);
+        res.json({ success: false, message: 'Giriş sırasında bir hata oluştu' });
+    }
+});
+
+// Profil güncelleme
+app.post('/api/update-profile', (req, res) => {
+    const { userId, username, bio, avatar } = req.body;
+    
+    if (!userId) {
+        return res.json({ success: false, message: 'Kullanıcı ID gerekli' });
+    }
+    
+    const user = findUserById(userId);
+    
+    if (!user) {
+        return res.json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+    
+    // Kullanıcı adı kontrolü
+    if (username) {
+        const existingUser = users.find(u => u.username === username && u.id !== userId);
+        if (existingUser) {
+            return res.json({ success: false, message: 'Bu kullanıcı adı zaten alınmış' });
+        }
+        user.username = username;
+    }
+    
+    if (bio !== undefined) user.bio = bio;
+    if (avatar !== undefined) user.avatar = avatar;
+    
+    // Hassas bilgileri çıkar
+    const { password, devices, ...safeUser } = user;
+    
+    res.json({ 
+        success: true, 
+        user: safeUser,
+        message: 'Profil başarıyla güncellendi'
+    });
+});
+
+// Kullanıcı bilgisi getir
+app.get('/api/user/:userId', (req, res) => {
+    const { userId } = req.params;
+    const user = findUserById(userId);
+    
+    if (user) {
+        const { password, devices, ...safeUser } = user;
+        res.json({ success: true, user: safeUser });
+    } else {
+        res.json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+});
+
+// Tüm kullanıcıları getir (demo amaçlı)
+app.get('/api/users', (req, res) => {
+    const safeUsers = users.map(user => {
+        const { password, devices, ...safeUser } = user;
+        return safeUser;
     });
     
-    // Oda zaman aşımı ayarı
-    socket.on('setRoomTimeout', (data) => {
-        startRoomTimeout(data.roomCode);
-    });
+    res.json({ success: true, users: safeUsers });
+});
+
+// Kullanıcı sohbetlerini getir
+app.get('/api/chats/:userId', (req, res) => {
+    const { userId } = req.params;
+    const userChats = getUserChats(userId);
     
-    // Odadan çık
-    socket.on('leaveRoom', (data) => {
-        console.log('👋 Oyuncu çıkıyor:', data.playerId, '→', data.roomCode);
+    res.json({ success: true, chats: userChats });
+});
+
+// Çıkış
+app.post('/api/logout', (req, res) => {
+    const { userId, deviceId } = req.body;
+    
+    if (userId && deviceId) {
+        const user = findUserById(userId);
+        if (user && user.devices) {
+            user.devices = user.devices.filter(id => id !== deviceId);
+        }
+    }
+    
+    res.json({ success: true, message: 'Başarıyla çıkış yapıldı' });
+});
+
+// Socket.IO bağlantıları
+io.on('connection', (socket) => {
+    console.log('Yeni kullanıcı bağlandı:', socket.id);
+    
+    // Kimlik doğrulama
+    socket.on('authenticate', ({ userId, deviceId }) => {
+        const user = findUserById(userId);
         
-        socket.leave(data.roomCode);
-        
-        const room = rooms.get(data.roomCode);
-        if (room) {
-            room.players = room.players.filter(p => p.id !== data.playerId);
+        if (user && user.devices && user.devices.includes(deviceId)) {
+            socket.userId = userId;
+            onlineUsers.set(userId, socket.id);
             
-            if (room.players.length === 0) {
-                // Son oyuncu çıktığında zamanlayıcıyı temizle
-                if (roomTimeouts.has(data.roomCode)) {
-                    clearTimeout(roomTimeouts.get(data.roomCode));
-                    roomTimeouts.delete(data.roomCode);
-                }
-                rooms.delete(data.roomCode);
-                chatHistory.delete(data.roomCode);
-                console.log('🗑️ Oda silindi:', data.roomCode);
-            } else {
-                io.to(data.roomCode).emit('playersUpdate', room.players);
-                console.log('👥 Oyuncu güncellendi:', room.players.length, 'oyuncu kaldı');
-            }
+            // Kullanıcının çevrimiçi olduğunu bildir
+            socket.broadcast.emit('user_online', userId);
+            
+            console.log(`Kullanıcı doğrulandı: ${user.username} (${userId})`);
+        } else {
+            console.log('Geçersiz kimlik doğrulama:', userId);
+            socket.disconnect();
         }
     });
     
-    // Bağlantı kesildi
-    socket.on('disconnect', (reason) => {
-        console.log('❌ Oyuncu ayrıldı:', socket.id, 'Sebep:', reason);
+    // Mesaj gönderme
+    socket.on('send_message', (messageData) => {
+        if (!socket.userId) {
+            console.log('Kimlik doğrulaması yapılmamış kullanıcı mesaj göndermeye çalıştı');
+            return;
+        }
         
-        // Tüm odalardan temizle
-        for (const [roomCode, room] of rooms.entries()) {
-            const playerIndex = room.players.findIndex(p => p.id === socket.id);
-            if (playerIndex !== -1) {
-                const playerName = room.players[playerIndex].name;
-                room.players.splice(playerIndex, 1);
-                
-                console.log(`👤 ${playerName} odadan çıkarıldı: ${roomCode}`);
-                
-                if (room.players.length === 0) {
-                    // Son oyuncu çıktığında zamanlayıcıyı temizle
-                    if (roomTimeouts.has(roomCode)) {
-                        clearTimeout(roomTimeouts.get(roomCode));
-                        roomTimeouts.delete(roomCode);
-                    }
-                    rooms.delete(roomCode);
-                    chatHistory.delete(roomCode);
-                    console.log('🗑️ Oda silindi:', roomCode);
-                } else {
-                    io.to(roomCode).emit('playersUpdate', room.players);
-                }
-            }
+        const { chatId, text } = messageData;
+        
+        if (!chatId || !text) {
+            console.log('Geçersiz mesaj verisi');
+            return;
+        }
+        
+        // Mesajı oluştur
+        const message = {
+            id: uuidv4(),
+            chatId,
+            senderId: socket.userId,
+            text: text.trim(),
+            timestamp: new Date().toISOString()
+        };
+        
+        // Mesajı kaydet
+        messages.push(message);
+        
+        // Sohbeti bul
+        const chat = chats.find(c => c.id === chatId);
+        if (!chat) {
+            console.log('Sohbet bulunamadı:', chatId);
+            return;
+        }
+        
+        // Alıcıyı bul
+        const receiverId = chat.participants.find(id => id !== socket.userId);
+        
+        // Mesajı gönderen ve alıcıya gönder
+        socket.emit('new_message', message);
+        
+        const receiverSocketId = onlineUsers.get(receiverId);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit('new_message', message);
+        }
+        
+        console.log(`Mesaj gönderildi: ${socket.userId} -> ${receiverId}`);
+    });
+    
+    // Bağlantı kesildiğinde
+    socket.on('disconnect', () => {
+        if (socket.userId) {
+            onlineUsers.delete(socket.userId);
+            socket.broadcast.emit('user_offline', socket.userId);
+            console.log(`Kullanıcı ayrıldı: ${socket.userId}`);
         }
     });
 });
 
-// Hata yakalama - EKLENDİ
+// Hata yakalama
 process.on('uncaughtException', (error) => {
-    console.error('❌ Beklenmeyen hata:', error);
+    console.error('Beklenmeyen hata:', error);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ İşlenmemiş promise:', promise, 'Sebep:', reason);
+    console.error('İşlenmemiş promise:', promise, 'Sebep:', reason);
 });
 
+// Sunucuyu başlat
 server.listen(PORT, () => {
-    console.log(`🚀 Server ${PORT} portunda çalışıyor`);
-    console.log(`🔌 Socket.IO hazır`);
-    console.log(`📁 Static dosyalar: ${path.join(__dirname, 'public')}`);
+    console.log(`🚀 InstaChat sunucusu ${PORT} portunda çalışıyor`);
+    console.log(`📱 Socket.IO hazır`);
 });
 
-// Graceful shutdown - EKLENDİ
+// Graceful shutdown
 process.on('SIGTERM', () => {
-    console.log('🛑 Server kapatılıyor...');
+    console.log('🛑 Sunucu kapatılıyor...');
     server.close(() => {
-        console.log('✅ Server başarıyla kapatıldı');
+        console.log('✅ Sunucu başarıyla kapatıldı');
         process.exit(0);
     });
 });
