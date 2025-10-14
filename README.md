@@ -1,13 +1,19 @@
-# Snake Online (Express + Socket.IO)
+# InstaChat - Anlık Mesajlaşma Uygulaması
 
-Bu proje basit bir multiplayer altyapısı sağlar. İçerik:
-- server.js (Socket.IO sunucusu)
-- package.json
-- public/index.html (örnek istemci)
+Instagram benzeri arayüze sahip, gerçek zamanlı mesajlaşma uygulaması.
 
-Kullanım:
-1. `npm install`
-2. `npm start`
-3. Tarayıcı: `http://localhost:3000` veya deploy ettikten sonra Railway URL
+## Özellikler
 
-NOT: Supabase entegrasyonu için `.env` dosyasına anahtarları ekleyin (isteğe bağlı).
+- 📧 Gmail formatında email ile kayıt/giriş
+- 🔐 Cihaz bazlı otomatik oturum açma
+- 💬 Gerçek zamanlı mesajlaşma
+- 👤 Kullanıcı profili yönetimi (kullanıcı adı, hakkında, profil fotoğrafı)
+- 📱 Responsive tasarım (mobil uyumlu)
+- ♿ Erişilebilirlik desteği
+
+## Kurulum
+
+1. Depoyu klonlayın:
+```bash
+git clone <repository-url>
+cd instachat
