@@ -4,8 +4,6 @@ const socketIo = require('socket.io');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const multer = require('multer');
-const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,23 +15,6 @@ const io = socketIo(server, {
 });
 
 const PORT = process.env.PORT || 3000;
-
-// Upload klasörü oluştur
-const uploadDir = path.join(__dirname, 'public/uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Multer konfigürasyonu
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname);
-    }
-});
-const upload = multer({ storage: storage });
 
 // Veri saklama
 let users = [];
@@ -288,12 +269,12 @@ app.post('/api/update-profile', (req, res) => {
     });
 });
 
-// Story yükleme
-app.post('/api/upload-story', upload.single('image'), (req, res) => {
-    const { userId } = req.body;
+// Story yükleme (URL versiyonu)
+app.post('/api/upload-story', (req, res) => {
+    const { userId, imageUrl } = req.body;
     
-    if (!userId || !req.file) {
-        return res.json({ success: false, message: 'Kullanıcı ID ve resim gerekli' });
+    if (!userId || !imageUrl) {
+        return res.json({ success: false, message: 'Kullanıcı ID ve resim URL gerekli' });
     }
     
     const user = findUserById(userId);
@@ -305,7 +286,7 @@ app.post('/api/upload-story', upload.single('image'), (req, res) => {
     const story = {
         id: uuidv4(),
         userId: userId,
-        imageUrl: '/uploads/' + req.file.filename,
+        imageUrl: imageUrl,
         createdAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 saat
         likes: []
@@ -354,7 +335,12 @@ app.get('/api/stories', (req, res) => {
         const user = findUserById(story.userId);
         return {
             ...story,
-            user: user ? { id: user.id, username: user.username, avatar: user.avatar } : null
+            user: user ? { 
+                id: user.id, 
+                username: user.username, 
+                avatar: user.avatar,
+                hideOnlineStatus: user.hideOnlineStatus 
+            } : null
         };
     });
     
@@ -404,6 +390,11 @@ app.post('/api/logout', (req, res) => {
     }
     
     res.json({ success: true, message: 'Başarıyla çıkış yapıldı' });
+});
+
+// Ana sayfa route'u
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Socket.IO bağlantıları
@@ -474,6 +465,21 @@ io.on('connection', (socket) => {
         console.log(`Mesaj gönderildi: ${socket.userId} -> ${receiverId}`);
     });
     
+    socket.on('user_typing', (data) => {
+        const { chatId, receiverId, isTyping } = data;
+        
+        if (receiverId) {
+            const receiverSocketId = onlineUsers.get(receiverId);
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit('user_typing', {
+                    userId: socket.userId,
+                    chatId,
+                    isTyping
+                });
+            }
+        }
+    });
+    
     socket.on('disconnect', () => {
         if (socket.userId) {
             onlineUsers.delete(socket.userId);
@@ -499,8 +505,27 @@ setInterval(() => {
     }
 }, 60 * 60 * 1000); // Her saat temizle
 
+// Hata yakalama
+process.on('uncaughtException', (error) => {
+    console.error('Beklenmeyen hata:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('İşlenmemiş promise:', promise, 'Sebep:', reason);
+});
+
 // Sunucuyu başlat
 server.listen(PORT, () => {
     console.log(`🚀 InstaChat sunucusu ${PORT} portunda çalışıyor`);
     console.log(`📱 Socket.IO hazır`);
+    console.log(`📁 Public dosyaları: ${path.join(__dirname, 'public')}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('🛑 Sunucu kapatılıyor...');
+    server.close(() => {
+        console.log('✅ Sunucu başarıyla kapatıldı');
+        process.exit(0);
+    });
 });
