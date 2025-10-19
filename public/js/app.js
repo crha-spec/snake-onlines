@@ -1,4 +1,3 @@
-// InstaChat - Anlık Mesajlaşma Uygulaması
 class InstaChat {
     constructor() {
         this.socket = null;
@@ -6,18 +5,17 @@ class InstaChat {
         this.users = [];
         this.chats = [];
         this.activeChat = null;
+        this.stories = [];
         this.deviceId = this.getDeviceId();
         
         this.init();
     }
     
-    // Uygulamayı başlat
     init() {
         this.setupEventListeners();
         this.checkExistingSession();
     }
     
-    // Cihaz ID'sini al veya oluştur
     getDeviceId() {
         let deviceId = localStorage.getItem('device_id');
         if (!deviceId) {
@@ -27,16 +25,20 @@ class InstaChat {
         return deviceId;
     }
     
-    // Event listener'ları kur
     setupEventListeners() {
-        // Auth formları
+        // Sadece auth formları - diğer butonlar auth sonrası aktif olacak
         document.getElementById('loginForm').addEventListener('submit', (e) => this.handleLogin(e));
         document.getElementById('registerForm').addEventListener('submit', (e) => this.handleRegister(e));
         
+        // Diğer event listener'lar auth sonrası kurulacak
+    }
+    
+    setupAppEventListeners() {
         // Navigasyon
-        document.getElementById('homeBtn').addEventListener('click', () => this.showChatSection());
+        document.getElementById('homeBtn').addEventListener('click', () => this.showHomeSection());
         document.getElementById('chatBtn').addEventListener('click', () => this.showChatSection());
         document.getElementById('profileBtn').addEventListener('click', () => this.showProfileSection());
+        document.getElementById('storyBtn').addEventListener('click', () => this.showStorySection());
         
         // Mesajlaşma
         document.getElementById('newChatBtn').addEventListener('click', () => this.showNewChatModal());
@@ -45,9 +47,15 @@ class InstaChat {
             if (e.key === 'Enter') this.sendMessage();
         });
         
-        // Profil düzenleme
+        // Profil ve ayarlar
         document.getElementById('editProfileBtn').addEventListener('click', () => this.showEditProfileModal());
         document.getElementById('editProfileForm').addEventListener('submit', (e) => this.handleEditProfile(e));
+        document.getElementById('settingsBtn').addEventListener('click', () => this.showSettingsModal());
+        document.getElementById('changePasswordForm').addEventListener('submit', (e) => this.handleChangePassword(e));
+        
+        // Story
+        document.getElementById('uploadStoryBtn').addEventListener('click', () => this.showStoryUploadModal());
+        document.getElementById('storyUploadForm').addEventListener('submit', (e) => this.handleStoryUpload(e));
         
         // Modal kapatma
         document.querySelectorAll('.close-modal').forEach(btn => {
