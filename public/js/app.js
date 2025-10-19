@@ -815,23 +815,31 @@ class InstaChat {
         });
     }
     
-    openChat(chat, otherUser) {
-        this.activeChat = chat;
-        this.renderChatList();
-        this.renderChatMessages();
-        
-        const isOnline = this.onlineUsers.includes(otherUser.id);
-        
-        document.getElementById('activeChatName').textContent = otherUser.username;
-        document.getElementById('activeChatAvatar').src = otherUser.avatar || this.getDefaultAvatar();
-        document.getElementById('activeChatStatus').textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
-        document.getElementById('activeChatStatus').className = isOnline ? 'online-status' : '';
-        
-        document.getElementById('messageInput').disabled = false;
-        document.getElementById('sendMessageBtn').disabled = false;
-        
-        document.querySelector('.no-chat-selected').style.display = 'none';
-    }
+openChat(chat, otherUser) {
+    this.activeChat = chat;
+    this.renderChatList();
+    this.renderChatMessages();
+
+    const isOnline = this.onlineUsers.includes(otherUser.id);
+
+    // Aktif sohbet başlığını göster
+    document.querySelector('.active-chat .chat-header').style.display = 'flex';
+    document.getElementById('activeChatName').textContent = otherUser.username;
+    document.getElementById('activeChatAvatar').src = otherUser.avatar || this.getDefaultAvatar();
+    document.getElementById('activeChatStatus').textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
+    document.getElementById('activeChatStatus').className = isOnline ? 'online-status' : '';
+
+    // Mesaj yazma alanını göster
+    document.querySelector('.chat-input-container').style.display = 'block';
+
+    // "Henüz sohbet yok" mesajını gizle
+    document.querySelector('.no-chat-selected').style.display = 'none';
+
+    document.getElementById('messageInput').disabled = false;
+    document.getElementById('sendMessageBtn').disabled = false;
+    
+    console.log('Sohbet açıldı:', otherUser.username); // Debug için
+}
     
     renderChatMessages() {
         const messagesContainer = document.getElementById('chatMessages');
