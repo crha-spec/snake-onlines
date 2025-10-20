@@ -157,7 +157,7 @@
                             <p>Bir sohbet seçin veya yeni bir sohbet başlatın</p>
                         </div>
                         
-                        <div class="chat-header" style="display: none;">
+                        <div class="chat-header" style="display: none;" id="activeChatHeader">
                             <div class="chat-user">
                                 <div class="avatar medium">
                                     <img id="activeChatAvatar" src="" alt="Kullanıcı">
@@ -173,7 +173,7 @@
                             <!-- Mesajlar buraya dinamik olarak eklenecek -->
                         </div>
                         
-                        <div class="chat-input-container" style="display: none;">
+                        <div class="chat-input-container" style="display: none;" id="chatInputContainer">
                             <div class="chat-input">
                                 <input type="text" id="messageInput" placeholder="Mesaj yazın..." disabled>
                                 <button class="icon-btn" id="sendMessageBtn" disabled>
@@ -213,7 +213,7 @@
                         <div class="profile-info">
                             <div class="profile-name">
                                 <h1 id="profileUsername">Kullanıcı Adı</h1>
-                                <button class="btn btn-outline" id="editProfileBtn">Profili Düzenle</button>
+                                <button class="btn btn-outline" id="editProfileBtn2">Profili Düzenle</button>
                             </div>
                             <div class="profile-stats">
                                 <div class="stat">
