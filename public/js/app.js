@@ -73,21 +73,20 @@ class InstaChat {
         // Şifre değiştirme
         document.getElementById('changePasswordForm').addEventListener('submit', (e) => this.handleChangePassword(e));
         
-        // Modal kapatma
-        document.querySelectorAll('.close-modal').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+        // Modal kapatma - TÜM close butonları için
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('close-modal') || 
+                e.target.closest('.close-modal')) {
                 const modal = e.target.closest('.modal');
-                if (modal) modal.classList.add('hidden');
-            });
-        });
-        
-        // Modal backdrop kapatma
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
+                if (modal) {
                     modal.classList.add('hidden');
                 }
-            });
+            }
+            
+            // Modal backdrop'a tıklanınca kapat
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.add('hidden');
+            }
         });
         
         // Çıkış işlemi
@@ -119,6 +118,8 @@ class InstaChat {
     }
     
     async checkExistingSession() {
+        console.log('Oturum kontrolü başlatıldı, cihaz ID:', this.deviceId);
+        
         if (this.deviceId) {
             try {
                 const response = await fetch('/api/verify-device', {
@@ -128,6 +129,7 @@ class InstaChat {
                 });
                 
                 const data = await response.json();
+                console.log('Oturum kontrolü yanıtı:', data);
                 
                 if (data.success && data.user) {
                     this.currentUser = data.user;
@@ -157,10 +159,15 @@ class InstaChat {
             const response = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, deviceId: this.deviceId })
+                body: JSON.stringify({ 
+                    email, 
+                    password, 
+                    deviceId: this.deviceId 
+                })
             });
             
             const data = await response.json();
+            console.log('Giriş yanıtı:', data);
             
             if (data.success) {
                 this.currentUser = data.user;
@@ -168,6 +175,9 @@ class InstaChat {
                 this.connectSocket();
                 this.showToast('Başarıyla giriş yapıldı', 'success');
                 document.getElementById('loginForm').reset();
+                
+                // Kullanıcı bilgilerini localStorage'a kaydet
+                localStorage.setItem('current_user', JSON.stringify(data.user));
             } else {
                 this.showToast(data.message || 'Giriş başarısız', 'error');
             }
@@ -197,15 +207,24 @@ class InstaChat {
             const response = await fetch('/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, deviceId: this.deviceId })
+                body: JSON.stringify({ 
+                    email, 
+                    password, 
+                    deviceId: this.deviceId 
+                })
             });
             
             const data = await response.json();
+            console.log('Kayıt yanıtı:', data);
             
             if (data.success) {
                 this.currentUser = data.user;
                 this.showApp();
                 this.connectSocket();
+                
+                // Kullanıcı bilgilerini localStorage'a kaydet
+                localStorage.setItem('current_user', JSON.stringify(data.user));
+                
                 this.showEditProfileModal();
                 this.showToast('Hesabınız oluşturuldu! Profilinizi tamamlayın', 'success');
                 document.getElementById('registerForm').reset();
@@ -277,6 +296,10 @@ class InstaChat {
             if (data.success) {
                 this.currentUser = data.user;
                 document.getElementById('hideActivityToggle').checked = newStatus;
+                
+                // localStorage'ı güncelle
+                localStorage.setItem('current_user', JSON.stringify(this.currentUser));
+                
                 this.showToast(newStatus ? 'Aktiflik durumu gizlendi' : 'Aktiflik durumu gösteriliyor', 'success');
             }
         } catch (error) {
@@ -329,11 +352,6 @@ class InstaChat {
                 this.showToast('Şifre başarıyla değiştirildi', 'success');
                 document.getElementById('changePasswordModal').classList.add('hidden');
                 document.getElementById('changePasswordForm').reset();
-                
-                // Şifre değiştirildikten sonra otomatik çıkış öner
-                setTimeout(() => {
-                    this.showToast('Güvenlik için lütfen yeniden giriş yapın', 'success');
-                }, 2000);
             } else {
                 this.showToast(data.message || 'Şifre değiştirme başarısız', 'error');
             }
@@ -366,6 +384,9 @@ class InstaChat {
             this.currentUser = null;
             this.chats = [];
             this.activeChat = null;
+            
+            // localStorage'ı temizle
+            localStorage.removeItem('current_user');
             
             document.getElementById('logoutModal').classList.add('hidden');
             document.getElementById('appScreen').classList.remove('active');
@@ -434,6 +455,9 @@ class InstaChat {
             if (data.success) {
                 this.currentUser = data.user;
                 this.updateProfileDisplay();
+                
+                // localStorage'ı güncelle
+                localStorage.setItem('current_user', JSON.stringify(this.currentUser));
             }
         } catch (error) {
             console.error('Kullanıcı verisi yükleme hatası:', error);
@@ -1056,37 +1080,36 @@ class InstaChat {
     }
     
     async startNewChat(user) {
-        document.getElementById('newChatModal').classList.add('hidden');
-        
-        let existingChat = this.chats.find(chat => 
-            chat.otherUser && chat.otherUser.id === user.id
-        );
-        
-        if (existingChat) {
-            this.openChat(existingChat, user);
-        } else {
-            // Yeni sohbet oluştur
-            try {
-                const response = await fetch(`/api/chats/${this.currentUser.id}`);
-                const data = await response.json();
+        try {
+            const response = await fetch('/api/start-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: this.currentUser.id,
+                    otherUserId: user.id
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                document.getElementById('newChatModal').classList.add('hidden');
                 
-                if (data.success) {
-                    this.chats = data.chats;
-                    this.renderChatList();
-                    
-                    // Yeni sohbeti bul ve aç
-                    const newChat = this.chats.find(chat => 
-                        chat.otherUser && chat.otherUser.id === user.id
-                    );
-                    
-                    if (newChat) {
-                        this.openChat(newChat, user);
-                    }
+                // Sohbet listesini yenile
+                await this.loadChats();
+                
+                // Yeni sohbeti aç
+                if (data.chat) {
+                    this.openChat(data.chat, user);
                 }
-            } catch (error) {
-                console.error('Yeni sohbet oluşturma hatası:', error);
-                this.showToast('Sohbet oluşturulamadı', 'error');
+                
+                this.showToast('Yeni sohbet başlatıldı', 'success');
+            } else {
+                this.showToast(data.message || 'Sohbet başlatılamadı', 'error');
             }
+        } catch (error) {
+            console.error('Yeni sohbet başlatma hatası:', error);
+            this.showToast('Bir hata oluştu', 'error');
         }
     }
     
@@ -1127,6 +1150,10 @@ class InstaChat {
             if (data.success) {
                 this.currentUser = data.user;
                 this.updateProfileDisplay();
+                
+                // localStorage'ı güncelle
+                localStorage.setItem('current_user', JSON.stringify(this.currentUser));
+                
                 document.getElementById('editProfileModal').classList.add('hidden');
                 this.showToast('Profil güncellendi', 'success');
             } else {
@@ -1139,6 +1166,8 @@ class InstaChat {
     }
     
     updateProfileDisplay() {
+        if (!this.currentUser) return;
+        
         document.getElementById('profileUsername').textContent = this.currentUser.username || 'Kullanıcı Adı';
         document.getElementById('profileBio').textContent = this.currentUser.bio || 'Hakkında bilgisi bulunmuyor';
         
@@ -1146,10 +1175,12 @@ class InstaChat {
         const profileAvatar = document.getElementById('profileAvatarImg');
         
         const avatarUrl = this.currentUser.avatar || this.getDefaultAvatar();
-        navAvatar.src = avatarUrl;
-        profileAvatar.src = avatarUrl;
+        if (navAvatar) navAvatar.src = avatarUrl;
+        if (profileAvatar) profileAvatar.src = avatarUrl;
         
-        document.getElementById('hideActivityToggle').checked = this.currentUser.hideActivity || false;
+        if (document.getElementById('hideActivityToggle')) {
+            document.getElementById('hideActivityToggle').checked = this.currentUser.hideActivity || false;
+        }
     }
     
     getDefaultAvatar() {
@@ -1157,6 +1188,8 @@ class InstaChat {
     }
     
     formatTime(timestamp) {
+        if (!timestamp) return '';
+        
         const date = new Date(timestamp);
         const now = new Date();
         const diff = now - date;
@@ -1211,10 +1244,14 @@ class InstaChat {
         container.appendChild(toast);
         
         setTimeout(() => {
-            toast.remove();
+            if (toast.parentNode) {
+                toast.remove();
+            }
         }, 5000);
     }
 }
 
 // Uygulamayı başlat
-const app = new InstaChat();
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new InstaChat();
+});
