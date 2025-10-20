@@ -1,5 +1,3 @@
-
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -27,13 +25,6 @@ let stories = [];
 let storyLikes = [];
 let onlineUsers = new Map();
 
-// Multer yapılandırması (story yükleme için)
-const storage = multer.memoryStorage();
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
-});
-
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -53,7 +44,7 @@ function findUserByDeviceId(deviceId) {
 
 function findOrCreateChat(user1Id, user2Id) {
     let chat = chats.find(c => 
-        c.participants.includes(user1Id) && c.participants.includes(user2Id)
+        (c.participants.includes(user1Id) && c.participants.includes(user2Id))
     );
     
     if (!chat) {
@@ -63,6 +54,8 @@ function findOrCreateChat(user1Id, user2Id) {
             createdAt: new Date().toISOString()
         };
         chats.push(chat);
+        
+        console.log('Yeni sohbet oluşturuldu:', chat.id);
     }
     
     return chat;
@@ -347,6 +340,31 @@ app.get('/api/chats/:userId', (req, res) => {
     res.json({ success: true, chats: userChats });
 });
 
+// Yeni sohbet başlat
+app.post('/api/start-chat', (req, res) => {
+    const { userId, otherUserId } = req.body;
+    
+    if (!userId || !otherUserId) {
+        return res.json({ success: false, message: 'Kullanıcı ID gerekli' });
+    }
+    
+    const user = findUserById(userId);
+    const otherUser = findUserById(otherUserId);
+    
+    if (!user || !otherUser) {
+        return res.json({ success: false, message: 'Kullanıcı bulunamadı' });
+    }
+    
+    const chat = findOrCreateChat(userId, otherUserId);
+    const userChats = getUserChats(userId);
+    
+    res.json({ 
+        success: true, 
+        chat: userChats.find(c => c.id === chat.id),
+        message: 'Sohbet başlatıldı'
+    });
+});
+
 // Story yükleme
 app.post('/api/upload-story', (req, res) => {
     const { userId, imageData } = req.body;
@@ -490,6 +508,11 @@ app.post('/api/logout', (req, res) => {
     res.json({ success: true, message: 'Başarıyla çıkış yapıldı' });
 });
 
+// Ana sayfa
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Socket.IO bağlantıları
 io.on('connection', (socket) => {
     console.log('Yeni kullanıcı bağlandı:', socket.id);
@@ -597,13 +620,4 @@ process.on('unhandledRejection', (reason, promise) => {
 server.listen(PORT, () => {
     console.log(`🚀 InstaChat sunucusu ${PORT} portunda çalışıyor`);
     console.log(`📱 Socket.IO hazır`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('🛑 Sunucu kapatılıyor...');
-    server.close(() => {
-        console.log('✅ Sunucu başarıyla kapatıldı');
-        process.exit(0);
-    });
 });
