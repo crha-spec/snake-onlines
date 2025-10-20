@@ -1,32 +1,4 @@
-{
-  "name": "instachat",
-  "version": "1.0.0",
-  "description": "Instagram tarzı anlık mesajlaşma uygulaması",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.7.5",
-    "bcryptjs": "^2.4.3",
-    "uuid": "^9.0.1",
-    "multer": "^1.4.5-lts.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
-  },
-  "keywords": [
-    "chat",
-    "messaging",
-    "instagram",
-    "realtime",
-    "stories"
-  ],
-  "author": "InstaChat Team",
-  "license": "MIT"
-}
+
 
 const express = require('express');
 const http = require('http');
