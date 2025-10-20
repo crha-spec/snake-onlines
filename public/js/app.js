@@ -27,6 +27,7 @@ class InstaChat {
         if (!deviceId) {
             deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('device_id', deviceId);
+            console.log('Yeni cihaz ID oluşturuldu:', deviceId);
         }
         return deviceId;
     }
@@ -66,6 +67,7 @@ class InstaChat {
         
         // Profil düzenleme
         document.getElementById('editProfileBtn').addEventListener('click', () => this.showEditProfileModal());
+        document.getElementById('editProfileBtn2').addEventListener('click', () => this.showEditProfileModal());
         document.getElementById('editProfileForm').addEventListener('submit', (e) => this.handleEditProfile(e));
         
         // Şifre değiştirme
@@ -76,6 +78,15 @@ class InstaChat {
             btn.addEventListener('click', (e) => {
                 const modal = e.target.closest('.modal');
                 if (modal) modal.classList.add('hidden');
+            });
+        });
+        
+        // Modal backdrop kapatma
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.add('hidden');
+                }
             });
         });
         
@@ -123,6 +134,7 @@ class InstaChat {
                     this.showApp();
                     this.connectSocket();
                     await this.loadUserData();
+                    this.showToast('Otomatik giriş yapıldı', 'success');
                 }
             } catch (error) {
                 console.error('Oturum kontrolü hatası:', error);
@@ -287,6 +299,8 @@ class InstaChat {
         const newPassword = document.getElementById('newPassword').value;
         const confirmPassword = document.getElementById('confirmPassword').value;
         
+        console.log('Şifre değiştirme denemesi:', { currentPassword, newPassword, confirmPassword });
+        
         if (newPassword !== confirmPassword) {
             this.showToast('Yeni şifreler eşleşmiyor', 'error');
             return;
@@ -309,11 +323,17 @@ class InstaChat {
             });
             
             const data = await response.json();
+            console.log('Şifre değiştirme yanıtı:', data);
             
             if (data.success) {
                 this.showToast('Şifre başarıyla değiştirildi', 'success');
                 document.getElementById('changePasswordModal').classList.add('hidden');
                 document.getElementById('changePasswordForm').reset();
+                
+                // Şifre değiştirildikten sonra otomatik çıkış öner
+                setTimeout(() => {
+                    this.showToast('Güvenlik için lütfen yeniden giriş yapın', 'success');
+                }, 2000);
             } else {
                 this.showToast(data.message || 'Şifre değiştirme başarısız', 'error');
             }
@@ -483,7 +503,7 @@ class InstaChat {
         const uploadBtn = document.createElement('div');
         uploadBtn.className = 'story-item';
         uploadBtn.innerHTML = `
-            <div class="upload-story-btn">
+            <div class="upload-story-btn" id="uploadStoryBtn">
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                 </svg>
@@ -788,7 +808,7 @@ class InstaChat {
         }
         
         this.chats.forEach(chat => {
-            const otherUser = chat.participants.find(p => p.id !== this.currentUser.id);
+            const otherUser = chat.otherUser;
             if (!otherUser) return;
             
             const lastMessage = chat.lastMessage;
@@ -815,39 +835,39 @@ class InstaChat {
         });
     }
     
-openChat(chat, otherUser) {
-    this.activeChat = chat;
-    this.renderChatList();
-    this.renderChatMessages();
-
-    const isOnline = this.onlineUsers.includes(otherUser.id);
-
-    // Aktif sohbet başlığını göster
-    document.querySelector('.active-chat .chat-header').style.display = 'flex';
-    document.getElementById('activeChatName').textContent = otherUser.username;
-    document.getElementById('activeChatAvatar').src = otherUser.avatar || this.getDefaultAvatar();
-    document.getElementById('activeChatStatus').textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
-    document.getElementById('activeChatStatus').className = isOnline ? 'online-status' : '';
-
-    // Mesaj yazma alanını göster
-    document.querySelector('.chat-input-container').style.display = 'block';
-
-    // "Henüz sohbet yok" mesajını gizle
-    document.querySelector('.no-chat-selected').style.display = 'none';
-
-    document.getElementById('messageInput').disabled = false;
-    document.getElementById('sendMessageBtn').disabled = false;
-    
-    console.log('Sohbet açıldı:', otherUser.username); // Debug için
-}
+    openChat(chat, otherUser) {
+        this.activeChat = chat;
+        this.renderChatList();
+        this.renderChatMessages();
+        
+        const isOnline = this.onlineUsers.includes(otherUser.id);
+        
+        // Aktif sohbet başlığını göster
+        document.getElementById('activeChatHeader').style.display = 'flex';
+        document.getElementById('activeChatName').textContent = otherUser.username;
+        document.getElementById('activeChatAvatar').src = otherUser.avatar || this.getDefaultAvatar();
+        document.getElementById('activeChatStatus').textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
+        document.getElementById('activeChatStatus').className = isOnline ? 'online-status' : '';
+        
+        // Mesaj yazma alanını göster
+        document.getElementById('chatInputContainer').style.display = 'block';
+        
+        // "Henüz sohbet yok" mesajını gizle
+        document.querySelector('.no-chat-selected').style.display = 'none';
+        
+        document.getElementById('messageInput').disabled = false;
+        document.getElementById('sendMessageBtn').disabled = false;
+        
+        console.log('Sohbet açıldı:', otherUser.username);
+    }
     
     renderChatMessages() {
         const messagesContainer = document.getElementById('chatMessages');
         messagesContainer.innerHTML = '';
         
-        if (!this.activeChat || this.activeChat.messages.length === 0) {
+        if (!this.activeChat || !this.activeChat.messages || this.activeChat.messages.length === 0) {
             messagesContainer.innerHTML = `
-                <div class="no-chat-selected">
+                <div class="no-chat-selected" style="display: flex;">
                     <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
                     </svg>
@@ -958,7 +978,7 @@ openChat(chat, otherUser) {
         this.renderChatList();
         
         if (this.activeChat) {
-            const otherUser = this.activeChat.participants.find(p => p.id !== this.currentUser.id);
+            const otherUser = this.activeChat.otherUser;
             if (otherUser && otherUser.id === userId) {
                 const statusEl = document.getElementById('activeChatStatus');
                 statusEl.textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
@@ -1039,23 +1059,34 @@ openChat(chat, otherUser) {
         document.getElementById('newChatModal').classList.add('hidden');
         
         let existingChat = this.chats.find(chat => 
-            chat.participants.some(p => p.id === user.id)
+            chat.otherUser && chat.otherUser.id === user.id
         );
         
         if (existingChat) {
             this.openChat(existingChat, user);
         } else {
-            const newChat = {
-                id: 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                participants: [this.currentUser, user],
-                messages: [],
-                lastMessage: null,
-                createdAt: new Date().toISOString()
-            };
-            
-            this.chats.unshift(newChat);
-            this.renderChatList();
-            this.openChat(newChat, user);
+            // Yeni sohbet oluştur
+            try {
+                const response = await fetch(`/api/chats/${this.currentUser.id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.chats = data.chats;
+                    this.renderChatList();
+                    
+                    // Yeni sohbeti bul ve aç
+                    const newChat = this.chats.find(chat => 
+                        chat.otherUser && chat.otherUser.id === user.id
+                    );
+                    
+                    if (newChat) {
+                        this.openChat(newChat, user);
+                    }
+                }
+            } catch (error) {
+                console.error('Yeni sohbet oluşturma hatası:', error);
+                this.showToast('Sohbet oluşturulamadı', 'error');
+            }
         }
     }
     
