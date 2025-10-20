@@ -1,3 +1,33 @@
+{
+  "name": "instachat",
+  "version": "1.0.0",
+  "description": "Instagram tarzı anlık mesajlaşma uygulaması",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.5",
+    "bcryptjs": "^2.4.3",
+    "uuid": "^9.0.1",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "chat",
+    "messaging",
+    "instagram",
+    "realtime",
+    "stories"
+  ],
+  "author": "InstaChat Team",
+  "license": "MIT"
+}
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -76,7 +106,7 @@ function getUserChats(userId) {
             
             return {
                 ...chat,
-                participants: [findUserById(userId), otherUser].filter(Boolean),
+                otherUser: otherUser,
                 messages: chatMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)),
                 lastMessage: chatMessages[chatMessages.length - 1]
             };
@@ -292,7 +322,11 @@ app.post('/api/change-password', async (req, res) => {
             return res.json({ success: false, message: 'Yeni şifre en az 8 karakter olmalıdır' });
         }
         
-        user.password = await bcrypt.hash(newPassword, 12);
+        // Yeni şifreyi hash'le
+        const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+        user.password = hashedNewPassword;
+        
+        console.log('Şifre güncellendi - Kullanıcı:', user.email);
         
         res.json({ 
             success: true, 
