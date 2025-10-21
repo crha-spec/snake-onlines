@@ -150,30 +150,27 @@
 
                     <!-- Aktif Sohbet -->
                     <div class="active-chat">
-                        <div class="no-chat-selected">
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
-                            </svg>
-                            <p>Bir sohbet seçin veya yeni bir sohbet başlatın</p>
-                        </div>
-                        
-                        <div class="chat-header" style="display: none;" id="activeChatHeader">
+                        <div class="chat-header">
                             <div class="chat-user">
                                 <div class="avatar medium">
                                     <img id="activeChatAvatar" src="" alt="Kullanıcı">
                                 </div>
                                 <div class="user-info">
-                                    <h3 id="activeChatName">Kullanıcı Adı</h3>
+                                    <h3 id="activeChatName">Sohbet Seçin</h3>
                                     <span id="activeChatStatus">Çevrimdışı</span>
                                 </div>
                             </div>
                         </div>
-                        
                         <div class="chat-messages" id="chatMessages">
                             <!-- Mesajlar buraya dinamik olarak eklenecek -->
+                            <div class="no-chat-selected">
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+                                </svg>
+                                <p>Bir sohbet seçin veya yeni bir mesaj başlatın</p>
+                            </div>
                         </div>
-                        
-                        <div class="chat-input-container" style="display: none;" id="chatInputContainer">
+                        <div class="chat-input-container">
                             <div class="chat-input">
                                 <input type="text" id="messageInput" placeholder="Mesaj yazın..." disabled>
                                 <button class="icon-btn" id="sendMessageBtn" disabled>
@@ -187,11 +184,11 @@
                 </div>
             </div>
 
-            <!-- Hikayeler Bölümü -->
+            <!-- Stories Bölümü -->
             <div id="storiesSection" class="content-section">
                 <div class="stories-container">
-                    <div id="storiesGrid">
-                        <!-- Hikayeler buraya dinamik olarak eklenecek -->
+                    <div id="storiesGrid" style="display: flex; gap: 15px; flex-wrap: wrap; padding: 20px;">
+                        <!-- Stories buraya dinamik olarak eklenecek -->
                     </div>
                 </div>
             </div>
@@ -202,30 +199,25 @@
                     <div class="profile-header">
                         <div class="profile-avatar">
                             <div class="avatar large">
-                                <img id="profileAvatarImg" src="" alt="Profil Resmi">
+                                <img id="profileAvatarImg" src="" alt="Profil Fotoğrafı">
                             </div>
-                            <button class="edit-avatar-btn" id="editProfileBtn">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                                </svg>
-                            </button>
                         </div>
                         <div class="profile-info">
                             <div class="profile-name">
                                 <h1 id="profileUsername">Kullanıcı Adı</h1>
-                                <button class="btn btn-outline" id="editProfileBtn2">Profili Düzenle</button>
+                                <button class="btn btn-outline" id="editProfileBtn">Profili Düzenle</button>
                             </div>
                             <div class="profile-stats">
                                 <div class="stat">
-                                    <span class="stat-number">0</span>
+                                    <span class="stat-number" id="postCount">0</span>
                                     <span class="stat-label">Gönderi</span>
                                 </div>
                                 <div class="stat">
-                                    <span class="stat-number">0</span>
+                                    <span class="stat-number" id="followerCount">0</span>
                                     <span class="stat-label">Takipçi</span>
                                 </div>
                                 <div class="stat">
-                                    <span class="stat-number">0</span>
+                                    <span class="stat-number" id="followingCount">0</span>
                                     <span class="stat-label">Takip</span>
                                 </div>
                             </div>
@@ -239,31 +231,67 @@
         </main>
     </div>
 
-    <!-- Modaller -->
-    
-    <!-- Yeni Sohbet Modal -->
-    <div id="newChatModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Yeni Sohbet</h2>
-                <button class="icon-btn close-modal">
+    <!-- Story Viewer -->
+    <div id="storyViewer" class="story-viewer hidden">
+        <div class="story-viewer-container">
+            <div class="story-header">
+                <div class="story-user-info">
+                    <div class="avatar small">
+                        <img id="storyUserAvatar" src="" alt="User">
+                    </div>
+                    <div class="story-username-time">
+                        <strong id="storyUsername">Username</strong>
+                        <span id="storyTime">2h ago</span>
+                    </div>
+                </div>
+                <button class="story-close" id="closeStoryViewer">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                     </svg>
                 </button>
             </div>
-            <div class="modal-body">
-                <div class="search-users">
-                    <input type="text" id="searchUsersInput" placeholder="Kullanıcı ara...">
-                </div>
-                <div class="users-list" id="usersList">
-                    <!-- Kullanıcı listesi buraya eklenecek -->
-                </div>
+            <div id="storyProgress" class="story-progress">
+                <!-- Progress bars buraya dinamik olarak eklenecek -->
+            </div>
+            <div class="story-content">
+                <img id="storyImage" src="" alt="Story">
+            </div>
+            <div class="story-actions">
+                <button class="story-like-btn" id="likeStoryBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    <span id="storyLikeCount">0</span>
+                </button>
+            </div>
+            <div class="story-navigation">
+                <button class="story-nav-btn" id="prevStory">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                    </svg>
+                </button>
+                <button class="story-nav-btn" id="nextStory">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                    </svg>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Profil Düzenleme Modal -->
+    <!-- Upload Progress -->
+    <div id="uploadProgress" class="upload-progress hidden">
+        <h3>Story Yükleniyor...</h3>
+        <div class="upload-progress-bar">
+            <div id="uploadProgressFill" class="upload-progress-fill"></div>
+        </div>
+        <p id="uploadPercentage">0%</p>
+    </div>
+
+    <!-- Story File Input -->
+    <input type="file" id="storyFileInput" accept="image/*" style="display: none;">
+
+    <!-- Profil Düzenleme Modalı -->
     <div id="editProfileModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -281,15 +309,15 @@
                         <input type="text" id="editUsername" required>
                     </div>
                     <div class="input-group">
-                        <label for="editBio">Biyografi</label>
-                        <textarea id="editBio" placeholder="Kendiniz hakkında bir şeyler yazın..."></textarea>
+                        <label for="editBio">Hakkında</label>
+                        <textarea id="editBio" rows="4" placeholder="Kendiniz hakkında bir şeyler yazın..."></textarea>
                     </div>
                     <div class="input-group">
-                        <label for="editAvatar">Profil Resmi URL</label>
-                        <input type="url" id="editAvatar" placeholder="Profil resmi URL'si">
+                        <label for="editAvatar">Profil Fotoğrafı URL</label>
+                        <input type="url" id="editAvatar" placeholder="https://example.com/avatar.jpg">
                     </div>
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-outline close-modal">İptal</button>
+                        <button type="button" class="btn btn-secondary close-modal">İptal</button>
                         <button type="submit" class="btn btn-primary">Kaydet</button>
                     </div>
                 </form>
@@ -297,7 +325,7 @@
         </div>
     </div>
 
-    <!-- Şifre Değiştirme Modal -->
+    <!-- Şifre Değiştirme Modalı -->
     <div id="changePasswordModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -312,7 +340,7 @@
                 <form id="changePasswordForm">
                     <div class="input-group">
                         <label for="currentPassword">Mevcut Şifre</label>
-                        <input type="password" id="currentPassword" required>
+                        <input type="password" id="currentPassword" required minlength="8">
                     </div>
                     <div class="input-group">
                         <label for="newPassword">Yeni Şifre</label>
@@ -323,31 +351,37 @@
                         <input type="password" id="confirmPassword" required minlength="8">
                     </div>
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-outline close-modal">İptal</button>
-                        <button type="submit" class="btn btn-primary">Şifreyi Değiştir</button>
+                        <button type="button" class="btn btn-secondary close-modal">İptal</button>
+                        <button type="submit" class="btn btn-primary">Değiştir</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Çıkış Onay Modal -->
-    <div id="logoutModal" class="modal hidden">
-        <div class="modal-content small">
+    <!-- Yeni Sohbet Modalı -->
+    <div id="newChatModal" class="modal hidden">
+        <div class="modal-content">
             <div class="modal-header">
-                <h2>Çıkış Yap</h2>
+                <h2>Yeni Mesaj</h2>
+                <button class="icon-btn close-modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
             </div>
             <div class="modal-body">
-                <p>Çıkış yapmak istediğinizden emin misiniz?</p>
-                <div class="modal-actions">
-                    <button class="btn btn-outline" id="cancelLogout">İptal</button>
-                    <button class="btn btn-primary" id="confirmLogout">Çıkış Yap</button>
+                <div class="search-users">
+                    <input type="text" id="searchUsersInput" placeholder="Kullanıcı ara...">
+                </div>
+                <div class="users-list" id="usersList">
+                    <!-- Kullanıcılar buraya dinamik olarak eklenecek -->
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Beğeniler Modal -->
+    <!-- Beğeniler Modalı -->
     <div id="likesModal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
@@ -359,81 +393,30 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="users-list" id="likesList">
-                    <!-- Beğeni listesi buraya eklenecek -->
+                <div id="likesList" class="users-list">
+                    <!-- Beğeniler buraya dinamik olarak eklenecek -->
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Hikaye Görüntüleyici -->
-    <div id="storyViewer" class="story-viewer hidden">
-        <div class="story-viewer-container">
-            <div class="story-header">
-                <div class="story-user-info">
-                    <div class="avatar small">
-                        <img id="storyUserAvatar" src="" alt="Kullanıcı">
-                    </div>
-                    <div class="story-username-time">
-                        <strong id="storyUsername">Kullanıcı Adı</strong>
-                        <span id="storyTime">2 saat önce</span>
-                    </div>
+    <!-- Çıkış Onay Modalı -->
+    <div id="logoutModal" class="modal hidden">
+        <div class="modal-content small">
+            <div class="modal-body">
+                <h3>Çıkış Yap</h3>
+                <p>Hesabınızdan çıkış yapmak istediğinizden emin misiniz?</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="cancelLogout">İptal</button>
+                    <button class="btn btn-primary" id="confirmLogout">Çıkış Yap</button>
                 </div>
-                <button class="story-close" id="closeStoryViewer">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                </button>
-            </div>
-            
-            <div class="story-progress" id="storyProgress">
-                <!-- Progress bar'lar buraya eklenecek -->
-            </div>
-            
-            <div class="story-content">
-                <img id="storyImage" src="" alt="Story">
-            </div>
-            
-            <div class="story-actions">
-                <button class="story-like-btn" id="likeStoryBtn">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                    </svg>
-                    <span id="storyLikeCount">0</span>
-                </button>
-            </div>
-            
-            <div class="story-navigation">
-                <button class="story-nav-btn" id="prevStory">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-                    </svg>
-                </button>
-                <button class="story-nav-btn" id="nextStory">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-                    </svg>
-                </button>
             </div>
         </div>
-    </div>
-
-    <!-- Hikaye Yükleme Progress -->
-    <div id="uploadProgress" class="upload-progress hidden">
-        <h3>Hikaye Yükleniyor</h3>
-        <div class="upload-progress-bar">
-            <div class="upload-progress-fill" id="uploadProgressFill"></div>
-        </div>
-        <span id="uploadPercentage">0%</span>
     </div>
 
     <!-- Toast Bildirimleri -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- Gizli Input -->
-    <input type="file" id="storyFileInput" accept="image/*" style="display: none;">
-
-    <!-- Socket.IO -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/app.js"></script>
 </body>
