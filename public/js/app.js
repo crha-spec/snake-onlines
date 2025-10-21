@@ -27,7 +27,6 @@ class InstaChat {
         if (!deviceId) {
             deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             localStorage.setItem('device_id', deviceId);
-            console.log('Yeni cihaz ID oluşturuldu:', deviceId);
         }
         return deviceId;
     }
@@ -67,14 +66,14 @@ class InstaChat {
         
         // Profil düzenleme
         document.getElementById('editProfileBtn').addEventListener('click', () => this.showEditProfileModal());
-        document.getElementById('editProfileBtn2').addEventListener('click', () => this.showEditProfileModal());
         document.getElementById('editProfileForm').addEventListener('submit', (e) => this.handleEditProfile(e));
         
         // Şifre değiştirme
         document.getElementById('changePasswordForm').addEventListener('submit', (e) => this.handleChangePassword(e));
         
-        // Modal kapatma - TÜM close butonları için
+        // Modal kapatma - SENİN HTML'İNE GÖRE GÜNCELLENDİ
         document.addEventListener('click', (e) => {
+            // Close butonları
             if (e.target.classList.contains('close-modal') || 
                 e.target.closest('.close-modal')) {
                 const modal = e.target.closest('.modal');
@@ -118,8 +117,6 @@ class InstaChat {
     }
     
     async checkExistingSession() {
-        console.log('Oturum kontrolü başlatıldı, cihaz ID:', this.deviceId);
-        
         if (this.deviceId) {
             try {
                 const response = await fetch('/api/verify-device', {
@@ -129,14 +126,12 @@ class InstaChat {
                 });
                 
                 const data = await response.json();
-                console.log('Oturum kontrolü yanıtı:', data);
                 
                 if (data.success && data.user) {
                     this.currentUser = data.user;
                     this.showApp();
                     this.connectSocket();
                     await this.loadUserData();
-                    this.showToast('Otomatik giriş yapıldı', 'success');
                 }
             } catch (error) {
                 console.error('Oturum kontrolü hatası:', error);
@@ -159,15 +154,10 @@ class InstaChat {
             const response = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    email, 
-                    password, 
-                    deviceId: this.deviceId 
-                })
+                body: JSON.stringify({ email, password, deviceId: this.deviceId })
             });
             
             const data = await response.json();
-            console.log('Giriş yanıtı:', data);
             
             if (data.success) {
                 this.currentUser = data.user;
@@ -175,9 +165,6 @@ class InstaChat {
                 this.connectSocket();
                 this.showToast('Başarıyla giriş yapıldı', 'success');
                 document.getElementById('loginForm').reset();
-                
-                // Kullanıcı bilgilerini localStorage'a kaydet
-                localStorage.setItem('current_user', JSON.stringify(data.user));
             } else {
                 this.showToast(data.message || 'Giriş başarısız', 'error');
             }
@@ -207,24 +194,15 @@ class InstaChat {
             const response = await fetch('/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    email, 
-                    password, 
-                    deviceId: this.deviceId 
-                })
+                body: JSON.stringify({ email, password, deviceId: this.deviceId })
             });
             
             const data = await response.json();
-            console.log('Kayıt yanıtı:', data);
             
             if (data.success) {
                 this.currentUser = data.user;
                 this.showApp();
                 this.connectSocket();
-                
-                // Kullanıcı bilgilerini localStorage'a kaydet
-                localStorage.setItem('current_user', JSON.stringify(data.user));
-                
                 this.showEditProfileModal();
                 this.showToast('Hesabınız oluşturuldu! Profilinizi tamamlayın', 'success');
                 document.getElementById('registerForm').reset();
@@ -296,10 +274,6 @@ class InstaChat {
             if (data.success) {
                 this.currentUser = data.user;
                 document.getElementById('hideActivityToggle').checked = newStatus;
-                
-                // localStorage'ı güncelle
-                localStorage.setItem('current_user', JSON.stringify(this.currentUser));
-                
                 this.showToast(newStatus ? 'Aktiflik durumu gizlendi' : 'Aktiflik durumu gösteriliyor', 'success');
             }
         } catch (error) {
@@ -321,8 +295,6 @@ class InstaChat {
         const currentPassword = document.getElementById('currentPassword').value;
         const newPassword = document.getElementById('newPassword').value;
         const confirmPassword = document.getElementById('confirmPassword').value;
-        
-        console.log('Şifre değiştirme denemesi:', { currentPassword, newPassword, confirmPassword });
         
         if (newPassword !== confirmPassword) {
             this.showToast('Yeni şifreler eşleşmiyor', 'error');
@@ -346,7 +318,6 @@ class InstaChat {
             });
             
             const data = await response.json();
-            console.log('Şifre değiştirme yanıtı:', data);
             
             if (data.success) {
                 this.showToast('Şifre başarıyla değiştirildi', 'success');
@@ -384,9 +355,6 @@ class InstaChat {
             this.currentUser = null;
             this.chats = [];
             this.activeChat = null;
-            
-            // localStorage'ı temizle
-            localStorage.removeItem('current_user');
             
             document.getElementById('logoutModal').classList.add('hidden');
             document.getElementById('appScreen').classList.remove('active');
@@ -455,9 +423,6 @@ class InstaChat {
             if (data.success) {
                 this.currentUser = data.user;
                 this.updateProfileDisplay();
-                
-                // localStorage'ı güncelle
-                localStorage.setItem('current_user', JSON.stringify(this.currentUser));
             }
         } catch (error) {
             console.error('Kullanıcı verisi yükleme hatası:', error);
@@ -866,23 +831,16 @@ class InstaChat {
         
         const isOnline = this.onlineUsers.includes(otherUser.id);
         
-        // Aktif sohbet başlığını göster
-        document.getElementById('activeChatHeader').style.display = 'flex';
         document.getElementById('activeChatName').textContent = otherUser.username;
         document.getElementById('activeChatAvatar').src = otherUser.avatar || this.getDefaultAvatar();
         document.getElementById('activeChatStatus').textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
-        document.getElementById('activeChatStatus').className = isOnline ? 'online-status' : '';
         
-        // Mesaj yazma alanını göster
-        document.getElementById('chatInputContainer').style.display = 'block';
-        
-        // "Henüz sohbet yok" mesajını gizle
-        document.querySelector('.no-chat-selected').style.display = 'none';
-        
+        // Mesaj yazma alanını aktif et
         document.getElementById('messageInput').disabled = false;
         document.getElementById('sendMessageBtn').disabled = false;
         
-        console.log('Sohbet açıldı:', otherUser.username);
+        // "Henüz sohbet yok" mesajını gizle
+        document.querySelector('.no-chat-selected').style.display = 'none';
     }
     
     renderChatMessages() {
@@ -891,7 +849,7 @@ class InstaChat {
         
         if (!this.activeChat || !this.activeChat.messages || this.activeChat.messages.length === 0) {
             messagesContainer.innerHTML = `
-                <div class="no-chat-selected" style="display: flex;">
+                <div class="no-chat-selected">
                     <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
                     </svg>
@@ -1006,7 +964,6 @@ class InstaChat {
             if (otherUser && otherUser.id === userId) {
                 const statusEl = document.getElementById('activeChatStatus');
                 statusEl.textContent = isOnline ? 'Çevrimiçi' : 'Çevrimdışı';
-                statusEl.className = isOnline ? 'online-status' : '';
             }
         }
     }
@@ -1150,10 +1107,6 @@ class InstaChat {
             if (data.success) {
                 this.currentUser = data.user;
                 this.updateProfileDisplay();
-                
-                // localStorage'ı güncelle
-                localStorage.setItem('current_user', JSON.stringify(this.currentUser));
-                
                 document.getElementById('editProfileModal').classList.add('hidden');
                 this.showToast('Profil güncellendi', 'success');
             } else {
@@ -1166,8 +1119,6 @@ class InstaChat {
     }
     
     updateProfileDisplay() {
-        if (!this.currentUser) return;
-        
         document.getElementById('profileUsername').textContent = this.currentUser.username || 'Kullanıcı Adı';
         document.getElementById('profileBio').textContent = this.currentUser.bio || 'Hakkında bilgisi bulunmuyor';
         
@@ -1175,12 +1126,10 @@ class InstaChat {
         const profileAvatar = document.getElementById('profileAvatarImg');
         
         const avatarUrl = this.currentUser.avatar || this.getDefaultAvatar();
-        if (navAvatar) navAvatar.src = avatarUrl;
-        if (profileAvatar) profileAvatar.src = avatarUrl;
+        navAvatar.src = avatarUrl;
+        profileAvatar.src = avatarUrl;
         
-        if (document.getElementById('hideActivityToggle')) {
-            document.getElementById('hideActivityToggle').checked = this.currentUser.hideActivity || false;
-        }
+        document.getElementById('hideActivityToggle').checked = this.currentUser.hideActivity || false;
     }
     
     getDefaultAvatar() {
