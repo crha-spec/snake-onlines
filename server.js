@@ -4,7 +4,6 @@ const socketIo = require('socket.io');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const multer = require('multer');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,7 +16,7 @@ const io = socketIo(server, {
 
 const PORT = process.env.PORT || 3000;
 
-// Veri saklama (gerçek uygulamada veritabanı kullanın)
+// Veri saklama
 let users = [];
 let chats = [];
 let messages = [];
@@ -54,7 +53,6 @@ function findOrCreateChat(user1Id, user2Id) {
             createdAt: new Date().toISOString()
         };
         chats.push(chat);
-        
         console.log('Yeni sohbet oluşturuldu:', chat.id);
     }
     
@@ -90,6 +88,11 @@ function getUserChats(userId) {
 
 // API Routes
 
+// Ana sayfa
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Cihaz doğrulama
 app.post('/api/verify-device', (req, res) => {
     const { deviceId } = req.body;
@@ -116,7 +119,6 @@ app.post('/api/register', async (req, res) => {
         return res.json({ success: false, message: 'Email ve şifre gerekli' });
     }
     
-    // Email formatı kontrolü (Gmail)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const gmailRegex = /@gmail\.com$/i;
     
@@ -128,16 +130,13 @@ app.post('/api/register', async (req, res) => {
         return res.json({ success: false, message: 'Şifre en az 8 karakter olmalıdır' });
     }
     
-    // Email kontrolü - AYNI EMAIL İLE KAYIT ENGELLENDİ
     if (findUserByEmail(email)) {
         return res.json({ success: false, message: 'Bu email zaten kayıtlı' });
     }
     
     try {
-        // Şifreyi hash'le
         const hashedPassword = await bcrypt.hash(password, 12);
         
-        // Yeni kullanıcı oluştur
         const newUser = {
             id: uuidv4(),
             email,
@@ -287,11 +286,8 @@ app.post('/api/change-password', async (req, res) => {
             return res.json({ success: false, message: 'Yeni şifre en az 8 karakter olmalıdır' });
         }
         
-        // Yeni şifreyi hash'le
         const hashedNewPassword = await bcrypt.hash(newPassword, 12);
         user.password = hashedNewPassword;
-        
-        console.log('Şifre güncellendi - Kullanıcı:', user.email);
         
         res.json({ 
             success: true, 
@@ -384,14 +380,12 @@ app.post('/api/upload-story', (req, res) => {
         userId,
         imageData,
         createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 saat
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         views: [],
         likes: []
     };
     
     stories.push(story);
-    
-    // Eski storyleri temizle (24 saatten eski)
     stories = stories.filter(s => new Date(s.expiresAt) > new Date());
     
     res.json({ 
@@ -403,10 +397,8 @@ app.post('/api/upload-story', (req, res) => {
 
 // Storyleri getir
 app.get('/api/stories', (req, res) => {
-    // Aktif storyleri getir (24 saatten yeni)
     const activeStories = stories.filter(s => new Date(s.expiresAt) > new Date());
     
-    // Kullanıcıya göre grupla
     const groupedStories = {};
     
     activeStories.forEach(story => {
@@ -446,7 +438,6 @@ app.post('/api/like-story', (req, res) => {
     if (!story.likes.includes(userId)) {
         story.likes.push(userId);
         
-        // Beğeni bildirimi oluştur
         const like = {
             id: uuidv4(),
             storyId,
@@ -456,7 +447,6 @@ app.post('/api/like-story', (req, res) => {
         };
         storyLikes.push(like);
         
-        // Socket ile bildirim gönder
         const ownerSocketId = onlineUsers.get(story.userId);
         if (ownerSocketId) {
             io.to(ownerSocketId).emit('story_liked', like);
@@ -508,14 +498,9 @@ app.post('/api/logout', (req, res) => {
     res.json({ success: true, message: 'Başarıyla çıkış yapıldı' });
 });
 
-// Ana sayfa
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Socket.IO bağlantıları
+// Socket.IO
 io.on('connection', (socket) => {
-    console.log('Yeni kullanıcı bağlandı:', socket.id);
+    console.log('Kullanıcı bağlandı:', socket.id);
     
     socket.on('authenticate', ({ userId, deviceId }) => {
         const user = findUserById(userId);
@@ -523,29 +508,19 @@ io.on('connection', (socket) => {
         if (user && user.devices && user.devices.includes(deviceId)) {
             socket.userId = userId;
             onlineUsers.set(userId, socket.id);
-            
-            // Kullanıcının çevrimiçi olduğunu bildir
             io.emit('user_online', userId);
-            
-            console.log(`Kullanıcı doğrulandı: ${user.username} (${userId})`);
+            console.log(`Kullanıcı doğrulandı: ${user.username}`);
         } else {
-            console.log('Geçersiz kimlik doğrulama:', userId);
             socket.disconnect();
         }
     });
     
     socket.on('send_message', (messageData) => {
-        if (!socket.userId) {
-            console.log('Kimlik doğrulaması yapılmamış');
-            return;
-        }
+        if (!socket.userId) return;
         
         const { chatId, text } = messageData;
         
-        if (!chatId || !text) {
-            console.log('Geçersiz mesaj verisi');
-            return;
-        }
+        if (!chatId || !text) return;
         
         const message = {
             id: uuidv4(),
@@ -558,22 +533,16 @@ io.on('connection', (socket) => {
         messages.push(message);
         
         const chat = chats.find(c => c.id === chatId);
-        if (!chat) {
-            console.log('Sohbet bulunamadı:', chatId);
-            return;
-        }
+        if (!chat) return;
         
         const receiverId = chat.participants.find(id => id !== socket.userId);
         
-        // Mesajı gönderen ve alıcıya gönder
         socket.emit('new_message', message);
         
         const receiverSocketId = onlineUsers.get(receiverId);
         if (receiverSocketId) {
             io.to(receiverSocketId).emit('new_message', message);
         }
-        
-        console.log(`Mesaj gönderildi: ${socket.userId} -> ${receiverId}`);
     });
     
     socket.on('typing_start', ({ chatId }) => {
@@ -602,22 +571,10 @@ io.on('connection', (socket) => {
         if (socket.userId) {
             onlineUsers.delete(socket.userId);
             io.emit('user_offline', socket.userId);
-            console.log(`Kullanıcı ayrıldı: ${socket.userId}`);
         }
     });
 });
 
-// Hata yakalama
-process.on('uncaughtException', (error) => {
-    console.error('Beklenmeyen hata:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('İşlenmemiş promise:', promise, 'Sebep:', reason);
-});
-
-// Sunucuyu başlat
 server.listen(PORT, () => {
-    console.log(`🚀 InstaChat sunucusu ${PORT} portunda çalışıyor`);
-    console.log(`📱 Socket.IO hazır`);
+    console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
 });
