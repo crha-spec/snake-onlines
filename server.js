@@ -5,15 +5,13 @@ const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const session = require('express-session');
 const cors = require('cors');
-const crypto = require('crypto');
+const path = require('path');
+const bcrypt = require('bcrypt');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*" }
 });
 
 // Middleware
@@ -32,9 +30,10 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => console.error('❌ MongoDB Error:', err));
 
-// MongoDB Schemas
+// Schemas
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, required: true },
+  passwordHash: String,
   username: String,
   profilePhoto: String,
   nameColor: { type: String, default: '#4285F4' },
@@ -42,12 +41,6 @@ const userSchema = new mongoose.Schema({
   server: String,
   createdAt: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now }
-});
-
-const verificationSchema = new mongoose.Schema({
-  email: { type: String, required: true },
-  code: { type: String, required: true },
-  expiresAt: { type: Date, required: true }
 });
 
 const messageSchema = new mongoose.Schema({
@@ -60,82 +53,113 @@ const messageSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
   edited: { type: Boolean, default: false },
   editedAt: Date,
-  seenBy: [{ 
-    userId: mongoose.Schema.Types.ObjectId, 
-    seenAt: Date 
-  }]
+  seenBy: [{ userId: mongoose.Schema.Types.ObjectId, seenAt: Date }]
 });
 
 const User = mongoose.model('User', userSchema);
-const Verification = mongoose.model('Verification', verificationSchema);
 const Message = mongoose.model('Message', messageSchema);
 
+// Simple Email Verification Logic (demo)
+const emailCodes = new Map();
+
 // Routes
-app.post('/auth/send-code', async (req, res) => {
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Send verification code
+app.post('/api/send-code', async (req, res) => {
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email required' });
+  if (!email) return res.status(400).json({ error: 'Email gerekli' });
 
-  const code = crypto.randomInt(100000, 999999).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 dakika geçerli
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  emailCodes.set(email, code);
 
-  await Verification.findOneAndUpdate(
-    { email },
-    { code, expiresAt },
-    { upsert: true, new: true }
-  );
-
-  // TODO: Burada Vercel Email API ile kodu gönder
-  console.log(`Verification code for ${email}: ${code}`);
-
+  console.log(`🔑 Verification code for ${email}: ${code}`);
+  // Burada gerçek email gönderimi eklenebilir (Vercel veya başka servis ile)
+  
   res.json({ success: true });
 });
 
-app.post('/auth/verify-code', async (req, res) => {
-  const { email, code } = req.body;
-  const record = await Verification.findOne({ email, code });
-  
-  if (!record || record.expiresAt < new Date()) {
-    return res.status(400).json({ error: 'Invalid or expired code' });
+// Verify code and create account
+app.post('/api/verify-code', async (req, res) => {
+  const { email, code, username, password } = req.body;
+  const savedCode = emailCodes.get(email);
+
+  if (!savedCode || savedCode !== code) {
+    return res.status(400).json({ error: 'Kod yanlış veya süresi dolmuş' });
   }
 
-  let user = await User.findOne({ email });
-  if (!user) {
-    user = await User.create({ email });
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    let user = await User.findOne({ email });
+    
+    if (!user) {
+      user = await User.create({
+        email,
+        passwordHash,
+        username,
+        server: 'TR'
+      });
+    }
+
+    req.session.userId = user._id;
+    emailCodes.delete(email);
+
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  req.session.userId = user._id;
-  await record.deleteOne();
-
-  res.json({ success: true, user });
 });
 
-app.get('/api/user', async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
-
-  const user = await User.findById(req.session.userId);
-  res.json({ user });
-});
-
+// Profile Setup
 app.post('/api/profile-setup', async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
+  const userId = req.session.userId;
+  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
 
   const { username, profilePhoto, nameColor, country } = req.body;
-  
-  const user = await User.findByIdAndUpdate(req.session.userId, {
-    username,
-    profilePhoto,
-    nameColor,
-    country,
-    server: country
-  }, { new: true });
-
-  res.json({ success: true, user });
+  try {
+    const user = await User.findByIdAndUpdate(userId, {
+      username,
+      profilePhoto,
+      nameColor,
+      country,
+      server: country
+    }, { new: true });
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
+// Get current user
+app.get('/api/user', async (req, res) => {
+  const userId = req.session.userId;
+  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+  try {
+    const user = await User.findById(userId);
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Logout
 app.get('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/');
-  });
+  req.session.destroy(() => res.redirect('/'));
+});
+
+// Chat routes
+app.get('/api/messages/:serverId', async (req, res) => {
+  try {
+    const messages = await Message.find({ serverId: req.params.serverId })
+      .sort({ timestamp: -1 })
+      .limit(100);
+    res.json(messages.reverse());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Socket.io
@@ -147,9 +171,8 @@ io.on('connection', (socket) => {
   socket.on('join-server', async ({ userId, serverId }) => {
     socket.join(serverId);
     onlineUsers.set(userId, { socketId: socket.id, serverId });
-    
     await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-    
+
     io.to(serverId).emit('user-count', {
       count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
     });
@@ -175,34 +198,9 @@ io.on('connection', (socket) => {
         timestamp: message.timestamp,
         seenBy: []
       });
-    } catch (error) {
-      console.error('Message error:', error);
+    } catch (err) {
+      console.error(err);
     }
-  });
-
-  socket.on('edit-message', async ({ messageId, newMessage }) => {
-    try {
-      const message = await Message.findByIdAndUpdate(messageId, {
-        message: newMessage,
-        edited: true,
-        editedAt: new Date()
-      }, { new: true });
-
-      io.to(message.serverId).emit('message-edited', {
-        messageId,
-        newMessage,
-        edited: true
-      });
-    } catch (error) {
-      console.error('Edit error:', error);
-    }
-  });
-
-  socket.on('typing', (data) => {
-    socket.to(data.serverId).emit('user-typing', {
-      username: data.username,
-      isTyping: data.isTyping
-    });
   });
 
   socket.on('message-seen', async ({ messageId, userId }) => {
@@ -217,19 +215,18 @@ io.on('connection', (socket) => {
           seenCount: message.seenBy.length
         });
       }
-    } catch (error) {
-      console.error('Seen error:', error);
+    } catch (err) {
+      console.error(err);
     }
   });
 
   socket.on('disconnect', () => {
     console.log('❌ User disconnected:', socket.id);
-    
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userData.socketId === socket.id) {
         const serverId = userData.serverId;
         onlineUsers.delete(userId);
-        
+
         io.to(serverId).emit('user-count', {
           count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
         });
@@ -239,7 +236,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Start Server
+// Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
