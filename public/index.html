@@ -3,421 +3,769 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InstaChat - Anlık Mesajlaşma</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <title>Gerçek Zamanlı Mesajlaşma</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Login Screen */
+        .login-container {
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .login-container h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 32px;
+        }
+
+        .google-btn {
+            background: white;
+            border: 2px solid #ddd;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+        }
+
+        .google-btn:hover {
+            background: #f8f9fa;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .google-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* Profile Setup */
+        .profile-setup {
+            display: none;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .profile-setup h2 {
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .photo-upload {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 4px solid #667eea;
+            cursor: pointer;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .photo-upload img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .photo-upload input {
+            display: none;
+        }
+
+        .photo-placeholder {
+            font-size: 48px;
+            color: #999;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .color-picker {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .color-option {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+
+        .color-option.selected {
+            border-color: white;
+            box-shadow: 0 0 0 3px #667eea;
+        }
+
+        .save-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        /* Chat Container */
+        .chat-container {
+            display: none;
+            width: 100%;
+            max-width: 100vw;
+            height: 100vh;
+            background: white;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .server-info h2 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .online-count {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .messages-area {
+            height: calc(100vh - 200px);
+            overflow-y: auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .message {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+            background: white;
+            padding: 12px 15px;
+            border-radius: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .message-username {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .message-text {
+            color: #333;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .message-seen {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .edit-indicator {
+            font-style: italic;
+            color: #999;
+        }
+
+        .typing-indicator {
+            padding: 10px 20px;
+            font-size: 14px;
+            color: #667eea;
+            font-style: italic;
+        }
+
+        .message-input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 16px;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        .message-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .send-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .login-container, .profile-setup {
+                padding: 30px 20px;
+            }
+
+            .messages-area {
+                height: calc(100vh - 180px);
+            }
+
+            .message-input-area {
+                padding: 10px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <!-- Giriş/Kayıt Ekranı -->
-    <div id="authScreen" class="screen active">
-        <div class="auth-container">
-            <div class="logo">
-                <svg width="50" height="50" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2Z" fill="currentColor"/>
-                    <path d="M19 7H5C3.9 7 3 7.9 3 9V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V9C21 7.9 20.1 7 19 7Z" stroke="currentColor" stroke-width="2"/>
-                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                <h1>InstaChat</h1>
-            </div>
-            <div class="auth-form">
-                <h2>Gmail ile Giriş Yap</h2>
-                <form id="loginForm">
-                    <div class="input-group">
-                        <input type="email" id="loginEmail" placeholder="Gmail adresiniz" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="password" id="loginPassword" placeholder="Şifreniz" required minlength="8">
-                    </div>
-                    <button type="submit" class="btn btn-primary">Giriş Yap</button>
-                </form>
-                <div class="divider"><span>VEYA</span></div>
-                <form id="registerForm">
-                    <div class="input-group">
-                        <input type="email" id="registerEmail" placeholder="Gmail adresiniz" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="password" id="registerPassword" placeholder="Şifreniz (min 8 karakter)" required minlength="8">
-                    </div>
-                    <button type="submit" class="btn btn-secondary">Kayıt Ol</button>
-                </form>
-                <div class="auth-footer">
-                    <p>Devam ederek <a href="#">Hizmet Şartları</a> ve <a href="#">Gizlilik Politikası</a>'nı kabul etmiş olursunuz.</p>
-                </div>
+    <!-- Login Screen -->
+    <div class="login-container" id="loginScreen">
+        <h1>🌍 Global Chat</h1>
+        <p style="margin-bottom: 30px; color: #666;">Konum bazlı gerçek zamanlı mesajlaşma</p>
+        <button class="google-btn" onclick="loginWithGoogle()">
+            <svg class="google-icon" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Google ile Giriş Yap
+        </button>
+    </div>
+
+    <!-- Profile Setup Screen -->
+    <div class="profile-setup" id="profileSetup">
+        <h2>Profilini Oluştur</h2>
+        
+        <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
+            <img id="profilePreview" style="display:none;">
+            <span class="photo-placeholder" id="photoPlaceholder">📷</span>
+            <input type="file" id="photoInput" accept="image/*,capture=camera">
+        </div>
+
+        <div class="form-group">
+            <label>Kullanıcı Adı</label>
+            <input type="text" id="usernameInput" placeholder="Adını gir" maxlength="20">
+        </div>
+
+        <div class="form-group">
+            <label>İsim Rengi</label>
+            <div class="color-picker">
+                <div class="color-option selected" style="background: #4285F4;" data-color="#4285F4"></div>
+                <div class="color-option" style="background: #EA4335;" data-color="#EA4335"></div>
+                <div class="color-option" style="background: #FBBC05;" data-color="#FBBC05"></div>
+                <div class="color-option" style="background: #34A853;" data-color="#34A853"></div>
+                <div class="color-option" style="background: #9C27B0;" data-color="#9C27B0"></div>
+                <div class="color-option" style="background: #FF6D00;" data-color="#FF6D00"></div>
             </div>
         </div>
+
+        <button class="save-btn" onclick="saveProfile()">Kaydet ve Devam Et</button>
     </div>
 
-    <!-- Ana Uygulama Ekranı -->
-    <div id="appScreen" class="screen">
-        <!-- Üst Navigasyon -->
-        <nav class="top-nav">
-            <div class="nav-container">
-                <div class="nav-brand">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2Z"/>
-                        <path d="M19 7H5C3.9 7 3 7.9 3 9V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V9C21 7.9 20.1 7 19 7Z" stroke="currentColor" stroke-width="2"/>
-                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-                    </svg>
-                    <span>InstaChat</span>
-                </div>
-                <div class="nav-search">
-                    <input type="text" placeholder="Ara...">
-                </div>
-                <div class="nav-icons">
-                    <button class="icon-btn" id="homeBtn" title="Ana Sayfa">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                        </svg>
-                    </button>
-                    <button class="icon-btn" id="storiesBtn" title="Hikayeler">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 8v8M8 12h8"/>
-                        </svg>
-                    </button>
-                    <button class="icon-btn" id="chatBtn" title="Mesajlar">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
-                        </svg>
-                    </button>
-                    <button class="icon-btn" id="likesBtn" title="Beğeniler">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                        <div id="likesBadge" class="notification-badge hidden"></div>
-                    </button>
-                    <button class="icon-btn" id="settingsBtn" title="Ayarlar">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-                        </svg>
-                    </button>
-                    <button class="icon-btn" id="profileBtn" title="Profil">
-                        <div class="avatar small">
-                            <img id="navAvatar" src="" alt="Profil">
-                        </div>
-                    </button>
-                </div>
-                
-                <!-- Ayarlar Dropdown -->
-                <div id="settingsDropdown" class="settings-dropdown hidden">
-                    <div class="settings-item" id="hideActivityBtn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                        </svg>
-                        <span>Aktiflik Durumu</span>
-                        <label class="switch" style="margin-left: auto;">
-                            <input type="checkbox" id="hideActivityToggle">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="settings-item" id="changePasswordBtn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-                        </svg>
-                        <span>Şifre Değiştir</span>
-                    </div>
-                    <div class="settings-item danger" id="logoutBtn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-                        </svg>
-                        <span>Çıkış Yap</span>
-                    </div>
+    <!-- Chat Screen -->
+    <div class="chat-container" id="chatScreen">
+        <div class="chat-header">
+            <div class="server-info">
+                <h2 id="serverName">🌍 Sunucu</h2>
+                <div class="online-count">
+                    <span id="onlineCount">0</span> kişi çevrimiçi
                 </div>
             </div>
-        </nav>
+            <button class="logout-btn" onclick="logout()">Çıkış</button>
+        </div>
 
-        <!-- Ana İçerik -->
-        <main class="main-content">
-            <!-- Mesajlaşma Bölümü -->
-            <div id="chatSection" class="content-section active">
-                <div class="chat-container">
-                    <!-- Sohbet Listesi -->
-                    <div class="chat-list">
-                        <div class="chat-header">
-                            <h2>Mesajlar</h2>
-                            <button class="icon-btn" id="newChatBtn">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="chat-search">
-                            <input type="text" placeholder="Mesajlarda ara...">
-                        </div>
-                        <div class="chat-items" id="chatItems">
-                            <!-- Sohbet öğeleri buraya dinamik olarak eklenecek -->
-                        </div>
-                    </div>
+        <div class="messages-area" id="messagesArea">
+            <!-- Messages will appear here -->
+        </div>
 
-                    <!-- Aktif Sohbet -->
-                    <div class="active-chat">
-                        <div class="chat-header">
-                            <div class="chat-user">
-                                <div class="avatar medium">
-                                    <img id="activeChatAvatar" src="" alt="Kullanıcı">
-                                </div>
-                                <div class="user-info">
-                                    <h3 id="activeChatName">Sohbet Seçin</h3>
-                                    <span id="activeChatStatus">Çevrimdışı</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="chat-messages" id="chatMessages">
-                            <!-- Mesajlar buraya dinamik olarak eklenecek -->
-                            <div class="no-chat-selected">
-                                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
-                                </svg>
-                                <p>Bir sohbet seçin veya yeni bir mesaj başlatın</p>
-                            </div>
-                        </div>
-                        <div class="chat-input-container">
-                            <div class="chat-input">
-                                <input type="text" id="messageInput" placeholder="Mesaj yazın..." disabled>
-                                <button class="icon-btn" id="sendMessageBtn" disabled>
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="typing-indicator hidden" id="typingIndicator">
+            <span id="typingUser"></span> yazıyor...
+        </div>
 
-            <!-- Stories Bölümü -->
-            <div id="storiesSection" class="content-section">
-                <div class="stories-container">
-                    <div id="storiesGrid" style="display: flex; gap: 15px; flex-wrap: wrap; padding: 20px;">
-                        <!-- Stories buraya dinamik olarak eklenecek -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Profil Bölümü -->
-            <div id="profileSection" class="content-section">
-                <div class="profile-container">
-                    <div class="profile-header">
-                        <div class="profile-avatar">
-                            <div class="avatar large">
-                                <img id="profileAvatarImg" src="" alt="Profil Fotoğrafı">
-                            </div>
-                        </div>
-                        <div class="profile-info">
-                            <div class="profile-name">
-                                <h1 id="profileUsername">Kullanıcı Adı</h1>
-                                <button class="btn btn-outline" id="editProfileBtn">Profili Düzenle</button>
-                            </div>
-                            <div class="profile-stats">
-                                <div class="stat">
-                                    <span class="stat-number" id="postCount">0</span>
-                                    <span class="stat-label">Gönderi</span>
-                                </div>
-                                <div class="stat">
-                                    <span class="stat-number" id="followerCount">0</span>
-                                    <span class="stat-label">Takipçi</span>
-                                </div>
-                                <div class="stat">
-                                    <span class="stat-number" id="followingCount">0</span>
-                                    <span class="stat-label">Takip</span>
-                                </div>
-                            </div>
-                            <div class="profile-bio">
-                                <p id="profileBio">Hakkında bilgisi bulunmuyor</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Story Viewer -->
-    <div id="storyViewer" class="story-viewer hidden">
-        <div class="story-viewer-container">
-            <div class="story-header">
-                <div class="story-user-info">
-                    <div class="avatar small">
-                        <img id="storyUserAvatar" src="" alt="User">
-                    </div>
-                    <div class="story-username-time">
-                        <strong id="storyUsername">Username</strong>
-                        <span id="storyTime">2h ago</span>
-                    </div>
-                </div>
-                <button class="story-close" id="closeStoryViewer">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                </button>
-            </div>
-            <div id="storyProgress" class="story-progress">
-                <!-- Progress bars buraya dinamik olarak eklenecek -->
-            </div>
-            <div class="story-content">
-                <img id="storyImage" src="" alt="Story">
-            </div>
-            <div class="story-actions">
-                <button class="story-like-btn" id="likeStoryBtn">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                    </svg>
-                    <span id="storyLikeCount">0</span>
-                </button>
-            </div>
-            <div class="story-navigation">
-                <button class="story-nav-btn" id="prevStory">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-                    </svg>
-                </button>
-                <button class="story-nav-btn" id="nextStory">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-                    </svg>
-                </button>
-            </div>
+        <div class="message-input-area">
+            <input 
+                type="text" 
+                class="message-input" 
+                id="messageInput" 
+                placeholder="Mesajını yaz..."
+                maxlength="500"
+            >
+            <button class="send-btn" onclick="sendMessage()">Gönder</button>
         </div>
     </div>
-
-    <!-- Upload Progress -->
-    <div id="uploadProgress" class="upload-progress hidden">
-        <h3>Story Yükleniyor...</h3>
-        <div class="upload-progress-bar">
-            <div id="uploadProgressFill" class="upload-progress-fill"></div>
-        </div>
-        <p id="uploadPercentage">0%</p>
-    </div>
-
-    <!-- Story File Input -->
-    <input type="file" id="storyFileInput" accept="image/*" style="display: none;">
-
-    <!-- Profil Düzenleme Modalı -->
-    <div id="editProfileModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Profili Düzenle</h2>
-                <button class="icon-btn close-modal">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="editProfileForm">
-                    <div class="input-group">
-                        <label for="editUsername">Kullanıcı Adı</label>
-                        <input type="text" id="editUsername" required>
-                    </div>
-                    <div class="input-group">
-                        <label for="editBio">Hakkında</label>
-                        <textarea id="editBio" rows="4" placeholder="Kendiniz hakkında bir şeyler yazın..."></textarea>
-                    </div>
-                    <div class="input-group">
-                        <label for="editAvatar">Profil Fotoğrafı URL</label>
-                        <input type="url" id="editAvatar" placeholder="https://example.com/avatar.jpg">
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary close-modal">İptal</button>
-                        <button type="submit" class="btn btn-primary">Kaydet</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Şifre Değiştirme Modalı -->
-    <div id="changePasswordModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Şifre Değiştir</h2>
-                <button class="icon-btn close-modal">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <form id="changePasswordForm">
-                    <div class="input-group">
-                        <label for="currentPassword">Mevcut Şifre</label>
-                        <input type="password" id="currentPassword" required minlength="8">
-                    </div>
-                    <div class="input-group">
-                        <label for="newPassword">Yeni Şifre</label>
-                        <input type="password" id="newPassword" required minlength="8">
-                    </div>
-                    <div class="input-group">
-                        <label for="confirmPassword">Yeni Şifre (Tekrar)</label>
-                        <input type="password" id="confirmPassword" required minlength="8">
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary close-modal">İptal</button>
-                        <button type="submit" class="btn btn-primary">Değiştir</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Yeni Sohbet Modalı -->
-    <div id="newChatModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Yeni Mesaj</h2>
-                <button class="icon-btn close-modal">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="search-users">
-                    <input type="text" id="searchUsersInput" placeholder="Kullanıcı ara...">
-                </div>
-                <div class="users-list" id="usersList">
-                    <!-- Kullanıcılar buraya dinamik olarak eklenecek -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Beğeniler Modalı -->
-    <div id="likesModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Story Beğenileri</h2>
-                <button class="icon-btn close-modal">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div id="likesList" class="users-list">
-                    <!-- Beğeniler buraya dinamik olarak eklenecek -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Çıkış Onay Modalı -->
-    <div id="logoutModal" class="modal hidden">
-        <div class="modal-content small">
-            <div class="modal-body">
-                <h3>Çıkış Yap</h3>
-                <p>Hesabınızdan çıkış yapmak istediğinizden emin misiniz?</p>
-                <div class="modal-actions">
-                    <button class="btn btn-secondary" id="cancelLogout">İptal</button>
-                    <button class="btn btn-primary" id="confirmLogout">Çıkış Yap</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast Bildirimleri -->
-    <div id="toastContainer" class="toast-container"></div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="js/app.js"></script>
+    <script>
+        let socket;
+        let currentUser = null;
+        let currentServer = null;
+        let selectedColor = '#4285F4';
+        let selectedPhoto = null;
+        let messages = [];
+        let editingMessageId = null;
+        let typingTimeout;
+
+        // Check if user is authenticated
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/user');
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data.user;
+                    
+                    if (currentUser.username && currentUser.server) {
+                        showChatScreen();
+                    } else {
+                        showProfileSetup();
+                    }
+                } else {
+                    showLoginScreen();
+                }
+            } catch (error) {
+                showLoginScreen();
+            }
+        }
+
+        function loginWithGoogle() {
+            window.location.href = '/auth/google';
+        }
+
+        function showLoginScreen() {
+            document.getElementById('loginScreen').style.display = 'block';
+            document.getElementById('profileSetup').style.display = 'none';
+            document.getElementById('chatScreen').style.display = 'none';
+        }
+
+        function showProfileSetup() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('profileSetup').style.display = 'block';
+            document.getElementById('chatScreen').style.display = 'none';
+            
+            detectCountry();
+        }
+
+        function showChatScreen() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('profileSetup').style.display = 'none';
+            document.getElementById('chatScreen').style.display = 'block';
+            
+            initializeChat();
+        }
+
+        // Color picker
+        document.querySelectorAll('.color-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedColor = this.dataset.color;
+            });
+        });
+
+        // Photo upload with camera support
+        document.getElementById('photoInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    selectedPhoto = event.target.result;
+                    document.getElementById('profilePreview').src = selectedPhoto;
+                    document.getElementById('profilePreview').style.display = 'block';
+                    document.getElementById('photoPlaceholder').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        async function detectCountry() {
+            try {
+                const response = await fetch('/api/detect-country');
+                const data = await response.json();
+                currentServer = data.country;
+            } catch (error) {
+                currentServer = 'TR';
+            }
+        }
+
+        async function saveProfile() {
+            const username = document.getElementById('usernameInput').value.trim();
+            
+            if (!username) {
+                alert('Lütfen bir kullanıcı adı gir!');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/profile-setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username,
+                        profilePhoto: selectedPhoto || currentUser.profilePhoto,
+                        nameColor: selectedColor,
+                        country: currentServer
+                    })
+                });
+
+                const data = await response.json();
+                currentUser = data.user;
+                showChatScreen();
+            } catch (error) {
+                alert('Profil kaydedilemedi!');
+            }
+        }
+
+        function initializeChat() {
+            socket = io();
+            
+            document.getElementById('serverName').textContent = getServerName(currentUser.server);
+            
+            socket.emit('join-server', {
+                userId: currentUser._id,
+                serverId: currentUser.server
+            });
+
+            loadMessages();
+            setupSocketListeners();
+            setupMessageInput();
+        }
+
+        function getServerName(code) {
+            const names = {
+                'TR': '🇹🇷 Türkiye',
+                'US': '🇺🇸 United States',
+                'GB': '🇬🇧 United Kingdom',
+                'DE': '🇩🇪 Deutschland',
+                'FR': '🇫🇷 France',
+                'KR': '🇰🇷 대한민국',
+                'JP': '🇯🇵 日本',
+                'CN': '🇨🇳 中国'
+            };
+            return names[code] || `🌍 ${code}`;
+        }
+
+        async function loadMessages() {
+            try {
+                const response = await fetch(`/api/messages/${currentUser.server}`);
+                messages = await response.json();
+                renderMessages();
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+
+        function setupSocketListeners() {
+            socket.on('user-count', (data) => {
+                document.getElementById('onlineCount').textContent = data.count;
+            });
+
+            socket.on('new-message', (message) => {
+                messages.push(message);
+                renderMessages();
+                
+                // Mark as seen
+                if (message.userId !== currentUser._id) {
+                    socket.emit('message-seen', {
+                        messageId: message._id,
+                        userId: currentUser._id
+                    });
+                }
+            });
+
+            socket.on('message-edited', ({ messageId, newMessage }) => {
+                const msg = messages.find(m => m._id === messageId);
+                if (msg) {
+                    msg.message = newMessage;
+                    msg.edited = true;
+                    renderMessages();
+                }
+            });
+
+            socket.on('message-seen-update', ({ messageId, seenCount }) => {
+                const msgElement = document.querySelector(`[data-message-id="${messageId}"] .seen-count`);
+                if (msgElement) {
+                    msgElement.textContent = seenCount;
+                }
+            });
+
+            socket.on('user-typing', ({ username, isTyping }) => {
+                const indicator = document.getElementById('typingIndicator');
+                const userSpan = document.getElementById('typingUser');
+                
+                if (isTyping) {
+                    userSpan.textContent = username;
+                    indicator.classList.remove('hidden');
+                } else {
+                    indicator.classList.add('hidden');
+                }
+            });
+        }
+
+        function setupMessageInput() {
+            const input = document.getElementById('messageInput');
+            
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            input.addEventListener('input', () => {
+                clearTimeout(typingTimeout);
+                
+                socket.emit('typing', {
+                    serverId: currentUser.server,
+                    username: currentUser.username,
+                    isTyping: true
+                });
+
+                typingTimeout = setTimeout(() => {
+                    socket.emit('typing', {
+                        serverId: currentUser.server,
+                        username: currentUser.username,
+                        isTyping: false
+                    });
+                }, 1000);
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            socket.emit('send-message', {
+                serverId: currentUser.server,
+                userId: currentUser._id,
+                username: currentUser.username,
+                nameColor: currentUser.nameColor,
+                profilePhoto: currentUser.profilePhoto,
+                message
+            });
+
+            input.value = '';
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('messagesArea');
+            container.innerHTML = '';
+
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.dataset.messageId = msg._id;
+
+                const time = new Date(msg.timestamp).toLocaleTimeString('tr-TR', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+
+                const canEdit = msg.userId === currentUser._id && 
+                               (Date.now() - new Date(msg.timestamp)) < 120000;
+
+                messageDiv.innerHTML = `
+                    <img src="${msg.profilePhoto}" class="message-avatar" alt="${msg.username}">
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-username" style="color: ${msg.nameColor}">
+                                ${msg.username}
+                            </span>
+                            <span class="message-time">${time}</span>
+                        </div>
+                        <div class="message-text">${escapeHtml(msg.message)}</div>
+                        <div class="message-footer">
+                            <div>
+                                ${msg.edited ? '<span class="edit-indicator">düzenlendi</span>' : ''}
+                                ${canEdit ? '<button onclick="editMessage(\'' + msg._id + '\', \'' + escapeHtml(msg.message) + '\')" style="background:none;border:none;color:#667eea;cursor:pointer;font-size:12px;">✏️ Düzenle</button>' : ''}
+                            </div>
+                            <div class="message-seen">
+                                ✓✓ - <span class="seen-count">${msg.seenBy?.length || 0}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(messageDiv);
+            });
+
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function editMessage(messageId, currentText) {
+            const newMessage = prompt('Mesajı düzenle:', currentText);
+            
+            if (newMessage && newMessage.trim() && newMessage !== currentText) {
+                socket.emit('edit-message', {
+                    messageId,
+                    newMessage: newMessage.trim()
+                });
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function logout() {
+            window.location.href = '/logout';
+        }
+
+        // Initialize on page load
+        checkAuth();
+    </script>
 </body>
 </html>
