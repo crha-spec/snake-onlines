@@ -1,269 +1,560 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Gerçek Zamanlı Mesajlaşma</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height:100vh; display:flex; align-items:center; justify-content:center;}
-.login-container, .profile-setup{background:white;padding:40px 50px;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-width:400px;width:90%; text-align:center;}
-.login-container h1, .profile-setup h2{color:#333;margin-bottom:30px;}
-.form-group{margin-bottom:20px;text-align:left;}
-.form-group label{display:block;margin-bottom:8px;color:#555;font-weight:600;}
-.form-group input{width:100%;padding:12px;border:2px solid #ddd;border-radius:10px;font-size:16px;transition:border 0.3s;}
-.form-group input:focus{outline:none;border-color:#667eea;}
-.save-btn, .send-btn{width:100%;padding:15px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;border-radius:10px;font-size:18px;font-weight:600;cursor:pointer;transition:transform 0.3s;}
-.save-btn:hover, .send-btn:hover{transform:translateY(-2px);}
-.chat-container{display:none;width:100%;max-width:100vw;height:100vh;background:white;}
-.chat-header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:20px;display:flex;justify-content:space-between;align-items:center;}
-.messages-area{height:calc(100vh - 200px);overflow-y:auto;padding:20px;background:#f5f5f5;}
-.message{display:flex;gap:15px;margin-bottom:20px;animation:slideIn 0.3s ease;}
-@keyframes slideIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
-.message-avatar{width:45px;height:45px;border-radius:50%;object-fit:cover;flex-shrink:0;}
-.message-content{flex:1;background:white;padding:12px 15px;border-radius:15px;box-shadow:0 2px 5px rgba(0,0,0,0.1);}
-.message-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
-.message-username{font-weight:600;font-size:15px;}
-.message-time{font-size:12px;color:#999;}
-.message-text{color:#333;line-height:1.5;word-wrap:break-word;}
-.message-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#999;}
-.typing-indicator{padding:10px 20px;font-size:14px;color:#667eea;font-style:italic;}
-.message-input-area{padding:20px;background:white;border-top:1px solid #e0e0e0;display:flex;gap:10px;}
-.message-input{flex:1;padding:15px;border:2px solid #ddd;border-radius:25px;font-size:16px;outline:none;transition:border 0.3s;}
-.message-input:focus{border-color:#667eea;}
-.logout-btn{background:rgba(255,255,255,0.2);color:white;border:2px solid white;padding:10px 20px;border-radius:20px;cursor:pointer;font-size:14px;transition:all 0.3s;}
-.logout-btn:hover{background:white;color:#667eea;}
-.hidden{display:none!important;}
-.color-picker{display:flex;gap:15px;flex-wrap:wrap;margin-top:10px;}
-.color-option{width:50px;height:50px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all 0.3s;}
-.color-option:hover{transform:scale(1.1);}
-.color-option.selected{border-color:white;box-shadow:0 0 0 3px #667eea;}
-.photo-upload{position:relative;width:120px;height:120px;margin:0 auto 30px;border-radius:50%;overflow:hidden;border:4px solid #667eea;cursor:pointer;background:#f0f0f0;display:flex;align-items:center;justify-content:center;}
-.photo-upload img{width:100%;height:100%;object-fit:cover;}
-.photo-upload input{display:none;}
-.photo-placeholder{font-size:48px;color:#999;}
-@media(max-width:768px){.login-container,.profile-setup{padding:30px 20px;}.messages-area{height:calc(100vh-180px);}.message-input-area{padding:10px;}}
+/* Temel stil */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.container{width:100%;max-width:980px}
+.card{background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden}
+.flex{display:flex}
+.col{flex:1;padding:28px}
+.left{max-width:420px}
+.right{flex:1;background:#f8fafc}
+.header{padding:28px 32px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;display:flex;justify-content:space-between;align-items:center}
+.header h1{font-size:20px}
+.hidden{display:none!important}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-weight:600;color:#333;margin-bottom:8px}
+.input, .textarea, .btn, .small-btn{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #e2e8f0;font-size:15px}
+.input:focus,.textarea:focus{outline:none;border-color:#667eea;box-shadow:0 4px 18px rgba(102,126,234,.12)}
+.btn{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border:0;cursor:pointer;font-weight:700}
+.small-btn{display:inline-block;width:auto;padding:8px 12px;border-radius:8px;background:#fff;color:#333;border:1px solid #e6eefb;cursor:pointer}
+.section-title{font-size:18px;margin-bottom:12px;color:#222}
+.messages-area{height:60vh;overflow:auto;padding:18px;background:#f5f7fb}
+.message{display:flex;gap:12px;margin-bottom:14px;align-items:flex-start}
+.avatar{width:44px;height:44px;border-radius:50%;background:#ddd;object-fit:cover;flex-shrink:0}
+.msg-body{background:#fff;border-radius:12px;padding:10px 12px;box-shadow:0 6px 18px rgba(16,24,40,.04);flex:1}
+.msg-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.username{font-weight:700}
+.msg-text{white-space:pre-wrap;word-break:break-word;color:#222}
+.msg-footer{display:flex;justify-content:space-between;color:#7b8794;font-size:13px;margin-top:8px}
+.input-area{display:flex;gap:10px;padding:16px;border-top:1px solid #e6eefb;background:#fff}
+.input-area .message-input{flex:1;border-radius:999px;padding:12px 16px;border:1px solid #e6eefb}
+.typing-indicator{font-style:italic;color:#667eea;padding:8px 16px}
+.color-picker{display:flex;gap:8px;flex-wrap:wrap}
+.color-swatch{width:36px;height:36px;border-radius:50%;cursor:pointer;border:3px solid transparent}
+.color-swatch.selected{box-shadow:0 0 0 3px rgba(102,126,234,.18);border-color:#fff}
+@media(max-width:900px){
+  .flex{flex-direction:column}
+  .left{max-width:none}
+  .messages-area{height:50vh}
+}
 </style>
 </head>
 <body>
+<div class="container">
 
-<!-- Login Screen -->
-<div class="login-container" id="loginScreen">
-    <h1>🌍 Global Chat</h1>
-    <p style="margin-bottom:30px;color:#666;">Email ile doğrulama yaparak kaydol</p>
-    <form id="emailForm">
-        <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="emailInput" placeholder="Email girin" required>
+  <div class="card">
+    <div class="header">
+      <h1>🌍 Global Chat</h1>
+      <div id="topRightArea"></div>
+    </div>
+
+    <div class="flex">
+      <!-- SOL: Login / Profile -->
+      <div class="col left" id="leftCol">
+        <!-- Login / send code -->
+        <div id="loginCard">
+          <div class="section-title">E-posta ile giriş / kayıt</div>
+          <div class="form-group">
+            <label for="emailInput">E-posta</label>
+            <input id="emailInput" class="input" type="email" placeholder="ornek@eposta.com" />
+          </div>
+          <button class="btn" id="sendCodeBtn">Doğrulama Kodu Gönder</button>
+
+          <div id="codePanel" class="hidden" style="margin-top:12px">
+            <div class="form-group">
+              <label for="codeInput">Gelen Kodu Gir</label>
+              <input id="codeInput" class="input" type="text" maxlength="6" placeholder="123456" />
+            </div>
+            <button class="btn" id="verifyBtn">Kodu Doğrula</button>
+            <div style="margin-top:8px;font-size:13px;color:#6b7280">Kodu görmüyorsanız spam klasörünü kontrol edin. (Geliştirme için sunucu debug kodu döndürebilir.)</div>
+          </div>
         </div>
-        <button type="submit" class="save-btn">Kod Gönder</button>
-    </form>
-</div>
 
-<!-- Profile Setup Screen -->
-<div class="profile-setup" id="profileSetup">
-    <h2>Profilini Oluştur</h2>
-    
-    <div class="photo-upload" onclick="document.getElementById('photoInput').click()">
-        <img id="profilePreview" style="display:none;">
-        <span class="photo-placeholder" id="photoPlaceholder">📷</span>
-        <input type="file" id="photoInput" accept="image/*,capture=camera">
-    </div>
+        <!-- Profile setup -->
+        <div id="profileCard" class="hidden" style="margin-top:8px">
+          <div class="section-title">Profil Oluştur</div>
 
-    <div class="form-group">
-        <label>Kullanıcı Adı</label>
-        <input type="text" id="usernameInput" placeholder="Adını gir" maxlength="20">
-    </div>
+          <div class="form-group">
+            <label for="usernameInput">Kullanıcı adı</label>
+            <input id="usernameInput" class="input" type="text" placeholder="Takma adınız" maxlength="30" />
+          </div>
 
-    <div class="form-group">
-        <label>İsim Rengi</label>
-        <div class="color-picker">
-            <div class="color-option selected" style="background:#4285F4;" data-color="#4285F4"></div>
-            <div class="color-option" style="background:#EA4335;" data-color="#EA4335"></div>
-            <div class="color-option" style="background:#FBBC05;" data-color="#FBBC05"></div>
-            <div class="color-option" style="background:#34A853;" data-color="#34A853"></div>
-            <div class="color-option" style="background:#9C27B0;" data-color="#9C27B0"></div>
-            <div class="color-option" style="background:#FF6D00;" data-color="#FF6D00"></div>
+          <div class="form-group">
+            <label>Profil fotoğrafı (isteğe bağlı)</label>
+            <input id="photoInput" class="input" type="file" accept="image/*,capture=camera" />
+          </div>
+
+          <div class="form-group">
+            <label>İsim rengi</label>
+            <div class="color-picker" id="colorPicker">
+              <div class="color-swatch selected" data-color="#4285F4" style="background:#4285F4"></div>
+              <div class="color-swatch" data-color="#EA4335" style="background:#EA4335"></div>
+              <div class="color-swatch" data-color="#FBBC05" style="background:#FBBC05"></div>
+              <div class="color-swatch" data-color="#34A853" style="background:#34A853"></div>
+              <div class="color-swatch" data-color="#9C27B0" style="background:#9C27B0"></div>
+              <div class="color-swatch" data-color="#FF6D00" style="background:#FF6D00"></div>
+            </div>
+          </div>
+
+          <button class="btn" id="saveProfileBtn">Kaydet ve Chat'e Katıl</button>
         </div>
-    </div>
 
-    <button class="save-btn" onclick="saveProfile()">Kaydet ve Devam Et</button>
-</div>
-
-<!-- Chat Screen -->
-<div class="chat-container" id="chatScreen">
-    <div class="chat-header">
-        <div class="server-info">
-            <h2 id="serverName">🌍 Sunucu</h2>
-            <div class="online-count"><span id="onlineCount">0</span> kişi çevrimiçi</div>
+        <!-- Eğer zaten logged-in -->
+        <div id="loggedInCard" class="hidden" style="margin-top:12px">
+          <div class="section-title">Hesap Bilgileri</div>
+          <div id="userSummary"></div>
+          <button class="btn" id="toChatBtn" style="margin-top:12px">Sohbete Git</button>
         </div>
-        <button class="logout-btn" onclick="logout()">Çıkış</button>
-    </div>
+      </div>
 
-    <div class="messages-area" id="messagesArea"></div>
-    <div class="typing-indicator hidden" id="typingIndicator">
-        <span id="typingUser"></span> yazıyor...
-    </div>
+      <!-- SAĞ: Chat -->
+      <div class="col right" id="rightCol">
+        <div id="chatUI" class="hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 18px;border-bottom:1px solid #eef3fb">
+            <div>
+              <div id="serverName" style="font-weight:700">🌍 Türkiye (TR)</div>
+              <div style="font-size:13px;color:#6b7280"><span id="onlineCount">0</span> kişi çevrimiçi</div>
+            </div>
+            <div>
+              <button class="small-btn" id="logoutBtn">Çıkış</button>
+            </div>
+          </div>
 
-    <div class="message-input-area">
-        <input type="text" class="message-input" id="messageInput" placeholder="Mesajını yaz..." maxlength="500">
-        <button class="send-btn" onclick="sendMessage()">Gönder</button>
+          <div class="messages-area" id="messagesArea"></div>
+
+          <div id="typingIndicator" class="typing-indicator hidden"><span id="typingUser"></span> yazıyor...</div>
+
+          <div class="input-area">
+            <input id="messageInput" class="message-input input" placeholder="Mesajını yaz..." maxlength="1000" />
+            <button class="btn" id="sendMsgBtn">Gönder</button>
+          </div>
+        </div>
+
+        <div id="placeholderEmpty" style="padding:28px;color:#6b7280">
+          Sohbet ekranı burada görünecek. Giriş yap ve profil oluştur.
+        </div>
+      </div>
     </div>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-let socket, currentUser=null, currentServer=null, selectedColor='#4285F4', selectedPhoto=null, messages=[], typingTimeout;
+/* Tam frontend mantığı — eksiksiz, sunucuya tolerant (debug fallback) */
+(() => {
+  // State
+  let socket = null;
+  let currentUser = null; // server'dan user object
+  let serverDebugCode = null; // send-code response olabilir
+  let selectedColor = '#4285F4';
+  let selectedPhotoData = null;
+  let messages = [];
+  const SERVER_DEFAULT = 'TR'; // değiştirilebilir
 
-// Email ile doğrulama formu
-document.getElementById('emailForm').addEventListener('submit', async function(e){
-    e.preventDefault();
-    const email=document.getElementById('emailInput').value.trim();
-    if(!email)return alert("Email giriniz!");
-    // Backend'e POST isteği at, kod gönder
-    try{
-        const res=await fetch('/api/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
-        if(res.ok){ alert("Doğrulama kodu emailinize gönderildi."); checkAuth(); }
-        else alert("Hata oluştu."); 
-    }catch{alert("Sunucu hatası.");}
-});
+  // Elementler
+  const sendCodeBtn = document.getElementById('sendCodeBtn');
+  const verifyBtn = document.getElementById('verifyBtn');
+  const codePanel = document.getElementById('codePanel');
+  const emailInput = document.getElementById('emailInput');
+  const codeInput = document.getElementById('codeInput');
 
-async function checkAuth(){
-    try{
-        const res=await fetch('/api/user');
-        if(res.ok){
-            const data=await res.json();
-            currentUser=data.user;
-            if(currentUser.username && currentUser.server) showChatScreen();
-            else showProfileSetup();
-        }else showLoginScreen();
-    }catch{showLoginScreen();}
-}
+  const profileCard = document.getElementById('profileCard');
+  const loginCard = document.getElementById('loginCard');
+  const profileSaveBtn = document.getElementById('saveProfileBtn');
+  const usernameInput = document.getElementById('usernameInput');
+  const photoInput = document.getElementById('photoInput');
+  const colorPicker = document.getElementById('colorPicker');
 
-function showLoginScreen(){
-    document.getElementById('loginScreen').style.display='block';
-    document.getElementById('profileSetup').style.display='none';
-    document.getElementById('chatScreen').style.display='none';
-}
+  const loggedInCard = document.getElementById('loggedInCard');
+  const userSummary = document.getElementById('userSummary');
+  const toChatBtn = document.getElementById('toChatBtn');
 
-function showProfileSetup(){
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('profileSetup').style.display='block';
-    document.getElementById('chatScreen').style.display='none';
-    detectCountry();
-}
+  const chatUI = document.getElementById('chatUI');
+  const placeholderEmpty = document.getElementById('placeholderEmpty');
+  const messagesArea = document.getElementById('messagesArea');
+  const sendMsgBtn = document.getElementById('sendMsgBtn');
+  const messageInput = document.getElementById('messageInput');
+  const onlineCountEl = document.getElementById('onlineCount');
+  const typingIndicator = document.getElementById('typingIndicator');
+  const typingUserSpan = document.getElementById('typingUser');
+  const logoutBtn = document.getElementById('logoutBtn');
 
-function showChatScreen(){
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('profileSetup').style.display='none';
-    document.getElementById('chatScreen').style.display='block';
-    initializeChat();
-}
+  // Helpers
+  function el(q){ return document.querySelector(q); }
+  function api(path, opts = {}) {
+    opts.headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    return fetch(path, opts).then(r => r.json().catch(()=>({})));
+  }
+  function escapeHtml(t){ const d=document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
-// Color picker
-document.querySelectorAll('.color-option').forEach(opt=>{
-    opt.addEventListener('click',function(){
-        document.querySelectorAll('.color-option').forEach(o=>o.classList.remove('selected'));
-        this.classList.add('selected');
-        selectedColor=this.dataset.color;
+  // UI helpers
+  function show(el){ el.classList.remove('hidden'); }
+  function hide(el){ el.classList.add('hidden'); }
+
+  // Color picker setup
+  colorPicker.querySelectorAll('.color-swatch').forEach(s => {
+    s.addEventListener('click', () => {
+      colorPicker.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('selected'));
+      s.classList.add('selected');
+      selectedColor = s.dataset.color;
     });
-});
+  });
 
-// Foto yükleme
-document.getElementById('photoInput').addEventListener('change',function(e){
-    const file=e.target.files[0];
-    if(file){
-        const reader=new FileReader();
-        reader.onload=function(ev){ selectedPhoto=ev.target.result; document.getElementById('profilePreview').src=selectedPhoto; document.getElementById('profilePreview').style.display='block'; document.getElementById('photoPlaceholder').style.display='none';};
-        reader.readAsDataURL(file);
+  // Photo preview
+  photoInput.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { selectedPhotoData = ev.target.result; };
+    reader.readAsDataURL(f);
+  });
+
+  // 1) Send verification code
+  sendCodeBtn.addEventListener('click', async () => {
+    const email = emailInput.value.trim();
+    if(!email) { alert('Lütfen bir e-posta girin'); emailInput.focus(); return; }
+
+    sendCodeBtn.disabled = true;
+    sendCodeBtn.textContent = 'Gönderiliyor...';
+
+    try {
+      const res = await api('/api/send-code', { method: 'POST', body: JSON.stringify({ email }) });
+      if(res && res.success) {
+        // Sunucu debug kod döndürdüyse fallback olarak kullan
+        if(res.code) serverDebugCode = res.code;
+        if(res.debugCode) serverDebugCode = res.debugCode;
+        show(codePanel);
+        alert('Doğrulama kodu gönderildi. E-postanızı kontrol edin.');
+      } else {
+        alert('Kodu gönderirken hata oluştu. Sunucu yanıtı: ' + (res && res.error ? res.error : 'bilinmiyor'));
+      }
+    } catch(err) {
+      console.error(err);
+      alert('Sunucuya bağlanırken hata oluştu.');
+    } finally {
+      sendCodeBtn.disabled = false;
+      sendCodeBtn.textContent = 'Doğrulama Kodu Gönder';
     }
-});
+  });
 
-async function detectCountry(){
-    try{ const res=await fetch('/api/detect-country'); const data=await res.json(); currentServer=data.country;}catch{currentServer='TR';}
-}
+  // 2) Verify code
+  verifyBtn.addEventListener('click', async () => {
+    const code = codeInput.value.trim();
+    if(!code) { alert('Lütfen kodu girin'); codeInput.focus(); return; }
+    const email = emailInput.value.trim();
 
-// Profil kaydet
-async function saveProfile(){
-    const username=document.getElementById('usernameInput').value.trim();
-    if(!username) return alert('Kullanıcı adı giriniz!');
-    try{
-        const res=await fetch('/api/profile-setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,profilePhoto:selectedPhoto,nameColor:selectedColor,country:currentServer})});
-        const data=await res.json();
-        currentUser=data.user; showChatScreen();
-    }catch{alert("Profil kaydedilemedi!");}
-}
+    verifyBtn.disabled = true;
+    verifyBtn.textContent = 'Doğrulanıyor...';
 
-// Chat fonksiyonları
-function initializeChat(){ 
-    socket=io(); 
-    document.getElementById('serverName').textContent=currentServer;
-    socket.emit('join-server',{userId:currentUser._id,serverId:currentUser.server}); 
-    loadMessages(); setupSocketListeners(); setupMessageInput();
-}
+    try {
+      // Eğer sunucuda /api/verify-code varsa onu çağır; yoksa fallback olarak debug kodla karşılaştır.
+      let usedServerVerify = false;
+      let verifyRes = null;
+      try {
+        verifyRes = await api('/api/verify-code', { method: 'POST', body: JSON.stringify({ email, code }) });
+        usedServerVerify = !!(verifyRes && verifyRes.success);
+      } catch(e) {
+        // ignore, fallback below
+      }
 
-async function loadMessages(){
-    try{ const res=await fetch(`/api/messages/${currentUser.server}`); messages=await res.json(); renderMessages(); }catch(e){console.error(e);}
-}
+      if(usedServerVerify) {
+        // server returned user
+        currentUser = verifyRes.user;
+        onLoggedIn();
+        return;
+      }
 
-function setupSocketListeners(){
-    socket.on('user-count',data=>{document.getElementById('onlineCount').textContent=data.count;});
-    socket.on('new-message',msg=>{messages.push(msg); renderMessages(); if(msg.userId!==currentUser._id) socket.emit('message-seen',{messageId:msg._id,userId:currentUser._id});});
-    socket.on('message-edited',({messageId,newMessage})=>{const m=messages.find(m=>m._id===messageId);if(m){m.message=newMessage;m.edited=true;renderMessages();}});
-    socket.on('message-seen-update',({messageId,seenCount})=>{const e=document.querySelector(`[data-message-id="${messageId}"] .seen-count`);if(e)e.textContent=seenCount;});
-    socket.on('user-typing',({username,isTyping})=>{const indicator=document.getElementById('typingIndicator');const userSpan=document.getElementById('typingUser'); if(isTyping){userSpan.textContent=username;indicator.classList.remove('hidden');}else{indicator.classList.add('hidden');}});
-}
+      // fallback: server returned debug code earlier via /api/send-code response
+      if(serverDebugCode && serverDebugCode === code) {
+        // optionally create session on server via profile-setup or separate endpoint
+        // We'll call /api/verify-code to let server set session if it supports it; if not, proceed locally until profile save.
+        try {
+          const res2 = await api('/api/verify-code', { method: 'POST', body: JSON.stringify({ email, code }) });
+          if(res2 && res2.success) {
+            currentUser = res2.user;
+            onLoggedIn();
+            return;
+          }
+        } catch(e) { /* ignore */ }
 
-function setupMessageInput(){
-    const input=document.getElementById('messageInput');
-    input.addEventListener('keypress',e=>{if(e.key==='Enter') sendMessage();});
-    input.addEventListener('input',()=>{
-        clearTimeout(typingTimeout);
-        socket.emit('typing',{serverId:currentUser.server,username:currentUser.username,isTyping:true});
-        typingTimeout=setTimeout(()=>{socket.emit('typing',{serverId:currentUser.server,username:currentUser.username,isTyping:false});},1000);
+        // If verify endpoint not present, keep email in client state and move to profile step
+        currentUser = { email };
+        onLoggedIn();
+        return;
+      }
+
+      alert('Kod geçersiz veya süresi dolmuş.');
+    } finally {
+      verifyBtn.disabled = false;
+      verifyBtn.textContent = 'Kodu Doğrula';
+    }
+  });
+
+  // Called when we have a logged-in email (either session created server-side or client fallback)
+  function onLoggedIn() {
+    hide(loginCard);
+    show(profileCard);
+    // show existing user summary if server returns user via /api/user
+    fetchCurrentUserAndUpdateUI();
+  }
+
+  async function fetchCurrentUserAndUpdateUI(){
+    try {
+      const res = await api('/api/user');
+      if(res && res.user) {
+        currentUser = res.user;
+        // if user already has username, skip profile
+        if(currentUser.username) {
+          show(loggedInCard);
+          userSummary.innerHTML = `<div><strong>${escapeHtml(currentUser.username)}</strong><div style="color:#6b7280">${escapeHtml(currentUser.email || '')}</div></div>`;
+          hide(profileCard); hide(loginCard);
+        }
+      }
+    } catch(e) { /* ignore */ }
+  }
+
+  // 3) Save profile
+  profileSaveBtn.addEventListener('click', async () => {
+    const username = usernameInput.value.trim();
+    if(!username) { alert('Kullanıcı adı girin'); usernameInput.focus(); return; }
+
+    profileSaveBtn.disabled = true;
+    profileSaveBtn.textContent = 'Kaydediliyor...';
+
+    // prepare payload
+    const payload = {
+      username,
+      nameColor: selectedColor,
+      country: SERVER_DEFAULT
+    };
+    // attach profile photo data if selected
+    if(selectedPhotoData) payload.profilePhoto = selectedPhotoData;
+    // attach email if we only had client-side email
+    if(currentUser && currentUser.email) payload.email = currentUser.email;
+
+    try {
+      const res = await api('/api/profile-setup', { method: 'POST', body: JSON.stringify(payload) });
+      if(res && res.success) {
+        currentUser = res.user;
+        // go to chat
+        hide(profileCard);
+        hide(loginCard);
+        hide(loggedInCard);
+        showChat();
+      } else {
+        alert('Profil kaydedilemedi: ' + (res.error || 'Bilinmeyen hata'));
+      }
+    } catch(err) {
+      console.error(err);
+      alert('Sunucu hatasıyla karşılaşıldı.');
+    } finally {
+      profileSaveBtn.disabled = false;
+      profileSaveBtn.textContent = 'Kaydet ve Chat\'e Katıl';
+    }
+  });
+
+  // If user is already logged in (session), show chat or profile accordingly
+  async function initialAuthCheck(){
+    try {
+      const res = await api('/api/user');
+      if(res && res.user) {
+        currentUser = res.user;
+        if(currentUser.username) {
+          // user ready
+          hide(loginCard); hide(profileCard);
+          showChat();
+        } else {
+          // need profile
+          hide(loginCard);
+          show(profileCard);
+        }
+      } else {
+        // show default login
+        hide(profileCard); hide(loggedInCard);
+        show(loginCard);
+      }
+    } catch(e) {
+      console.error(e);
+      show(loginCard);
+    }
+  }
+
+  // Show chat UI and init socket
+  function showChat(){
+    hide(placeholderEmpty);
+    show(chatUI);
+    initSocket();
+  }
+
+  // Setup socket.io and handlers
+  function initSocket(){
+    if(socket) return; // already connected
+    socket = io();
+
+    // Join server/room
+    socket.on('connect', () => {
+      socket.emit('join-server', { userId: currentUser._id || currentUser.email || cryptoRandomId(), serverId: currentUser.server || SERVER_DEFAULT });
     });
-}
 
-function sendMessage(){
-    const input=document.getElementById('messageInput'); const message=input.value.trim();
-    if(!message)return;
-    socket.emit('send-message',{serverId:currentUser.server,userId:currentUser._id,username:currentUser.username,nameColor:currentUser.nameColor,profilePhoto:currentUser.profilePhoto,message});
-    input.value='';
-}
-
-function renderMessages(){
-    const container=document.getElementById('messagesArea'); container.innerHTML='';
-    messages.forEach(msg=>{
-        const div=document.createElement('div'); div.className='message'; div.dataset.messageId=msg._id;
-        const time=new Date(msg.timestamp).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
-        const canEdit=msg.userId===currentUser._id && (Date.now()-new Date(msg.timestamp))<120000;
-        div.innerHTML=`<img src="${msg.profilePhoto}" class="message-avatar" alt="${msg.username}">
-        <div class="message-content">
-            <div class="message-header">
-                <span class="message-username" style="color:${msg.nameColor}">${msg.username}</span>
-                <span class="message-time">${time}</span>
-            </div>
-            <div class="message-text">${escapeHtml(msg.message)}</div>
-            <div class="message-footer">
-                <div>${msg.edited?'<span class="edit-indicator">düzenlendi</span>':''}${canEdit?'<button onclick="editMessage(\''+msg._id+'\',\''+escapeHtml(msg.message)+'\')" style="background:none;border:none;color:#667eea;cursor:pointer;font-size:12px;">✏️ Düzenle</button>':''}</div>
-                <div class="message-seen">✓✓ - <span class="seen-count">${msg.seenBy?.length||0}</span></div>
-            </div>
-        </div>`;
-        container.appendChild(div);
+    socket.on('new-message', (msg) => {
+      messages.push(msg);
+      renderMessages();
     });
-    container.scrollTop=container.scrollHeight;
-}
 
-function editMessage(messageId,currentText){
-    const newMsg=prompt('Mesajı düzenle:',currentText);
-    if(newMsg && newMsg.trim()!==currentText) socket.emit('edit-message',{messageId,newMessage:newMsg.trim()});
-}
+    socket.on('message-edited', ({ messageId, newMessage }) => {
+      const m = messages.find(x => x._id === messageId || x.id === messageId);
+      if(m) { m.message = newMessage; m.edited = true; renderMessages(); }
+    });
 
-function escapeHtml(text){const div=document.createElement('div');div.textContent=text;return div.innerHTML;}
-function logout(){window.location.href='/logout';}
+    socket.on('message-seen-update', ({ messageId, seenCount }) => {
+      // optional: update UI counts
+      renderMessages();
+    });
 
-// Sayfa açıldığında auth kontrol
-checkAuth();
+    socket.on('user-typing', ({ username, isTyping }) => {
+      if(isTyping) {
+        typingUserSpan.textContent = username;
+        show(typingIndicator);
+      } else {
+        hide(typingIndicator);
+      }
+    });
+
+    socket.on('user-count', ({ count }) => {
+      onlineCountEl.textContent = count || 0;
+    });
+
+    // load recent messages from server
+    loadMessages();
+  }
+
+  // Load messages once
+  async function loadMessages(){
+    try {
+      const srv = currentUser && currentUser.server ? currentUser.server : SERVER_DEFAULT;
+      const resp = await fetch(`/api/messages/${srv}`);
+      if(resp.ok) {
+        const arr = await resp.json();
+        if(Array.isArray(arr)) { messages = arr; renderMessages(); }
+      }
+    } catch(e) { console.error('Mesaj yükleme hatası', e); }
+  }
+
+  // send message
+  sendMsgBtn.addEventListener('click', () => { sendMessage(); });
+  messageInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
+
+  function sendMessage(){
+    const msgText = messageInput.value.trim();
+    if(!msgText || !socket) return;
+    const payload = {
+      serverId: currentUser.server || SERVER_DEFAULT,
+      userId: currentUser._id || currentUser.email || cryptoRandomId(),
+      username: currentUser.username || currentUser.email,
+      nameColor: currentUser.nameColor || selectedColor,
+      profilePhoto: currentUser.profilePhoto || null,
+      message: msgText,
+      timestamp: new Date()
+    };
+    socket.emit('send-message', payload);
+    messageInput.value = '';
+  }
+
+  // render messages (clears area and re-renders entire messages array)
+  function renderMessages(){
+    messagesArea.innerHTML = '';
+    messages.forEach(msg => {
+      const msgEl = document.createElement('div');
+      msgEl.className = 'message';
+
+      const avatar = document.createElement('img');
+      avatar.className = 'avatar';
+      avatar.src = msg.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.username||'User')}&background=ddd&color=444`;
+      avatar.alt = msg.username || 'user';
+
+      const body = document.createElement('div');
+      body.className = 'msg-body';
+
+      const meta = document.createElement('div');
+      meta.className = 'msg-meta';
+
+      const nameSpan = document.createElement('div');
+      nameSpan.className = 'username';
+      nameSpan.style.color = msg.nameColor || '#4285F4';
+      nameSpan.innerText = msg.username || (msg.email || 'Anon');
+
+      const timeSpan = document.createElement('div');
+      timeSpan.className = 'message-time';
+      timeSpan.style.fontSize = '12px';
+      timeSpan.style.color = '#6b7280';
+      timeSpan.innerText = new Date(msg.timestamp || Date.now()).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+
+      meta.appendChild(nameSpan);
+      meta.appendChild(timeSpan);
+
+      const textDiv = document.createElement('div');
+      textDiv.className = 'msg-text';
+      textDiv.innerHTML = escapeHtml(msg.message || '');
+
+      const footer = document.createElement('div');
+      footer.className = 'msg-footer';
+      footer.innerHTML = `${msg.edited ? '<span style="font-style:italic">düzenlendi</span>' : ''} <span>✓✓</span>`;
+
+      body.appendChild(meta);
+      body.appendChild(textDiv);
+      body.appendChild(footer);
+
+      msgEl.appendChild(avatar);
+      msgEl.appendChild(body);
+
+      messagesArea.appendChild(msgEl);
+    });
+    // scroll to bottom
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+  }
+
+  // edit message (prompt)
+  function editMessage(messageId, currentText){
+    const newText = prompt('Mesajı düzenle', currentText);
+    if(!newText || !socket) return;
+    socket.emit('edit-message', { messageId, newMessage: newText.trim() });
+  }
+
+  // typing indicator emit
+  let typingTimer = null;
+  messageInput.addEventListener('input', () => {
+    if(!socket) return;
+    socket.emit('typing', { serverId: currentUser.server || SERVER_DEFAULT, username: currentUser.username || currentUser.email, isTyping: true });
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => { socket.emit('typing', { serverId: currentUser.server || SERVER_DEFAULT, username: currentUser.username || currentUser.email, isTyping: false }); }, 1000);
+  });
+
+  // logout: try server logout then reload
+  logoutBtn.addEventListener('click', async () => {
+    try { await fetch('/logout'); } catch(e) { /* ignore */ }
+    location.reload();
+  });
+
+  // helper random id
+  function cryptoRandomId(){ return 'id_' + Math.random().toString(36).slice(2,9); }
+
+  // allow "go to chat" if logged in
+  toChatBtn.addEventListener('click', () => { hide(loginCard); hide(profileCard); hide(loggedInCard); showChat(); });
+
+  // Initial check
+  initialAuthCheck();
+
+  // Expose for debug in console (optional)
+  window.__app = {
+    getState: () => ({ currentUser, messages, serverDebugCode })
+  };
+})();
 </script>
 </body>
 </html>
