@@ -10,6 +10,7 @@ const MongoStore = require('connect-mongo');
 const geoip = require('geoip-lite');
 const cors = require('cors');
 const path = require('path');
+const bcrypt = require('bcryptjs'); // bcrypt yerine bcryptjs
 
 const app = express();
 const server = http.createServer(app);
@@ -28,7 +29,7 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error('❌ MongoDB Error:', err));
 
 // Express-session with MongoStore
-app.set('trust proxy', 1); // Render gibi proxy ortamları için
+app.set('trust proxy', 1);
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
@@ -56,7 +57,8 @@ const userSchema = new mongoose.Schema({
   country: String,
   server: String,
   createdAt: { type: Date, default: Date.now },
-  lastSeen: { type: Date, default: Date.now }
+  lastSeen: { type: Date, default: Date.now },
+  passwordHash: String // opsiyonel, bcryptjs için
 });
 
 const messageSchema = new mongoose.Schema({
@@ -69,10 +71,7 @@ const messageSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
   edited: { type: Boolean, default: false },
   editedAt: Date,
-  seenBy: [{ 
-    userId: mongoose.Schema.Types.ObjectId, 
-    seenAt: Date 
-  }]
+  seenBy: [{ userId: mongoose.Schema.Types.ObjectId, seenAt: Date }]
 });
 
 const User = mongoose.model('User', userSchema);
@@ -115,24 +114,31 @@ passport.deserializeUser(async (id, done) => {
   } catch (error) {
     done(error, null);
   }
-}));
-
-// Routes
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
-  res.redirect('/profile-setup');
 });
 
+// Routes
+app.get('/auth/google', passport.authenticate('google', {
+  scope: ['profile', 'email']
+}));
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/' }),
+  (req, res) => res.redirect('/profile-setup')
+);
+
 app.get('/api/user', (req, res) => {
-  if (req.isAuthenticated()) res.json({ user: req.user });
-  else res.status(401).json({ error: 'Not authenticated' });
+  if (req.isAuthenticated()) {
+    res.json({ user: req.user });
+  } else {
+    res.status(401).json({ error: 'Not authenticated' });
+  }
 });
 
 app.post('/api/profile-setup', async (req, res) => {
   if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
 
-  const { username, profilePhoto, nameColor, country } = req.body;
   try {
+    const { username, profilePhoto, nameColor, country } = req.body;
     const user = await User.findByIdAndUpdate(req.user._id, {
       username,
       profilePhoto: profilePhoto || req.user.profilePhoto,
@@ -140,6 +146,7 @@ app.post('/api/profile-setup', async (req, res) => {
       country,
       server: country
     }, { new: true });
+
     res.json({ success: true, user });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -149,24 +156,37 @@ app.post('/api/profile-setup', async (req, res) => {
 app.get('/api/detect-country', (req, res) => {
   const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   const geo = geoip.lookup(ip);
-  const countryNames = { 'TR': 'Türkiye', 'US': 'United States', 'GB': 'United Kingdom', 'DE': 'Deutschland', 'FR': 'France', 'KR': '대한민국', 'JP': '日本', 'CN': '中国' };
+
+  const countryNames = {
+    'TR': 'Türkiye', 'US': 'United States', 'GB': 'United Kingdom',
+    'DE': 'Deutschland', 'FR': 'France', 'KR': '대한민국',
+    'JP': '日本', 'CN': '中国'
+  };
+
   const country = geo ? geo.country : 'TR';
-  res.json({ country, countryName: countryNames[country] || country });
+  const countryName = countryNames[country] || country;
+
+  res.json({ country, countryName });
 });
 
 app.get('/api/messages/:serverId', async (req, res) => {
   try {
-    const messages = await Message.find({ serverId: req.params.serverId }).sort({ timestamp: -1 }).limit(100);
+    const messages = await Message.find({ serverId: req.params.serverId })
+      .sort({ timestamp: -1 })
+      .limit(100);
     res.json(messages.reverse());
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/logout', (req, res) => { req.logout(() => { res.redirect('/'); }); });
+app.get('/logout', (req, res) => {
+  req.logout(() => res.redirect('/'));
+});
 
 // Socket.io
 const onlineUsers = new Map();
+
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
@@ -174,24 +194,61 @@ io.on('connection', (socket) => {
     socket.join(serverId);
     onlineUsers.set(userId, { socketId: socket.id, serverId });
     await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-    io.to(serverId).emit('user-count', { count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length });
+
+    io.to(serverId).emit('user-count', {
+      count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
+    });
   });
 
   socket.on('send-message', async (data) => {
     try {
-      const message = await Message.create({ ...data });
-      io.to(data.serverId).emit('new-message', { ...message.toObject(), seenBy: [] });
-    } catch (error) { console.error('Message error:', error); }
+      const message = await Message.create({
+        serverId: data.serverId,
+        userId: data.userId,
+        username: data.username,
+        nameColor: data.nameColor,
+        profilePhoto: data.profilePhoto,
+        message: data.message
+      });
+
+      io.to(data.serverId).emit('new-message', {
+        _id: message._id,
+        username: message.username,
+        nameColor: message.nameColor,
+        profilePhoto: message.profilePhoto,
+        message: message.message,
+        timestamp: message.timestamp,
+        seenBy: []
+      });
+    } catch (error) {
+      console.error('Message error:', error);
+    }
   });
 
   socket.on('edit-message', async ({ messageId, newMessage }) => {
     try {
-      const message = await Message.findByIdAndUpdate(messageId, { message: newMessage, edited: true, editedAt: new Date() }, { new: true });
-      io.to(message.serverId).emit('message-edited', { messageId, newMessage, edited: true });
-    } catch (error) { console.error('Edit error:', error); }
+      const message = await Message.findByIdAndUpdate(messageId, {
+        message: newMessage,
+        edited: true,
+        editedAt: new Date()
+      }, { new: true });
+
+      io.to(message.serverId).emit('message-edited', {
+        messageId,
+        newMessage,
+        edited: true
+      });
+    } catch (error) {
+      console.error('Edit error:', error);
+    }
   });
 
-  socket.on('typing', (data) => { socket.to(data.serverId).emit('user-typing', { username: data.username, isTyping: data.isTyping }); });
+  socket.on('typing', (data) => {
+    socket.to(data.serverId).emit('user-typing', {
+      username: data.username,
+      isTyping: data.isTyping
+    });
+  });
 
   socket.on('message-seen', async ({ messageId, userId }) => {
     try {
@@ -199,16 +256,28 @@ io.on('connection', (socket) => {
       if (!message.seenBy.some(s => s.userId.toString() === userId)) {
         message.seenBy.push({ userId, seenAt: new Date() });
         await message.save();
-        io.to(message.serverId).emit('message-seen-update', { messageId, seenCount: message.seenBy.length });
+
+        io.to(message.serverId).emit('message-seen-update', {
+          messageId,
+          seenCount: message.seenBy.length
+        });
       }
-    } catch (error) { console.error('Seen error:', error); }
+    } catch (error) {
+      console.error('Seen error:', error);
+    }
   });
 
   socket.on('disconnect', () => {
+    console.log('❌ User disconnected:', socket.id);
+    
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userData.socketId === socket.id) {
+        const serverId = userData.serverId;
         onlineUsers.delete(userId);
-        io.to(userData.serverId).emit('user-count', { count: Array.from(onlineUsers.values()).filter(u => u.serverId === userData.serverId).length });
+        
+        io.to(serverId).emit('user-count', {
+          count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
+        });
         break;
       }
     }
@@ -217,4 +286,6 @@ io.on('connection', (socket) => {
 
 // Start Server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => { console.log(`🚀 Server running on port ${PORT}`); });
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
