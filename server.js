@@ -1,243 +1,217 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const session = require('express-session');
-const cors = require('cors');
+const nodemailer = require('nodemailer');
+const bodyParser = require('body-parser');
+const crypto = require('crypto');
 const path = require('path');
-const bcrypt = require('bcrypt');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
+// ------------------- CONFIG --------------------
+const PORT = process.env.PORT || 3000;
+const MONGO_URI = process.env.MONGODB_URI;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'secret';
+
+// ------------------- MIDDLEWARE ----------------
+app.use(bodyParser.json({ limit: '5mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: SESSION_SECRET,
   resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+  saveUninitialized: true,
+  cookie: { secure: false } // prod: true if https
 }));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => console.error('❌ MongoDB Error:', err));
+// ------------------- MONGODB ------------------
+mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(()=>console.log('MongoDB bağlandı')).catch(err=>console.error('MongoDB hata:', err));
 
-// Schemas
+// ------------------- SCHEMAS ------------------
 const userSchema = new mongoose.Schema({
-  email: { type: String, unique: true, required: true },
-  passwordHash: String,
+  email: { type: String, required:true, unique:true },
   username: String,
   profilePhoto: String,
-  nameColor: { type: String, default: '#4285F4' },
-  country: String,
-  server: String,
-  createdAt: { type: Date, default: Date.now },
-  lastSeen: { type: Date, default: Date.now }
-});
-
-const messageSchema = new mongoose.Schema({
-  serverId: { type: String, required: true, index: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  username: String,
   nameColor: String,
+  server: { type:String, default:'TR' },
+  createdAt: { type: Date, default: Date.now }
+});
+const messageSchema = new mongoose.Schema({
+  serverId: String,
+  userId: String,
+  username: String,
   profilePhoto: String,
+  nameColor: String,
   message: String,
   timestamp: { type: Date, default: Date.now },
-  edited: { type: Boolean, default: false },
-  editedAt: Date,
-  seenBy: [{ userId: mongoose.Schema.Types.ObjectId, seenAt: Date }]
+  edited: { type: Boolean, default: false }
+});
+const verificationSchema = new mongoose.Schema({
+  email: { type:String, required:true },
+  code: String,
+  createdAt: { type:Date, default: Date.now, expires: 300 } // 5dk
 });
 
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
+const Verification = mongoose.model('Verification', verificationSchema);
 
-// Simple Email Verification Logic (demo)
-const emailCodes = new Map();
+// ------------------- MAILER -------------------
+let transporter;
+if(process.env.SMTP_HOST){
+  transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT || 587,
+    secure: false,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+}
 
-// Routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+// ------------------- API ----------------------
 
-// Send verification code
-app.post('/api/send-code', async (req, res) => {
+// send verification code
+app.post('/api/send-code', async (req,res)=>{
   const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email gerekli' });
+  if(!email) return res.json({ success:false, error:'Email boş' });
 
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  emailCodes.set(email, code);
+  const code = (''+Math.floor(100000 + Math.random()*900000));
+  await Verification.findOneAndDelete({ email });
 
-  console.log(`🔑 Verification code for ${email}: ${code}`);
-  // Burada gerçek email gönderimi eklenebilir (Vercel veya başka servis ile)
-  
-  res.json({ success: true });
-});
+  const ver = new Verification({ email, code });
+  await ver.save();
 
-// Verify code and create account
-app.post('/api/verify-code', async (req, res) => {
-  const { email, code, username, password } = req.body;
-  const savedCode = emailCodes.get(email);
-
-  if (!savedCode || savedCode !== code) {
-    return res.status(400).json({ error: 'Kod yanlış veya süresi dolmuş' });
-  }
-
-  try {
-    const passwordHash = await bcrypt.hash(password, 10);
-    let user = await User.findOne({ email });
-    
-    if (!user) {
-      user = await User.create({
-        email,
-        passwordHash,
-        username,
-        server: 'TR'
-      });
-    }
-
-    req.session.userId = user._id;
-    emailCodes.delete(email);
-
-    res.json({ success: true, user });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Profile Setup
-app.post('/api/profile-setup', async (req, res) => {
-  const userId = req.session.userId;
-  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-
-  const { username, profilePhoto, nameColor, country } = req.body;
-  try {
-    const user = await User.findByIdAndUpdate(userId, {
-      username,
-      profilePhoto,
-      nameColor,
-      country,
-      server: country
-    }, { new: true });
-    res.json({ success: true, user });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get current user
-app.get('/api/user', async (req, res) => {
-  const userId = req.session.userId;
-  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
-
-  try {
-    const user = await User.findById(userId);
-    res.json({ user });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Logout
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/'));
-});
-
-// Chat routes
-app.get('/api/messages/:serverId', async (req, res) => {
-  try {
-    const messages = await Message.find({ serverId: req.params.serverId })
-      .sort({ timestamp: -1 })
-      .limit(100);
-    res.json(messages.reverse());
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Socket.io
-const onlineUsers = new Map();
-
-io.on('connection', (socket) => {
-  console.log('✅ User connected:', socket.id);
-
-  socket.on('join-server', async ({ userId, serverId }) => {
-    socket.join(serverId);
-    onlineUsers.set(userId, { socketId: socket.id, serverId });
-    await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-
-    io.to(serverId).emit('user-count', {
-      count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
-    });
-  });
-
-  socket.on('send-message', async (data) => {
+  // send mail
+  if(transporter){
     try {
-      const message = await Message.create({
-        serverId: data.serverId,
-        userId: data.userId,
-        username: data.username,
-        nameColor: data.nameColor,
-        profilePhoto: data.profilePhoto,
-        message: data.message
+      await transporter.sendMail({
+        from: '"Global Chat" <no-reply@globalchat.com>',
+        to: email,
+        subject: 'Doğrulama Kodu',
+        text: `Doğrulama Kodunuz: ${code}`
       });
+    } catch(e){
+      console.error('Mail gönderilemedi:', e);
+    }
+  } else {
+    console.log(`DEBUG Mail: ${email} Kodu: ${code}`);
+  }
 
-      io.to(data.serverId).emit('new-message', {
-        _id: message._id,
-        username: message.username,
-        nameColor: message.nameColor,
-        profilePhoto: message.profilePhoto,
-        message: message.message,
-        timestamp: message.timestamp,
-        seenBy: []
-      });
-    } catch (err) {
-      console.error(err);
+  res.json({ success:true, code }); // debug code client görebilir
+});
+
+// verify code
+app.post('/api/verify-code', async (req,res)=>{
+  const { email, code } = req.body;
+  if(!email || !code) return res.json({ success:false, error:'Eksik bilgi' });
+
+  const ver = await Verification.findOne({ email, code });
+  if(!ver) return res.json({ success:false, error:'Kod geçersiz veya süresi dolmuş' });
+
+  // get or create user
+  let user = await User.findOne({ email });
+  if(!user){
+    user = new User({ email });
+    await user.save();
+  }
+
+  req.session.userId = user._id;
+  res.json({ success:true, user });
+});
+
+// profile setup
+app.post('/api/profile-setup', async (req,res)=>{
+  const { username, nameColor, profilePhoto, email } = req.body;
+  if(!username) return res.json({ success:false, error:'Kullanıcı adı gerekli' });
+
+  let user;
+  if(req.session.userId){
+    user = await User.findById(req.session.userId);
+  } else if(email){
+    user = await User.findOne({ email });
+  }
+
+  if(!user) return res.json({ success:false, error:'Kullanıcı bulunamadı' });
+
+  user.username = username;
+  user.nameColor = nameColor || '#4285F4';
+  if(profilePhoto) user.profilePhoto = profilePhoto;
+  await user.save();
+
+  req.session.userId = user._id;
+  res.json({ success:true, user });
+});
+
+// get current user
+app.get('/api/user', async (req,res)=>{
+  if(!req.session.userId) return res.json({ user:null });
+  const user = await User.findById(req.session.userId);
+  res.json({ user });
+});
+
+// get messages
+app.get('/api/messages/:serverId', async (req,res)=>{
+  const { serverId } = req.params;
+  const msgs = await Message.find({ serverId }).sort({ timestamp:1 }).limit(200);
+  res.json(msgs);
+});
+
+// logout
+app.get('/logout', (req,res)=>{
+  req.session.destroy(err=>{ res.redirect('/'); });
+});
+
+// ------------------- SOCKET.IO ----------------
+io.on('connection', socket=>{
+  let currentServer = null;
+  let currentUserId = null;
+
+  socket.on('join-server', async ({ serverId, userId })=>{
+    currentServer = serverId || 'TR';
+    currentUserId = userId;
+    socket.join(currentServer);
+
+    const count = io.sockets.adapter.rooms.get(currentServer)?.size || 0;
+    io.to(currentServer).emit('user-count', { count });
+  });
+
+  socket.on('send-message', async (msg)=>{
+    const m = new Message(msg);
+    await m.save();
+    io.to(msg.serverId).emit('new-message', m);
+  });
+
+  socket.on('edit-message', async ({ messageId, newMessage })=>{
+    const m = await Message.findById(messageId);
+    if(m){
+      m.message = newMessage;
+      m.edited = true;
+      await m.save();
+      io.to(m.serverId).emit('message-edited', { messageId:m._id, newMessage });
     }
   });
 
-  socket.on('message-seen', async ({ messageId, userId }) => {
-    try {
-      const message = await Message.findById(messageId);
-      if (!message.seenBy.some(s => s.userId.toString() === userId)) {
-        message.seenBy.push({ userId, seenAt: new Date() });
-        await message.save();
-
-        io.to(message.serverId).emit('message-seen-update', {
-          messageId,
-          seenCount: message.seenBy.length
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    }
+  socket.on('typing', ({ serverId, username, isTyping })=>{
+    socket.to(serverId).emit('user-typing', { username, isTyping });
   });
 
-  socket.on('disconnect', () => {
-    console.log('❌ User disconnected:', socket.id);
-    for (const [userId, userData] of onlineUsers.entries()) {
-      if (userData.socketId === socket.id) {
-        const serverId = userData.serverId;
-        onlineUsers.delete(userId);
-
-        io.to(serverId).emit('user-count', {
-          count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
-        });
-        break;
-      }
+  socket.on('disconnect', ()=>{
+    if(currentServer){
+      const count = io.sockets.adapter.rooms.get(currentServer)?.size || 0;
+      io.to(currentServer).emit('user-count', { count });
     }
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+// ------------------- START SERVER -------------
+server.listen(PORT, ()=>console.log(`Server ${PORT} portunda çalışıyor`));
