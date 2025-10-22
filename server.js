@@ -3,14 +3,15 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const mongoose = require('mongoose');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const geoip = require('geoip-lite');
 const cors = require('cors');
 const path = require('path');
-const bcrypt = require('bcryptjs'); // bcrypt yerine bcryptjs
+const nodemailer = require('nodemailer');
+const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,14 +25,16 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGODB_URI, {
+  // optional mongoose options
+})
   .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => console.error('❌ MongoDB Error:', err));
 
-// Express-session with MongoStore
+// Session (store in MongoDB)
 app.set('trust proxy', 1);
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'change_this_secret',
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: process.env.MONGODB_URI }),
@@ -43,22 +46,31 @@ app.use(session({
   }
 }));
 
-app.use(passport.initialize());
-app.use(passport.session());
+// Email transporter (use SMTP credentials in .env)
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: Number(process.env.EMAIL_PORT || 587),
+  secure: (process.env.EMAIL_SECURE === 'true'),
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
-// MongoDB Schemas
+// Models
 const userSchema = new mongoose.Schema({
-  googleId: { type: String, unique: true, required: true },
-  email: String,
+  // googleId removed (we won't require it)
+  googleId: { type: String, unique: false, sparse: true, default: null },
+  email: { type: String, index: true, required: true, unique: true },
   displayName: String,
-  username: String,
+  username: { type: String, index: true },
   profilePhoto: String,
   nameColor: { type: String, default: '#4285F4' },
   country: String,
   server: String,
   createdAt: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now },
-  passwordHash: String // opsiyonel, bcryptjs için
+  passwordHash: String // optional if later you add password flow
 });
 
 const messageSchema = new mongoose.Schema({
@@ -74,130 +86,186 @@ const messageSchema = new mongoose.Schema({
   seenBy: [{ userId: mongoose.Schema.Types.ObjectId, seenAt: Date }]
 });
 
+const verificationSchema = new mongoose.Schema({
+  email: { type: String, required: true, index: true },
+  codeHash: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date, required: true },
+  attempts: { type: Number, default: 0 },
+  used: { type: Boolean, default: false }
+});
+
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
+const Verification = mongoose.model('Verification', verificationSchema);
 
-// Passport Google OAuth
-const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL } = process.env;
-
-if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_CALLBACK_URL) {
-  console.error('❌ Missing Google OAuth environment variables!');
-  process.exit(1);
+// Helpers
+function generateCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 
-passport.use(new GoogleStrategy({
-  clientID: GOOGLE_CLIENT_ID,
-  clientSecret: GOOGLE_CLIENT_SECRET,
-  callbackURL: GOOGLE_CALLBACK_URL
-}, async (accessToken, refreshToken, profile, done) => {
-  try {
-    let user = await User.findOne({ googleId: profile.id });
-    if (!user) {
-      user = await User.create({
-        googleId: profile.id,
-        email: profile.emails[0].value,
-        displayName: profile.displayName,
-        profilePhoto: profile.photos[0].value
-      });
-    }
-    return done(null, user);
-  } catch (error) {
-    return done(error, null);
-  }
-}));
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 6,
+  message: { error: 'Too many requests, slow down.' }
+});
 
-passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser(async (id, done) => {
+// Routes: email verification start
+app.post('/auth/email/start', authLimiter, async (req, res) => {
   try {
-    const user = await User.findById(id);
-    done(null, user);
-  } catch (error) {
-    done(error, null);
+    const { email, displayName } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    const ttlMinutes = Number(process.env.VERIFICATION_CODE_TTL_MINUTES || 15);
+    const code = generateCode();
+    const salt = await bcrypt.genSalt(10);
+    const codeHash = await bcrypt.hash(code, salt);
+
+    // mark previous unused verifications used
+    await Verification.updateMany({ email, used: false }, { used: true }).catch(()=>{});
+
+    const v = await Verification.create({
+      email,
+      codeHash,
+      expiresAt: new Date(Date.now() + ttlMinutes * 60 * 1000),
+      attempts: 0,
+      used: false
+    });
+
+    // send email (best effort; do not leak whether email exists)
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: email,
+      subject: 'Doğrulama Kodu - Your verification code',
+      text: `Doğrulama kodunuz: ${code}\nKod ${ttlMinutes} dakika içinde geçersiz olacaktır.`,
+      html: `<p>Doğrulama kodunuz: <b>${code}</b></p><p>Kod ${ttlMinutes} dakika içinde geçersiz olacaktır.</p>`
+    };
+
+    await transporter.sendMail(mailOptions).catch(err => {
+      console.error('Mail send error (non-fatal):', err);
+      // continue — we still created verification in DB
+    });
+
+    return res.json({ success: true, message: 'Verification code sent if the email exists.' });
+  } catch (err) {
+    console.error('Email start error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Routes
-app.get('/auth/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
-}));
+// Routes: verify code and create/login user
+app.post('/auth/email/verify', authLimiter, async (req, res) => {
+  try {
+    const { email, code, username, profilePhoto, nameColor, country } = req.body;
+    if (!email || !code) return res.status(400).json({ error: 'Email and code required' });
 
-app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => res.redirect('/profile-setup')
-);
+    const v = await Verification.findOne({ email, used: false }).sort({ createdAt: -1 });
+    if (!v) return res.status(400).json({ error: 'No verification request found' });
 
+    if (v.expiresAt < new Date()) {
+      v.used = true;
+      await v.save();
+      return res.status(400).json({ error: 'Code expired' });
+    }
+
+    v.attempts = (v.attempts || 0) + 1;
+    if (v.attempts > 5) {
+      v.used = true;
+      await v.save();
+      return res.status(429).json({ error: 'Too many attempts' });
+    }
+
+    const ok = await bcrypt.compare(code, v.codeHash);
+    if (!ok) {
+      await v.save();
+      return res.status(400).json({ error: 'Invalid code' });
+    }
+
+    // successful
+    v.used = true;
+    await v.save();
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = await User.create({
+        googleId: null,
+        email,
+        displayName: username || email.split('@')[0],
+        username: username || email.split('@')[0],
+        profilePhoto: profilePhoto || '',
+        nameColor: nameColor || '#4285F4',
+        country: country || ''
+      });
+    }
+
+    // create session
+    req.session.userId = user._id.toString();
+    await new Promise((r, rej) => req.session.save(err => err ? rej(err) : r()));
+
+    return res.json({ success: true, user });
+  } catch (err) {
+    console.error('Email verify error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Basic auth status route
 app.get('/api/user', (req, res) => {
-  if (req.isAuthenticated()) {
-    res.json({ user: req.user });
+  if (req.session && req.session.userId) {
+    User.findById(req.session.userId).then(user => {
+      if (!user) return res.status(401).json({ error: 'Not authenticated' });
+      return res.json({ user });
+    }).catch(err => res.status(500).json({ error: 'Internal error' }));
   } else {
     res.status(401).json({ error: 'Not authenticated' });
   }
 });
 
-app.post('/api/profile-setup', async (req, res) => {
-  if (!req.isAuthenticated()) return res.status(401).json({ error: 'Not authenticated' });
-
-  try {
-    const { username, profilePhoto, nameColor, country } = req.body;
-    const user = await User.findByIdAndUpdate(req.user._id, {
-      username,
-      profilePhoto: profilePhoto || req.user.profilePhoto,
-      nameColor,
-      country,
-      server: country
-    }, { new: true });
-
-    res.json({ success: true, user });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+// Logout
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/');
+  });
 });
 
+// Existing endpoints (detect-country, messages) — unchanged
 app.get('/api/detect-country', (req, res) => {
   const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   const geo = geoip.lookup(ip);
-
   const countryNames = {
-    'TR': 'Türkiye', 'US': 'United States', 'GB': 'United Kingdom',
-    'DE': 'Deutschland', 'FR': 'France', 'KR': '대한민국',
-    'JP': '日本', 'CN': '中国'
+    'TR': 'Türkiye','US':'United States','GB':'United Kingdom','DE':'Deutschland','FR':'France','KR':'대한민국','JP':'日本','CN':'中国'
   };
-
   const country = geo ? geo.country : 'TR';
   const countryName = countryNames[country] || country;
-
   res.json({ country, countryName });
 });
 
 app.get('/api/messages/:serverId', async (req, res) => {
   try {
-    const messages = await Message.find({ serverId: req.params.serverId })
-      .sort({ timestamp: -1 })
-      .limit(100);
+    const messages = await Message.find({ serverId: req.params.serverId }).sort({ timestamp: -1 }).limit(100);
     res.json(messages.reverse());
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/logout', (req, res) => {
-  req.logout(() => res.redirect('/'));
-});
-
-// Socket.io
+// Socket.io logic (unchanged behaviour; client still emits join-server with userId)
 const onlineUsers = new Map();
 
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
   socket.on('join-server', async ({ userId, serverId }) => {
-    socket.join(serverId);
-    onlineUsers.set(userId, { socketId: socket.id, serverId });
-    await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-
-    io.to(serverId).emit('user-count', {
-      count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
-    });
+    try {
+      socket.join(serverId);
+      onlineUsers.set(userId, { socketId: socket.id, serverId });
+      await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+      io.to(serverId).emit('user-count', {
+        count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
+      });
+    } catch (err) {
+      console.error('join-server error', err);
+    }
   });
 
   socket.on('send-message', async (data) => {
@@ -269,12 +337,10 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('❌ User disconnected:', socket.id);
-    
     for (const [userId, userData] of onlineUsers.entries()) {
       if (userData.socketId === socket.id) {
         const serverId = userData.serverId;
         onlineUsers.delete(userId);
-        
         io.to(serverId).emit('user-count', {
           count: Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length
         });
