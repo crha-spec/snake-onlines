@@ -1,23 +1,24 @@
 {
   "name": "realtime-messaging-app",
   "version": "1.0.0",
-  "description": "Real-time messaging app with email verification and MongoDB",
+  "description": "Real-time messaging with email verification and socket.io",
   "main": "server.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.6.1",
-    "mongoose": "^8.0.0",
-    "express-session": "^1.17.3",
+    "bcryptjs": "^2.4.3",
     "connect-mongo": "^5.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
     "geoip-lite": "^1.4.7",
-    "bcrypt": "^5.1.1",
-    "nodemailer": "^6.9.11"
+    "mongoose": "^8.0.0",
+    "nodemailer": "^6.9.11",
+    "socket.io": "^4.6.1"
   },
   "engines": {
     "node": ">=18.0.0"
