@@ -1,382 +1,769 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Global Chat — Tam Sürüm</title>
-<link rel="stylesheet" href="/styles.css" />
-<style>
-/* Minimal inline styles (you can move to styles.css). Focus on message box prominence */
-:root{--accent:#667eea}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Inter,system-ui,Arial;background:linear-gradient(135deg,#eef2ff,#fff);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.app{width:100%;max-width:1100px;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.08);overflow:hidden;display:grid;grid-template-columns:360px 1fr;min-height:80vh}
-.left{padding:22px;border-right:1px solid #eee;background:#fafbfd}
-.right{display:flex;flex-direction:column}
-h1{font-size:20px;margin-bottom:8px;color:#111}
-.small{font-size:13px;color:#666}
-.form-group{margin-bottom:12px}
-label{display:block;margin-bottom:6px;font-weight:600;color:#333}
-input[type="text"],input[type="email"],input[type="color"]{width:100%;padding:10px;border-radius:8px;border:1px solid #e5e7eb}
-button{background:linear-gradient(90deg,var(--accent),#7c3aed);color:#fff;padding:12px 14px;border-radius:10px;border:0;font-weight:700;cursor:pointer}
-button.ghost{background:transparent;color:#333;border:1px solid #ddd}
-.hidden{display:none!important}
-
-/* Profile preview */
-.profile-preview{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-.profile-preview img{width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid var(--accent)}
-
-/* CHAT RIGHT */
-.chat-header{display:flex;justify-content:space-between;align-items:center;padding:16px;border-bottom:1px solid #eee}
-.chat-main{flex:1;display:flex;flex-direction:column}
-.messages{flex:1;padding:18px;overflow:auto;background:linear-gradient(#fff,#fbfdff)}
-.message{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;max-width:80%}
-.message.own{margin-left:auto}
-.avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #eee}
-.bubble{background:#fff;padding:10px 12px;border-radius:12px;box-shadow:0 6px 18px rgba(10,10,10,0.03)}
-.bubble.own{background:linear-gradient(90deg,#dcfce7,#bbf7d0)}
-.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.username{font-weight:700}
-.time{font-size:12px;color:#777}
-.seen{font-size:12px;color:#0ea5a4;margin-top:6px;text-align:right}
-
-/* input area prominent */
-.input-area{display:flex;gap:10px;padding:14px;border-top:1px solid #eee;background:#fff}
-.input-area input{flex:1;padding:12px;border-radius:999px;border:1px solid #e5e7eb}
-.send-btn{padding:12px 18px;border-radius:999px}
-
-/* responsive */
-@media (max-width:920px){
-  .app{grid-template-columns:1fr;min-height:100vh}
-  .left{order:2;border-right:0;border-top:1px solid #eee}
-  .right{order:1}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .screen {
+            display: none;
+            padding: 30px;
+            min-height: 500px;
+        }
+        
+        .screen.active {
+            display: block;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        h2 {
+            color: #555;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        input, select, button {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 70vh;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 70%;
+            position: relative;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.own {
+            margin-left: auto;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-bottom-right-radius: 6px;
+        }
+        
+        .message.other {
+            background: white;
+            border: 2px solid #e1e5e9;
+            border-bottom-left-radius: 6px;
+        }
+        
+        .message-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .profile-photo {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-right: 8px;
+            object-fit: cover;
+        }
+        
+        .username {
+            font-weight: 600;
+        }
+        
+        .message-content {
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .message-seen {
+            font-size: 11px;
+            margin-top: 3px;
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .input-area {
+            display: flex;
+            padding: 15px;
+            background: white;
+            border-top: 2px solid #e1e5e9;
+            gap: 10px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 25px;
+            font-size: 14px;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+        }
+        
+        .message-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .send-btn {
+            width: 50px;
+            height: 44px;
+            border-radius: 50%;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+        
+        .typing-indicator {
+            padding: 10px 20px;
+            font-style: italic;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .profile-photo-upload {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .profile-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #667eea;
+        }
+        
+        .upload-btn {
+            flex: 1;
+            background: #f8f9fa;
+            border: 2px dashed #667eea;
+            color: #667eea;
+        }
+        
+        .color-preview {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 10px;
+            border: 2px solid #e1e5e9;
+        }
+        
+        .error {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            background: #ffeaea;
+            border-radius: 8px;
+            border: 1px solid #e74c3c;
+        }
+        
+        .success {
+            color: #27ae60;
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            background: #eaffea;
+            border-radius: 8px;
+            border: 1px solid #27ae60;
+        }
+        
+        .country-info {
+            background: #e3f2fd;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            border: 1px solid #bbdefb;
+        }
+    </style>
 </head>
 <body>
-<div class="app">
-  <div class="left">
-    <h1>Giriş & Profil</h1>
-    <p class="small">E-posta ile doğrulama -> profil oluştur -> bulunduğun ülke odasına bağlan</p>
-
-    <div id="login-section">
-      <div class="form-group">
-        <label>Email</label>
-        <input id="email" type="email" placeholder="you@example.com" />
-      </div>
-      <button id="send-code-btn">Doğrulama Kodu Gönder</button>
-
-      <div id="verify-section" class="hidden" style="margin-top:12px">
-        <div class="form-group">
-          <label>Doğrulama Kodu</label>
-          <input id="code" type="text" placeholder="6 haneli kod" />
+    <div class="container">
+        <!-- Giriş Ekranı -->
+        <div id="loginScreen" class="screen active">
+            <h1>Global Chat</h1>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" placeholder="Email adresinizi girin">
+            </div>
+            <button onclick="sendCode()">Kodu Gönder</button>
+            
+            <div class="form-group" id="codeSection" style="display: none;">
+                <label for="code">Doğrulama Kodu</label>
+                <input type="text" id="code" placeholder="6 haneli kodu girin">
+                <button onclick="verifyCode()">Doğrula</button>
+            </div>
+            
+            <div id="loginError" class="error" style="display: none;"></div>
         </div>
-        <button id="verify-btn" class="ghost">Doğrula</button>
-      </div>
-    </div>
 
-    <div id="profile-section" class="hidden" style="margin-top:18px">
-      <div class="profile-preview">
-        <img id="avatar-preview" src="https://ui-avatars.com/api/?name=User&background=667eea&color=fff" alt="avatar" />
-        <div>
-          <div class="small">Profil Fotoğrafı (galeri)</div>
-          <input id="avatar-file" type="file" accept="image/*" />
+        <!-- Profil Ekranı -->
+        <div id="profileScreen" class="screen">
+            <h1>Profil Ayarları</h1>
+            <div id="countryInfo" class="country-info" style="display: none;">
+                Ülkeniz: <span id="countryName">TR</span> - Sadece aynı ülkedeki kullanıcılarla mesajlaşabilirsiniz
+            </div>
+            
+            <div class="profile-photo-upload">
+                <img id="profilePreview" src="" class="profile-preview" alt="Profil Önizleme">
+                <button class="upload-btn" onclick="document.getElementById('photoUpload').click()">
+                    Fotoğraf Seç
+                </button>
+                <input type="file" id="photoUpload" accept="image/*" style="display: none;" onchange="handlePhotoUpload(event)">
+            </div>
+            
+            <div class="form-group">
+                <label for="username">Kullanıcı Adı</label>
+                <input type="text" id="username" placeholder="Kullanıcı adınızı girin">
+            </div>
+            
+            <div class="form-group">
+                <label for="nameColor">
+                    Renk Seçin 
+                    <span id="colorPreview" class="color-preview"></span>
+                </label>
+                <input type="color" id="nameColor" value="#4285F4" onchange="updateColorPreview()">
+            </div>
+            
+            <button onclick="saveProfile()">Kaydet ve Sohbete Gir</button>
+            <div id="profileError" class="error" style="display: none;"></div>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Kullanıcı Adı</label>
-        <input id="username" type="text" placeholder="Görünen isim" />
-      </div>
-
-      <div class="form-group">
-        <label>İsim Rengi</label>
-        <input id="nameColor" type="color" value="#4285F4" />
-      </div>
-
-      <div class="form-group">
-        <label>Konum izni (isteğe bağlı)</label>
-        <div class="small">Tarayıcı izin verirse daha doğru ülke seçilir; vermezsen IP tabanlı fallback kullanılacak.</div>
-      </div>
-
-      <button id="save-profile-btn">Kaydet ve Sohbete Katıl</button>
+        <!-- Sohbet Ekranı -->
+        <div id="chatScreen" class="screen">
+            <h1>🌍 Global Chat <span id="onlineCount">Online: 0</span></h1>
+            
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div id="serverInfo">Ülke: TR</div>
+                    <div id="userCount">Online: 0</div>
+                </div>
+                
+                <div class="messages" id="messages">
+                    <!-- Mesajlar buraya gelecek -->
+                </div>
+                
+                <div id="typingIndicator" class="typing-indicator" style="display: none;"></div>
+                
+                <div class="input-area">
+                    <textarea 
+                        id="messageInput" 
+                        class="message-input" 
+                        placeholder="Mesajınızı yazın..."
+                        rows="1"
+                        oninput="autoResize(this); handleTyping()"
+                        onkeypress="handleKeyPress(event)"
+                    ></textarea>
+                    <button class="send-btn" onclick="sendMessage()">
+                        📨
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div id="info" style="margin-top:16px" class="small hidden"></div>
-  </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket = null;
+        let currentUser = null;
+        let currentServer = null;
+        let typingTimer = null;
+        let isTyping = false;
 
-  <div class="right">
-    <div class="chat-header">
-      <div>
-        <div style="font-weight:800">🌍 Global Chat</div>
-        <div class="small" id="roomLabel">Oda: -</div>
-      </div>
-      <div class="small">Çevrimiçi: <span id="onlineCount">0</span></div>
-    </div>
+        // Renk önizleme güncelleme
+        function updateColorPreview() {
+            const color = document.getElementById('nameColor').value;
+            document.getElementById('colorPreview').style.backgroundColor = color;
+        }
 
-    <div class="chat-main">
-      <div id="messages" class="messages"></div>
-      <div id="lastSeenInfo" style="padding:8px 16px;color:#666;font-size:13px"></div>
-      <div class="input-area">
-        <input id="messageInput" type="text" placeholder="Mesajınızı yazın..." maxlength="1000" />
-        <button id="sendBtn" class="send-btn">Gönder</button>
-      </div>
-    </div>
-  </div>
-</div>
+        // Fotoğraf yükleme
+        function handlePhotoUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('profilePreview').src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            }
+        }
 
-<script src="/socket.io/socket.io.js"></script>
-<script>
-/* CLIENT SIDE: full-featured */
-const API = '';
-const socket = io();
-let currentUser = null;
-let currentRoom = null;
+        // Kod gönderme
+        async function sendCode() {
+            const email = document.getElementById('email').value;
+            if (!email) {
+                showError('loginError', 'Lütfen email adresinizi girin');
+                return;
+            }
 
-// Helpers
-const $ = sel => document.querySelector(sel);
-const el = (s) => document.createElement(s);
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Gönderiliyor...';
 
-function showToast(msg, isErr=false) {
-  alert(msg);
-}
+            try {
+                const response = await fetch('/api/send-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
 
-// --- Auth flow (send-code, verify-code)
-$('#send-code-btn').addEventListener('click', async () => {
-  const email = $('#email').value.trim();
-  if (!email) return showToast('Email girin', true);
-  $('#send-code-btn').disabled = true;
-  $('#send-code-btn').textContent = 'Gönderiliyor...';
-  const res = await fetch('/api/send-code', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email }) }).then(r=>r.json());
-  $('#send-code-btn').disabled = false;
-  $('#send-code-btn').textContent = 'Doğrulama Kodu Gönder';
-  if (res.success) {
-    $('#verify-section').classList.remove('hidden');
-    $('#info').classList.remove('hidden');
-    $('#info').textContent = res.devCode ? `DEV: Kod ${res.devCode} (sunucuda da loglandı)` : 'Kodu e-postana gönderildi.';
-  } else showToast(res.error || 'Hata', true);
-});
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('codeSection').style.display = 'block';
+                    showSuccess('loginError', data.devCode ? `[TEST] Kodunuz: ${data.devCode}` : 'Kod emailinize gönderildi!');
+                } else {
+                    showError('loginError', data.error || 'Bir hata oluştu');
+                }
+            } catch (error) {
+                showError('loginError', 'Bağlantı hatası');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Kodu Gönder';
+            }
+        }
 
-$('#verify-btn').addEventListener('click', async () => {
-  const email = $('#email').value.trim();
-  const code = $('#code').value.trim();
-  if (!email || !code) return showToast('Email ve kod gerekli', true);
-  $('#verify-btn').disabled = true;
-  $('#verify-btn').textContent = 'Kontrol ediliyor...';
-  const res = await fetch('/api/verify-code', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, code }) }).then(r=>r.json());
-  $('#verify-btn').disabled = false;
-  $('#verify-btn').textContent = 'Doğrula';
-  if (res.success) {
-    // show profile setup
-    $('#login-section').classList.add('hidden');
-    $('#profile-section').classList.remove('hidden');
-    // pre-fill username and avatar if available via res.user
-    if (res.user) {
-      $('#username').value = res.user.username || (res.user.email ? res.user.email.split('@')[0] : '');
-      $('#avatar-preview').src = res.user.profilePhoto || $('#avatar-preview').src;
-    }
-  } else {
-    showToast(res.error || 'Kod hatalı', true);
-  }
-});
+        // Kod doğrulama
+        async function verifyCode() {
+            const email = document.getElementById('email').value;
+            const code = document.getElementById('code').value;
 
-// avatar file -> base64 preview
-$('#avatar-file').addEventListener('change', (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    $('#avatar-preview').src = ev.target.result;
-    $('#avatar-preview').dataset.base64 = ev.target.result;
-  };
-  reader.readAsDataURL(f);
-});
+            if (!email || !code) {
+                showError('loginError', 'Lütfen email ve kodu girin');
+                return;
+            }
 
-// Save profile (send base64 avatar + color + username + geolocation)
-$('#save-profile-btn').addEventListener('click', async () => {
-  const username = $('#username').value.trim();
-  const nameColor = $('#nameColor').value || '#4285F4';
-  const profilePhoto = $('#avatar-preview').dataset.base64 || $('#avatar-preview').src;
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Doğrulanıyor...';
 
-  if (!username) return showToast('Kullanıcı adı gerekli', true);
-  $('#save-profile-btn').disabled = true;
-  $('#save-profile-btn').textContent = 'Kaydediliyor...';
+            try {
+                const response = await fetch('/api/verify-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
 
-  // get geolocation if allowed
-  let country = null;
-  try {
-    const pos = await new Promise((resolve, reject) => {
-      if (!navigator.geolocation) return reject();
-      navigator.geolocation.getCurrentPosition(resolve, () => reject(), { timeout: 5000 });
-    });
-    // use coordinates to call a public reverse geocode? We'll just set 'GEO' flag and let server IP fallback for server selection.
-    country = null; // we won't send coordinates to server in this version, server will choose via IP or provided explicit
-  } catch (e) {
-    country = null;
-  }
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = data.user;
+                    currentServer = data.user.country || 'TR';
+                    
+                    // Ülke bilgisini göster
+                    document.getElementById('countryName').textContent = currentServer;
+                    document.getElementById('countryInfo').style.display = 'block';
+                    
+                    showScreen('profileScreen');
+                    loadUserProfile();
+                } else {
+                    showError('loginError', data.error || 'Geçersiz kod');
+                }
+            } catch (error) {
+                showError('loginError', 'Bağlantı hatası');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Doğrula';
+            }
+        }
 
-  const res = await fetch('/api/profile-setup', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ username, profilePhoto, nameColor, country })
-  }).then(r=>r.json());
+        // Profil yükleme
+        async function loadUserProfile() {
+            try {
+                const response = await fetch('/api/user');
+                const data = await response.json();
+                
+                if (data.user) {
+                    document.getElementById('username').value = data.user.username || '';
+                    document.getElementById('nameColor').value = data.user.nameColor || '#4285F4';
+                    document.getElementById('profilePreview').src = data.user.profilePhoto || '';
+                    updateColorPreview();
+                }
+            } catch (error) {
+                console.error('Profil yükleme hatası:', error);
+            }
+        }
 
-  $('#save-profile-btn').disabled = false;
-  $('#save-profile-btn').textContent = 'Kaydet ve Sohbete Katıl';
+        // Profil kaydetme
+        async function saveProfile() {
+            const username = document.getElementById('username').value;
+            const nameColor = document.getElementById('nameColor').value;
+            const profilePhoto = document.getElementById('profilePreview').src;
 
-  if (res.success) {
-    currentUser = res.user;
-    $('#profile-section').classList.add('hidden');
-    startChat(res.user);
-  } else showToast(res.error || 'Profil kaydedilemedi', true);
-});
+            if (!username) {
+                showError('profileError', 'Lütfen kullanıcı adınızı girin');
+                return;
+            }
 
-// Autologin: if session exists
-window.addEventListener('load', async () => {
-  try {
-    const r = await fetch('/api/user');
-    if (r.ok) {
-      const { user } = await r.json();
-      if (user) {
-        currentUser = user;
-        $('#login-section').classList.add('hidden');
-        $('#profile-section').classList.add('hidden');
-        startChat(user);
-      }
-    }
-  } catch (e) { /* ignore */ }
-});
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Kaydediliyor...';
 
-// START CHAT: join room by geolocation or IP
-async function startChat(user) {
-  currentUser = user;
-  $('#avatar-preview').src = user.profilePhoto || $('#avatar-preview').src;
-  // determine country: prefer geolocation, else ipapi fallback
-  let country = null;
-  try {
-    const pos = await new Promise((resolve, reject) => {
-      if (!navigator.geolocation) return reject();
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 4000 });
-    });
-    // We could call reverse geocode service but avoid extra API keys — fallback to ip-based selection
-    country = null;
-  } catch (e) {
-    country = null;
-  }
+            try {
+                const response = await fetch('/api/profile-setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, nameColor, profilePhoto })
+                });
 
-  // Ask server for ip-based country via simple fetch (server uses headers)
-  // We'll call ipapi.co to get country_name quickly (client-side)
-  try {
-    const ipres = await fetch('https://ipapi.co/json/').then(r=>r.json());
-    country = ipres.country || ipres.country_name || null;
-  } catch (e) {
-    country = null;
-  }
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = { ...currentUser, ...data.user };
+                    initializeChat();
+                } else {
+                    showError('profileError', data.error || 'Kayıt hatası');
+                }
+            } catch (error) {
+                showError('profileError', 'Bağlantı hatası');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Kaydet ve Sohbete Gir';
+            }
+        }
 
-  // emit joinCountry (server will decide room)
-  socket.emit('joinCountry', { country, username: user.username, profilePhoto: user.profilePhoto, nameColor: user.nameColor, userId: user._id });
+        // Sohbeti başlat
+        function initializeChat() {
+            showScreen('chatScreen');
+            
+            // Socket bağlantısı
+            socket = io();
+            
+            // Sunucu bilgilerini güncelle
+            document.getElementById('serverInfo').textContent = `Ülke: ${currentServer}`;
+            
+            // Sunucuya katıl
+            socket.emit('join-server', {
+                serverId: currentServer,
+                userId: currentUser._id
+            });
 
-  // set UI room label
-  $('#roomLabel').textContent = `Oda: ${country || (user.server || 'TR')}`;
+            // Online kullanıcı sayısı
+            socket.on('update-users', (count) => {
+                document.getElementById('userCount').textContent = `Online: ${count}`;
+                document.getElementById('onlineCount').textContent = `Online: ${count}`;
+            });
 
-  // load recent messages for user's server
-  const serverId = user.server || 'TR';
-  $('#messages').innerHTML = '';
-  const msgs = await fetch('/api/messages/' + encodeURIComponent(serverId)).then(r=>r.json());
-  msgs.forEach(renderMessage);
+            // Yeni mesaj
+            socket.on('new-message', (message) => {
+                addMessageToChat(message);
+                // Mesajı görüldü olarak işaretle
+                socket.emit('message-seen', {
+                    messageId: message._id,
+                    userId: currentUser._id
+                });
+            });
 
-  // socket listeners
-  socket.on('new-message', (msg) => {
-    // prevent duplicate if already exists
-    if (document.querySelector(`[data-id="${msg._id}"]`)) return;
-    renderMessage(msg);
-    scrollToBottom();
-    // if msg not from me, mark seen
-    if (msg.userId !== currentUser._id) {
-      socket.emit('message-seen', { messageId: msg._id, userId: currentUser._id });
-    } else {
-      // if it's my message, it appears as sent and we may want to auto-scroll
-    }
-  });
+            // Görülme güncellemesi
+            socket.on('message-seen-update', (data) => {
+                updateMessageSeen(data.messageId, data.seenCount, data.seenBy);
+            });
 
-  socket.on('update-users', count => $('#onlineCount').textContent = count);
-  socket.on('message-seen-update', d => {
-    const el = document.querySelector(`[data-id="${d.messageId}"] .seen`);
-    if (el) el.textContent = `✓✓ ${d.seenCount}`;
-  });
+            // Yazıyor indikatörü
+            socket.on('user-typing', (data) => {
+                showTyping(data.username);
+            });
 
-  socket.on('message-edited', d => {
-    const el = document.querySelector(`[data-id="${d.messageId}"] .text`);
-    if (el) el.textContent = d.newMessage + ' (düzenlendi)';
-  });
-}
+            socket.on('user-stop-typing', () => {
+                hideTyping();
+            });
 
-// RENDER message (bubble)
-function renderMessage(msg) {
-  const container = $('#messages');
-  const wrapper = el('div');
-  wrapper.className = 'message' + (msg.userId === currentUser._id ? ' own' : '');
-  wrapper.setAttribute('data-id', msg._id || '');
+            // Mesaj geçmişini yükle
+            loadMessageHistory();
+        }
 
-  const avatar = el('img');
-  avatar.className = 'avatar';
-  avatar.src = msg.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.username||'U')}&background=667eea&color=fff`;
-  avatar.onerror = () => avatar.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.username||'U')}&background=667eea&color=fff`;
+        // Mesaj geçmişi yükleme
+        async function loadMessageHistory() {
+            try {
+                const response = await fetch(`/api/messages/${currentServer}`);
+                const messages = await response.json();
+                
+                messages.forEach(message => {
+                    addMessageToChat(message);
+                    // Mesajı görüldü olarak işaretle
+                    socket.emit('message-seen', {
+                        messageId: message._id,
+                        userId: currentUser._id
+                    });
+                });
+                
+                scrollToBottom();
+            } catch (error) {
+                console.error('Mesaj geçmişi yükleme hatası:', error);
+            }
+        }
 
-  const bubble = el('div');
-  bubble.className = 'bubble' + (msg.userId === currentUser._id ? ' own' : '');
+        // Mesaj gönderme
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || !socket) return;
 
-  const meta = el('div'); meta.className = 'meta';
-  const nameSpan = el('div'); nameSpan.className = 'username'; nameSpan.textContent = msg.username || 'Anonim'; nameSpan.style.color = msg.nameColor || '#333';
-  const timeSpan = el('div'); timeSpan.className = 'time'; timeSpan.textContent = new Date(msg.timestamp).toLocaleTimeString();
+            // Yazmayı durdur
+            stopTyping();
 
-  meta.appendChild(nameSpan); meta.appendChild(timeSpan);
+            const messageData = {
+                serverId: currentServer,
+                userId: currentUser._id,
+                username: currentUser.username,
+                nameColor: currentUser.nameColor,
+                profilePhoto: currentUser.profilePhoto,
+                message: message
+            };
 
-  const text = el('div'); text.className = 'text'; text.textContent = msg.message;
+            socket.emit('send-message', messageData);
+            input.value = '';
+            autoResize(input);
+        }
 
-  bubble.appendChild(meta); bubble.appendChild(text);
+        // Mesajı chat'e ekle
+        function addMessageToChat(message) {
+            const messagesDiv = document.getElementById('messages');
+            const isOwn = message.userId === currentUser._id;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
+            messageDiv.dataset.messageId = message._id;
+            
+            const time = new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            const seenCount = message.seenBy ? message.seenBy.length : 0;
+            const seenText = isOwn ? 
+                `<div class="message-seen">👁️ ${seenCount} kişi gördü</div>` : 
+                '';
 
-  const seen = el('div'); seen.className = 'seen'; seen.textContent = msg.seenBy?.length ? `✓✓ ${msg.seenBy.length}` : '';
-  bubble.appendChild(seen);
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <img src="${message.profilePhoto}" class="profile-photo" alt="${message.username}">
+                    <span class="username" style="color: ${message.nameColor}">${message.username}</span>
+                </div>
+                <div class="message-content">${escapeHtml(message.message)}</div>
+                <div class="message-time">${time}</div>
+                ${seenText}
+            `;
+            
+            messagesDiv.appendChild(messageDiv);
+            scrollToBottom();
+        }
 
-  wrapper.appendChild(avatar); wrapper.appendChild(bubble);
-  $('#messages').appendChild(wrapper);
-}
+        // Görülme bilgisini güncelle
+        function updateMessageSeen(messageId, seenCount, seenBy) {
+            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageDiv) {
+                const seenDiv = messageDiv.querySelector('.message-seen');
+                if (seenDiv) {
+                    seenDiv.innerHTML = `👁️ ${seenCount} kişi gördü`;
+                }
+            }
+        }
 
-// send message
-$('#sendBtn').addEventListener('click', sendMessage);
-$('#messageInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+        // Yazıyor indikatörü
+        function handleTyping() {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing-start', {
+                    serverId: currentServer,
+                    userId: currentUser._id,
+                    username: currentUser.username
+                });
+            }
+            
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(stopTyping, 3000);
+        }
 
-async function sendMessage() {
-  const txt = $('#messageInput').value.trim();
-  if (!txt) { showToast('Boş mesaj gönderilemez', true); return; }
-  if (!currentUser) { showToast('Oturum açın', true); return; }
+        function stopTyping() {
+            isTyping = false;
+            clearTimeout(typingTimer);
+            socket.emit('typing-stop', {
+                serverId: currentServer,
+                userId: currentUser._id
+            });
+        }
 
-  const payload = {
-    serverId: currentUser.server || 'TR',
-    userId: currentUser._id,
-    username: currentUser.username,
-    nameColor: currentUser.nameColor,
-    profilePhoto: currentUser.profilePhoto,
-    message: txt
-  };
+        function showTyping(username) {
+            const indicator = document.getElementById('typingIndicator');
+            indicator.textContent = `${username} yazıyor...`;
+            indicator.style.display = 'block';
+            scrollToBottom();
+        }
 
-  // disable UI briefly
-  $('#sendBtn').disabled = true;
-  $('#messageInput').disabled = true;
+        function hideTyping() {
+            const indicator = document.getElementById('typingIndicator');
+            indicator.style.display = 'none';
+        }
 
-  socket.emit('send-message', payload);
+        // Yardımcı fonksiyonlar
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
 
-  // rely on server's 'new-message' emit to render authoritative message (ensures id & db consistency)
-  $('#messageInput').value = '';
-  $('#messageInput').focus();
-  $('#sendBtn').disabled = false;
-  $('#messageInput').disabled = false;
-}
+        function showError(containerId, message) {
+            const container = document.getElementById(containerId);
+            container.textContent = message;
+            container.style.display = 'block';
+            container.className = 'error';
+        }
 
-function scrollToBottom() {
-  const m = $('#messages');
-  m.scrollTop = m.scrollHeight;
-}
-</script>
+        function showSuccess(containerId, message) {
+            const container = document.getElementById(containerId);
+            container.textContent = message;
+            container.style.display = 'block';
+            container.className = 'success';
+        }
+
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function scrollToBottom() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Sayfa yüklendiğinde renk önizlemeyi ayarla
+        document.addEventListener('DOMContentLoaded', updateColorPreview);
+    </script>
 </body>
 </html>
