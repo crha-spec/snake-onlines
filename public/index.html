@@ -1,6 +1,4 @@
-</script>
-</body>
-</html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="utf-8" />
@@ -47,23 +45,21 @@ button:hover:not(:disabled){opacity:.9}
 @keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
 .hamburger{display:none;position:absolute;top:16px;left:16px;background:#fff;border:1px solid #ddd;padding:8px 12px;border-radius:8px;cursor:pointer;z-index:10}
 .hamburger span{display:block;width:20px;height:2px;background:#333;margin:4px 0}
-
 @media(max-width:900px){
-  .container{flex-direction:column;max-width:100%;border-radius:0;height:100vh}
-  .left{position:fixed;top:0;left:0;width:80%;max-width:320px;height:100vh;z-index:999;transform:translateX(-100%);box-shadow:2px 0 10px rgba(0,0,0,0.1)}
-  .left.open{transform:translateX(0)}
-  .right{width:100%;padding:12px}
-  .hamburger{display:block}
-  .overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:998}
-  .overlay.open{display:block}
-  .bubble{max-width:85%}
-  .avatar{width:36px;height:36px}
-  input[type="text"],input[type="email"]{font-size:16px}
+.container{flex-direction:column;max-width:100%;border-radius:0;height:100vh}
+.left{position:fixed;top:0;left:0;width:80%;max-width:320px;height:100vh;z-index:999;transform:translateX(-100%);box-shadow:2px 0 10px rgba(0,0,0,0.1)}
+.left.open{transform:translateX(0)}
+.right{width:100%;padding:12px}
+.hamburger{display:block}
+.overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:998}
+.overlay.open{display:block}
+.bubble{max-width:85%}
+.avatar{width:36px;height:36px}
+input[type="text"],input[type="email"]{font-size:16px}
 }
-
 @media(orientation:landscape) and (max-height:500px){
-  .container{height:100vh}
-  .messages{max-height:60vh}
+.container{height:100vh}
+.messages{max-height:60vh}
 }
 </style>
 </head>
@@ -72,122 +68,128 @@ button:hover:not(:disabled){opacity:.9}
 <div class="overlay" id="overlay"></div>
 
 <div class="container">
-  <div class="hamburger" id="hamburger">
-    <span></span>
-    <span></span>
-    <span></span>
-  </div>
+<div class="hamburger" id="hamburger">
+<span></span>
+<span></span>
+<span></span>
+</div>
 
-  <div class="left" id="leftPanel">
-    <div class="header">
-      <h2>Giriş / Doğrulama</h2>
-      <div class="small">E-posta doğrulaması</div>
-    </div>
+<div class="left" id="leftPanel">
+<div class="header">
+<h2>Giriş / Doğrulama</h2>
+<div class="small">E-posta doğrulaması</div>
+</div>
 
-    <div id="loginBox">
-      <div class="form-group">
-        <label>Email</label>
-        <input id="emailInput" type="email" placeholder="you@example.com" />
-      </div>
-      <button id="sendCodeBtn">Kodu Gönder</button>
+<div id="loginBox">
+<div class="form-group">
+<label>Email</label>
+<input id="emailInput" type="email" placeholder="you@example.com" />
+</div>
+<button id="sendCodeBtn">Kodu Gönder</button>
 
-      <div id="codeBox" class="hidden" style="margin-top:12px">
-        <div class="form-group">
-          <label>Doğrulama Kodu</label>
-          <input id="codeInput" type="text" placeholder="6 haneli kod" />
-        </div>
-        <button id="verifyBtn" class="button-ghost">Doğrula</button>
-      </div>
-    </div>
+<div id="codeBox" class="hidden" style="margin-top:12px">
+<div class="form-group">
+<label>Doğrulama Kodu</label>
+<input id="codeInput" type="text" placeholder="6 haneli kod" />
+</div>
+<button id="verifyBtn" class="button-ghost">Doğrula</button>
+</div>
+</div>
 
-    <div id="profileBox" class="hidden">
-      <h2 style="margin-bottom:16px">Profil Ayarları</h2>
-      
-      <div class="form-group">
-        <label>Profil Fotoğrafı</label>
-        <img id="avatarPreview" class="avatar-preview hidden" />
-        <input id="avatarFile" type="file" accept="image/*" />
-        <div class="upload-btn-group">
-          <button type="button" class="button-secondary" onclick="document.getElementById('avatarFile').click()">
-            🖼️ Galeri
-          </button>
-          <button type="button" class="button-secondary" onclick="document.getElementById('cameraInput').click()">
-            📷 Kamera
-          </button>
-        </div>
-        <input id="cameraInput" type="file" accept="image/*" capture="environment" />
-      </div>
+<div id="profileBox" class="hidden">
+<h2 style="margin-bottom:16px">Profil Ayarları</h2>
 
-      <div class="form-group">
-        <label>Kullanıcı Adı</label>
-        <input id="usernameInput" type="text" placeholder="Görünen adınız" />
-      </div>
+<div class="form-group">
+<label>Profil Fotoğrafı</label>
+<img id="avatarPreview" class="avatar-preview hidden" />
+<input id="avatarFile" type="file" accept="image/*" />
+<input id="cameraInput" type="file" accept="image/*" capture="environment" />
+<div class="upload-btn-group">
+<button type="button" class="button-secondary" id="galleryBtn">🖼️ Galeri</button>
+<button type="button" class="button-secondary" id="cameraBtn">📷 Kamera</button>
+</div>
+</div>
 
-      <div class="form-group">
-        <label>İsim Rengi</label>
-        <input id="colorInput" type="color" value="#4285F4" />
-      </div>
+<div class="form-group">
+<label>Kullanıcı Adı</label>
+<input id="usernameInput" type="text" placeholder="Görünen adınız" />
+</div>
 
-      <div class="form-group">
-        <label>Sunucu Seçimi</label>
-        <button id="locationBtn" class="button-secondary" style="width:100%">
-          📍 Konumuma Göre Ata
-        </button>
-        <div class="small" style="margin-top:8px" id="locationInfo">Konum izni vermeniz gerekiyor</div>
-      </div>
+<div class="form-group">
+<label>İsim Rengi</label>
+<input id="colorInput" type="color" value="#4285F4" />
+</div>
 
-      <button id="saveProfileBtn" style="width:100%;margin-top:16px">Kaydet ve Sohbete Katıl</button>
-    </div>
+<div class="form-group">
+<label>Sunucu Seçimi</label>
+<button id="locationBtn" class="button-secondary" style="width:100%">📍 Konumuma Göre Ata</button>
+<div class="small" style="margin-top:8px" id="locationInfo">Konum izni vermeniz gerekiyor</div>
+</div>
 
-    <div id="infoBox" class="hidden" style="margin-top:12px">
-      <p class="small">💡 SMTP ayarları .env'de yapılandırılmışsa gerçek mail gönderilir.</p>
-    </div>
-  </div>
+<button id="saveProfileBtn" style="width:100%;margin-top:16px">Kaydet ve Sohbete Katıl</button>
+</div>
 
-  <div class="right">
-    <div class="header">
-      <div>
-        <h2>🌍 Global Chat</h2>
-        <div class="small">Konum bazlı odalar</div>
-      </div>
-      <div class="small">Çevrimiçi: <span id="onlineCount">0</span></div>
-    </div>
+<div id="infoBox" class="hidden" style="margin-top:12px">
+<p class="small">💡 SMTP ayarları .env'de yapılandırılmışsa gerçek mail gönderilir.</p>
+</div>
+</div>
 
-    <div id="chatArea" style="display:flex;flex-direction:column;flex:1">
-      <div id="messages" class="messages"></div>
+<div class="right">
+<div class="header">
+<div>
+<h2>🌍 Global Chat</h2>
+<div class="small">Konum bazlı odalar</div>
+</div>
+<div class="small">Çevrimiçi: <span id="onlineCount">0</span></div>
+</div>
 
-      <div class="input-row">
-        <input id="messageInput" type="text" placeholder="Mesaj yaz..." />
-        <button id="sendBtn">Gönder</button>
-      </div>
-    </div>
-  </div>
+<div id="chatArea" style="display:flex;flex-direction:column;flex:1">
+<div id="messages" class="messages"></div>
+<div class="input-row">
+<input id="messageInput" type="text" placeholder="Mesaj yaz..." />
+<button id="sendBtn">Gönder</button>
+</div>
+</div>
+</div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
 // Helpers
 async function postJSON(url, body) {
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  return r.json();
+const r = await fetch(url, { 
+method: 'POST', 
+headers: { 'Content-Type': 'application/json' }, 
+body: JSON.stringify(body) 
+});
+return r.json();
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+return String(s).replace(/[&<>"']/g, c => ({ 
+'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' 
+}[c]));
 }
 
 function showToast(msg, type = 'success') {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span><span>${msg}</span>`;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
+const toast = document.createElement('div');
+toast.className = `toast ${type}`;
+toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span><span>${msg}</span>`;
+document.body.appendChild(toast);
+setTimeout(() => toast.remove(), 3000);
 }
+
+// Global variables
+let socket = null;
+let currentUser = null;
+let uploadedAvatarUrl = null;
+let detectedCountry = null;
 
 // Elements
 const sendCodeBtn = document.getElementById('sendCodeBtn');
 const verifyBtn = document.getElementById('verifyBtn');
-const sendCodeInput = document.getElementById('emailInput');
+const emailInput = document.getElementById('emailInput');
+const codeInput = document.getElementById('codeInput');
 const codeBox = document.getElementById('codeBox');
 const loginBox = document.getElementById('loginBox');
 const profileBox = document.getElementById('profileBox');
@@ -204,283 +206,318 @@ const locationInfo = document.getElementById('locationInfo');
 const hamburger = document.getElementById('hamburger');
 const leftPanel = document.getElementById('leftPanel');
 const overlay = document.getElementById('overlay');
-
-let socket = null;
-let currentUser = null;
-let uploadedAvatarUrl = null;
-let detectedCountry = null;
+const galleryBtn = document.getElementById('galleryBtn');
+const cameraBtn = document.getElementById('cameraBtn');
+const usernameInput = document.getElementById('usernameInput');
+const colorInput = document.getElementById('colorInput');
 
 // Hamburger menu
 hamburger.addEventListener('click', () => {
-  leftPanel.classList.toggle('open');
-  overlay.classList.toggle('open');
+leftPanel.classList.toggle('open');
+overlay.classList.toggle('open');
 });
 
 overlay.addEventListener('click', () => {
-  leftPanel.classList.remove('open');
-  overlay.classList.remove('open');
+leftPanel.classList.remove('open');
+overlay.classList.remove('open');
 });
 
-// Avatar preview
+// Avatar upload buttons
+galleryBtn.addEventListener('click', () => avatarFile.click());
+cameraBtn.addEventListener('click', () => cameraInput.click());
+
+// Avatar preview and upload
 avatarFile.addEventListener('change', handleAvatarUpload);
 cameraInput.addEventListener('change', handleAvatarUpload);
 
 async function handleAvatarUpload(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+const file = e.target.files[0];
+if (!file) return;
 
-  // Preview
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    avatarPreview.src = ev.target.result;
-    avatarPreview.classList.remove('hidden');
-  };
-  reader.readAsDataURL(file);
+// Preview
+const reader = new FileReader();
+reader.onload = (ev) => {
+avatarPreview.src = ev.target.result;
+avatarPreview.classList.remove('hidden');
+};
+reader.readAsDataURL(file);
 
-  // Upload
-  const formData = new FormData();
-  formData.append('avatar', file);
+// Upload to server
+const formData = new FormData();
+formData.append('avatar', file);
 
-  try {
-    const res = await fetch('/api/upload-avatar', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (data.success) {
-      uploadedAvatarUrl = data.url;
-      showToast('Fotoğraf yüklendi!', 'success');
-    } else {
-      showToast('Yükleme başarısız', 'error');
-    }
-  } catch (err) {
-    console.error(err);
-    showToast('Yükleme hatası', 'error');
-  }
+try {
+showToast('Fotoğraf yükleniyor...', 'success');
+const res = await fetch('/api/upload-avatar', { method: 'POST', body: formData });
+const data = await res.json();
+if (data.success) {
+uploadedAvatarUrl = data.url;
+showToast('Fotoğraf yüklendi!', 'success');
+} else {
+showToast('Yükleme başarısız', 'error');
+}
+} catch (err) {
+console.error('Upload error:', err);
+showToast('Yükleme hatası', 'error');
+}
 }
 
 // Location detection
 locationBtn.addEventListener('click', () => {
-  if (!navigator.geolocation) {
-    showToast('Tarayıcınız konum desteklemiyor', 'error');
-    return;
-  }
+if (!navigator.geolocation) {
+showToast('Tarayıcınız konum desteklemiyor', 'error');
+return;
+}
 
-  locationBtn.disabled = true;
-  locationBtn.innerText = '📍 Konum alınıyor...';
+locationBtn.disabled = true;
+locationBtn.innerText = '📍 Konum alınıyor...';
 
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        // Reverse geocoding ile ülke bul (basit IP fallback)
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
-        const data = await res.json();
-        detectedCountry = data.address?.country_code?.toUpperCase() || 'TR';
-        locationInfo.innerText = `✅ Tespit edilen: ${detectedCountry}`;
-        locationBtn.innerText = '✅ Konum Alındı';
-        showToast(`Ülke: ${detectedCountry}`, 'success');
-      } catch (err) {
-        console.error(err);
-        detectedCountry = 'TR';
-        locationInfo.innerText = '⚠️ Konum belirlenemedi, TR kullanılacak';
-        locationBtn.innerText = '📍 Konum Alınamadı';
-      } finally {
-        locationBtn.disabled = false;
-      }
-    },
-    (err) => {
-      console.error(err);
-      detectedCountry = 'TR';
-      locationInfo.innerText = '❌ Konum izni reddedildi, TR sunucusu kullanılacak';
-      locationBtn.innerText = '❌ İzin Reddedildi';
-      locationBtn.disabled = false;
-      showToast('Konum izni gerekli', 'error');
-    }
-  );
+navigator.geolocation.getCurrentPosition(
+async (pos) => {
+try {
+const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+const data = await res.json();
+detectedCountry = data.address?.country_code?.toUpperCase() || 'TR';
+locationInfo.innerText = `✅ Tespit edilen: ${detectedCountry}`;
+locationBtn.innerText = '✅ Konum Alındı';
+showToast(`Ülke: ${detectedCountry}`, 'success');
+} catch (err) {
+console.error(err);
+detectedCountry = 'TR';
+locationInfo.innerText = '⚠️ Konum belirlenemedi, TR kullanılacak';
+locationBtn.innerText = '📍 Konum Alınamadı';
+} finally {
+locationBtn.disabled = false;
+}
+},
+(err) => {
+console.error(err);
+detectedCountry = 'TR';
+locationInfo.innerText = '❌ Konum izni reddedildi, TR sunucusu kullanılacak';
+locationBtn.innerText = '❌ İzin Reddedildi';
+locationBtn.disabled = false;
+showToast('Konum izni gerekli', 'error');
+}
+);
 });
 
 // Send code
 sendCodeBtn.addEventListener('click', async () => {
-  const email = (sendCodeInput.value || '').trim();
-  if (!email) return showToast('Email girin', 'error');
+console.log('🔘 Kodu Gönder tıklandı');
 
-  sendCodeBtn.disabled = true;
-  sendCodeBtn.innerText = 'Gönderiliyor...';
+const email = (emailInput.value || '').trim();
+console.log('📧 Email:', email);
 
-  const res = await postJSON('/api/send-code', { email });
+if (!email) {
+console.log('❌ Email boş!');
+return showToast('Email girin', 'error');
+}
 
-  sendCodeBtn.disabled = false;
-  sendCodeBtn.innerText = 'Kodu Gönder';
+sendCodeBtn.disabled = true;
+sendCodeBtn.innerText = 'Gönderiliyor...';
 
-  if (res.success) {
-    codeBox.classList.remove('hidden');
-    document.getElementById('infoBox').classList.remove('hidden');
-    if (res.devCode) {
-      showToast(`DEV: Kod ${res.devCode}`, 'success');
-    } else {
-      showToast('Kod e-postanıza gönderildi', 'success');
-    }
-  } else {
-    showToast(res.error || 'Kod gönderilemedi', 'error');
-  }
+try {
+console.log('📤 API isteği başlıyor...');
+const res = await postJSON('/api/send-code', { email });
+console.log('📥 Yanıt:', res);
+
+sendCodeBtn.disabled = false;
+sendCodeBtn.innerText = 'Kodu Gönder';
+
+if (res.success) {
+codeBox.classList.remove('hidden');
+document.getElementById('infoBox').classList.remove('hidden');
+if (res.devCode) {
+console.log('🔑 DEV Kod:', res.devCode);
+showToast(`DEV: Kod ${res.devCode}`, 'success');
+} else {
+showToast('Kod e-postanıza gönderildi', 'success');
+}
+} else {
+console.error('❌ Hata:', res.error);
+showToast(res.error || 'Kod gönderilemedi', 'error');
+}
+} catch (err) {
+console.error('💥 Fetch hatası:', err);
+sendCodeBtn.disabled = false;
+sendCodeBtn.innerText = 'Kodu Gönder';
+showToast('Sunucuya ulaşılamadı!', 'error');
+}
 });
 
 // Verify code
 verifyBtn.addEventListener('click', async () => {
-  const email = (sendCodeInput.value || '').trim();
-  const code = (document.getElementById('codeInput').value || '').trim();
-  if (!email || !code) return showToast('Email ve kod gerekli', 'error');
+const email = (emailInput.value || '').trim();
+const code = (codeInput.value || '').trim();
 
-  verifyBtn.disabled = true;
-  verifyBtn.innerText = 'Doğrulanıyor...';
+if (!email || !code) return showToast('Email ve kod gerekli', 'error');
 
-  const res = await postJSON('/api/verify-code', { email, code });
+verifyBtn.disabled = true;
+verifyBtn.innerText = 'Doğrulanıyor...';
 
-  verifyBtn.disabled = false;
-  verifyBtn.innerText = 'Doğrula';
+try {
+const res = await postJSON('/api/verify-code', { email, code });
 
-  if (res.success) {
-    loginBox.classList.add('hidden');
-    profileBox.classList.remove('hidden');
-    showToast('Doğrulama başarılı!', 'success');
-  } else {
-    showToast(res.error || 'Doğrulama başarısız', 'error');
-  }
+verifyBtn.disabled = false;
+verifyBtn.innerText = 'Doğrula';
+
+if (res.success) {
+loginBox.classList.add('hidden');
+profileBox.classList.remove('hidden');
+showToast('Doğrulama başarılı!', 'success');
+} else {
+showToast(res.error || 'Doğrulama başarısız', 'error');
+}
+} catch (err) {
+console.error(err);
+verifyBtn.disabled = false;
+verifyBtn.innerText = 'Doğrula';
+showToast('Sunucuya ulaşılamadı!', 'error');
+}
 });
 
 // Save profile
 saveProfileBtn.addEventListener('click', async () => {
-  const username = (document.getElementById('usernameInput').value || '').trim();
-  const color = (document.getElementById('colorInput').value || '').trim();
+const username = (usernameInput.value || '').trim();
+const color = (colorInput.value || '').trim();
 
-  if (!username) return showToast('Kullanıcı adı gerekli', 'error');
+if (!username) return showToast('Kullanıcı adı gerekli', 'error');
 
-  saveProfileBtn.disabled = true;
-  saveProfileBtn.innerText = 'Kaydediliyor...';
+saveProfileBtn.disabled = true;
+saveProfileBtn.innerText = 'Kaydediliyor...';
 
-  const res = await postJSON('/api/profile-setup', {
-    username,
-    profilePhoto: uploadedAvatarUrl,
-    nameColor: color || '#4285F4',
-    country: detectedCountry
-  });
+try {
+const res = await postJSON('/api/profile-setup', {
+username,
+profilePhoto: uploadedAvatarUrl,
+nameColor: color || '#4285F4',
+country: detectedCountry
+});
 
-  saveProfileBtn.disabled = false;
-  saveProfileBtn.innerText = 'Kaydet ve Sohbete Katıl';
+saveProfileBtn.disabled = false;
+saveProfileBtn.innerText = 'Kaydet ve Sohbete Katıl';
 
-  if (res.success) {
-    showToast('Profil kaydedildi!', 'success');
-    profileBox.classList.add('hidden');
-    leftPanel.classList.remove('open');
-    overlay.classList.remove('open');
-    startChat(res.user);
-  } else {
-    showToast(res.error || 'Profil kaydedilemedi', 'error');
-  }
+if (res.success) {
+showToast('Profil kaydedildi!', 'success');
+profileBox.classList.add('hidden');
+leftPanel.classList.remove('open');
+overlay.classList.remove('open');
+startChat(res.user);
+} else {
+showToast(res.error || 'Profil kaydedilemedi', 'error');
+}
+} catch (err) {
+console.error(err);
+saveProfileBtn.disabled = false;
+saveProfileBtn.innerText = 'Kaydet ve Sohbete Katıl';
+showToast('Sunucuya ulaşılamadı!', 'error');
+}
 });
 
 // Auto-login on page load
 window.addEventListener('load', async () => {
-  try {
-    const r = await fetch('/api/user');
-    if (r.ok) {
-      const data = await r.json();
-      if (data.user) {
-        loginBox.classList.add('hidden');
-        profileBox.classList.add('hidden');
-        startChat(data.user);
-      }
-    }
-  } catch (err) {
-    console.log('Not logged in');
-  }
+try {
+const r = await fetch('/api/user');
+if (r.ok) {
+const data = await r.json();
+if (data.user) {
+loginBox.classList.add('hidden');
+profileBox.classList.add('hidden');
+startChat(data.user);
+}
+}
+} catch (err) {
+console.log('Not logged in');
+}
 });
 
 // Start chat
 async function startChat(user) {
-  const r = await fetch('/api/user');
-  if (!r.ok) return showToast('Oturum hatası', 'error');
-  const dj = await r.json();
-  currentUser = dj.user;
+const r = await fetch('/api/user');
+if (!r.ok) return showToast('Oturum hatası', 'error');
+const dj = await r.json();
+currentUser = dj.user;
 
-  socket = io();
+socket = io();
 
-  const serverId = currentUser.server || 'TR';
-  socket.emit('join-server', { serverId });
+const serverId = currentUser.server || 'TR';
+socket.emit('join-server', { serverId });
 
-  // Load messages
-  const msgsRes = await fetch('/api/messages/' + encodeURIComponent(serverId));
-  if (msgsRes.ok) {
-    const msgs = await msgsRes.json();
-    msgs.forEach(renderMessage);
-    scrollToBottom();
-  }
+// Load messages
+const msgsRes = await fetch('/api/messages/' + encodeURIComponent(serverId));
+if (msgsRes.ok) {
+const msgs = await msgsRes.json();
+msgs.forEach(renderMessage);
+scrollToBottom();
+}
 
-  socket.on('new-message', msg => {
-    renderMessage(msg);
-    scrollToBottom();
-    
-    // Mark as seen
-    if (msg.userId !== currentUser._id) {
-      socket.emit('message-seen', { messageId: msg._id });
-    }
-  });
+socket.on('new-message', msg => {
+renderMessage(msg);
+scrollToBottom();
+if (msg.userId !== currentUser._id) {
+socket.emit('message-seen', { messageId: msg._id });
+}
+});
 
-  socket.on('update-users', count => {
-    onlineCountEl.innerText = count;
-  });
+socket.on('update-users', count => {
+onlineCountEl.innerText = count;
+});
 
-  socket.on('message-seen-update', d => {
-    const el = document.querySelector(`[data-msg-id="${d.messageId}"] .seen-info`);
-    if (el) el.innerText = `✓✓ ${d.seenCount}`;
-  });
+socket.on('message-seen-update', d => {
+const el = document.querySelector(`[data-msg-id="${d.messageId}"] .seen-info`);
+if (el) el.innerText = `✓✓ ${d.seenCount}`;
+});
 
-  showToast('Sohbete bağlandınız!', 'success');
+showToast('Sohbete bağlandınız!', 'success');
 }
 
 // Render message
 function renderMessage(msg) {
-  const isOwn = currentUser && msg.userId === currentUser._id;
-  const el = document.createElement('div');
-  el.className = `message ${isOwn ? 'own' : 'other'}`;
-  el.setAttribute('data-msg-id', msg._id || '');
+const isOwn = currentUser && msg.userId === currentUser._id;
+const el = document.createElement('div');
+el.className = `message ${isOwn ? 'own' : 'other'}`;
+el.setAttribute('data-msg-id', msg._id || '');
 
-  const avatar = msg.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.username || 'User')}`;
-  const time = new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  const seenCount = msg.seenBy?.length || 0;
+const avatar = msg.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.username || 'User')}`;
+const time = new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+const seenCount = msg.seenBy?.length || 0;
 
-  el.innerHTML = `
-    <img class="avatar" src="${avatar}" onerror="this.src='https://ui-avatars.com/api/?name=User'" />
-    <div class="bubble">
-      <div class="meta">
-        <div class="username" style="color:${msg.nameColor || '#333'}">${escapeHtml(msg.username || 'Anonim')}</div>
-        <div class="time">${time}</div>
-      </div>
-      <div class="text">${escapeHtml(msg.message)}</div>
-      ${isOwn && seenCount > 0 ? `<div class="seen-info">✓✓ ${seenCount}</div>` : ''}
-    </div>
-  `;
+el.innerHTML = `
+<img class="avatar" src="${avatar}" onerror="this.src='https://ui-avatars.com/api/?name=User'" />
+<div class="bubble">
+<div class="meta">
+<div class="username" style="color:${msg.nameColor || '#333'}">${escapeHtml(msg.username || 'Anonim')}</div>
+<div class="time">${time}</div>
+</div>
+<div class="text">${escapeHtml(msg.message)}</div>
+${isOwn && seenCount > 0 ? `<div class="seen-info">✓✓ ${seenCount}</div>` : ''}
+</div>
+`;
 
-  messagesEl.appendChild(el);
+messagesEl.appendChild(el);
 }
 
 function scrollToBottom() {
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 // Send message
 sendBtn.addEventListener('click', sendMessage);
 messageInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendMessage();
+if (e.key === 'Enter') sendMessage();
 });
 
 function sendMessage() {
-  const text = (messageInput.value || '').trim();
-  if (!text) return showToast('Boş mesaj gönderilemez', 'error');
-  if (!socket || !currentUser) return showToast('Sohbet başlatılmadı', 'error');
+const text = (messageInput.value || '').trim();
+if (!text) return showToast('Boş mesaj gönderilemez', 'error');
+if (!socket || !currentUser) return showToast('Sohbet başlatılmadı', 'error');
 
-  const payload = {
-    serverId: currentUser.server || 'TR',
-    message: text
-  };
-
-  socket.emit('send-message', payload);
-  messageInput.value = '';
+socket.emit('send-message', {
+serverId: currentUser.server || 'TR',
+message: text
+});
+messageInput.value = '';
 }
+</script>
+</body>
+</html>
