@@ -1,4 +1,4 @@
-// server.js
+// server.js - Explanations inline where important
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -7,84 +7,40 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const nodemailer = require('nodemailer');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
+const geoip = require('geoip-lite');
 const path = require('path');
-const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: true, methods: ['GET', 'POST'] }
+  cors: { origin: "*" } // adjust origin for production
 });
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+const PORT = process.env.PORT || 3000;
+const MONGODB_URI = process.env.MONGODB_URI;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this_secret';
 
-// ---- Config / Env validation ----
-const {
-  MONGODB_URI,
-  SESSION_SECRET,
-  PORT,
-  SMTP_HOST,
-  SMTP_PORT,
-  SMTP_USER,
-  SMTP_PASS,
-  DEBUG_SHOW_CODE
-} = process.env;
-
+// ---------- MongoDB ----------
 if (!MONGODB_URI) {
-  console.error('MONGODB_URI missing in .env');
+  console.error('❌ MONGODB_URI missing in .env');
   process.exit(1);
 }
-if (!SESSION_SECRET) {
-  console.error('SESSION_SECRET missing in .env');
-  process.exit(1);
-}
+mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(()=>console.log('✅ MongoDB Connected'))
+  .catch(err=>{ console.error('❌ MongoDB Error:', err); process.exit(1); });
 
-// ---- MongoDB ----
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log('✅ MongoDB Connected'))
-  .catch(err => {
-    console.error('❌ MongoDB Connection Error:', err);
-    process.exit(1);
-  });
-
-// ---- Session store ----
-const sessionStore = MongoStore.create({
-  mongoUrl: MONGODB_URI,
-  collectionName: 'sessions'
-});
-
-app.set('trust proxy', 1);
-app.use(session({
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  store: sessionStore,
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax'
-  }
-}));
-
-// ---- Models ----
+// ---------- Schemas ----------
 const userSchema = new mongoose.Schema({
-  email: { type: String, unique: true, required: true },
+  email: { type: String, required: true, index: true, unique: true },
   username: String,
   profilePhoto: String,
   nameColor: { type: String, default: '#4285F4' },
+  country: String,
+  server: String,
   createdAt: { type: Date, default: Date.now },
   lastSeen: { type: Date, default: Date.now }
 });
-const User = mongoose.model('User', userSchema);
-
 const messageSchema = new mongoose.Schema({
   serverId: { type: String, required: true, index: true },
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -97,262 +53,309 @@ const messageSchema = new mongoose.Schema({
   editedAt: Date,
   seenBy: [{ userId: mongoose.Schema.Types.ObjectId, seenAt: Date }]
 });
-const Message = mongoose.model('Message', messageSchema);
-
-// Verification codes: auto-delete after TTL (300 seconds)
 const verificationSchema = new mongoose.Schema({
   email: { type: String, required: true, index: true },
-  codeHash: { type: String, required: true },
-  createdAt: { type: Date, default: Date.now, index: { expires: 300 } } // 5 minutes TTL
+  code: String,
+  createdAt: { type: Date, default: Date.now, expires: 300 } // expires in 5 minutes
 });
+
+const User = mongoose.model('User', userSchema);
+const Message = mongoose.model('Message', messageSchema);
 const Verification = mongoose.model('Verification', verificationSchema);
 
-// ---- Nodemailer transporter (if configured) ----
+// ---------- Session store ----------
+const sessionMiddleware = session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({ mongoUrl: MONGODB_URI }),
+  cookie: {
+    maxAge: 24 * 60 * 60 * 1000,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+  }
+});
+app.use(sessionMiddleware);
+
+// Make session available in socket.io
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, {}, next);
+});
+
+// ---------- Middleware ----------
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ---------- Mail transporter ----------
 let transporter = null;
-if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+if (process.env.SMTP_USER && process.env.SMTP_PASS) {
   transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT) || 587,
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 587,
     secure: false,
-    auth: { user: SMTP_USER, pass: SMTP_PASS }
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
   });
-  // quick verify (non-blocking)
-  transporter.verify().then(() => console.log('✅ SMTP transporter ready')).catch(err => {
-    console.warn('⚠️ SMTP transporter verify failed:', err.message || err);
-  });
+  // verify transporter (non-blocking)
+  transporter.verify().then(()=>console.log('✅ SMTP ready')).catch(err=>console.warn('⚠️ SMTP not ready:', err.message));
 } else {
-  console.log('ℹ️ SMTP not configured — mail will fallback to console.log');
+  console.log('ℹ️ SMTP not configured — codes will be printed to console (for testing).');
 }
 
-// ---- Utility ----
-function generateCode() {
+// ---------- Helpers ----------
+function genCode() {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
 }
-async function hashCode(code) {
-  const salt = await bcrypt.genSalt(8);
-  return bcrypt.hash(code, salt);
+function getCountryFromIp(ip) {
+  if (!ip) return 'TR';
+  // x-forwarded-for may contain comma list
+  if (ip.includes(',')) ip = ip.split(',')[0].trim();
+  // remove ipv6 prefix
+  if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
+  const geo = geoip.lookup(ip);
+  return (geo && geo.country) ? geo.country : 'TR';
 }
-async function compareCode(code, hash) {
-  return bcrypt.compare(code, hash);
+function serverForCountry(country) {
+  // map some countries to server codes — extend as needed
+  const mapping = {
+    'TR': 'TR',
+    'US': 'US',
+    'GB': 'GB',
+    'DE': 'DE',
+    'FR': 'FR',
+    'KR': 'KR',
+    'JP': 'JP',
+    'CN': 'CN'
+  };
+  return mapping[country] || country || 'TR';
 }
 
-// ---- API: send-code ----
+// ---------- API: send code ----------
 app.post('/api/send-code', async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email || typeof email !== 'string') return res.status(400).json({ success: false, message: 'Invalid email' });
+    if (!email) return res.json({ success: false, error: 'Missing email' });
 
-    const code = generateCode();
-    const codeHash = await hashCode(code);
-
-    // Remove existing verifications for email, then create new
+    // remove existing code for this email
     await Verification.deleteMany({ email });
-    await Verification.create({ email, codeHash });
 
-    // send mail if possible
+    const code = genCode();
+    await Verification.create({ email, code });
+
     if (transporter) {
-      try {
-        await transporter.sendMail({
-          from: `${process.env.SMTP_USER}`,
-          to: email,
-          subject: 'Doğrulama Kodunuz',
-          text: `Doğrulama kodunuz: ${code}`,
-          html: `<p>Doğrulama kodunuz: <strong>${code}</strong></p>`
-        });
-        console.log(`Kod gönderildi (mail): ${email}`);
-      } catch (err) {
-        console.error('Mail gönderirken hata:', err);
-      }
+      await transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: email,
+        subject: 'Global Chat - Doğrulama Kodu',
+        text: `Doğrulama kodunuz: ${code} (5 dakika geçerli)`
+      });
     } else {
-      // fallback: print code on server console (for dev/demo)
-      console.log(`DEV CODE for ${email}: ${code}`);
-    }
-
-    // If DEBUG_SHOW_CODE true, return code in response (ONLY for local/dev demo)
-    if (String(DEBUG_SHOW_CODE).toLowerCase() === 'true') {
-      return res.json({ success: true, debug: true, code });
+      console.log(`[DEV] Verification code for ${email}: ${code}`);
     }
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('send-code error:', err);
-    return res.status(500).json({ success: false, message: 'Internal error' });
+    console.error('send-code error', err);
+    return res.json({ success: false, error: 'Server error' });
   }
 });
 
-// ---- API: verify-code ----
+// ---------- API: verify code ----------
 app.post('/api/verify-code', async (req, res) => {
   try {
     const { email, code } = req.body;
-    if (!email || !code) return res.status(400).json({ success: false, message: 'Missing email or code' });
+    if (!email || !code) return res.json({ success: false, error: 'Missing fields' });
 
-    const v = await Verification.findOne({ email });
-    if (!v) return res.status(400).json({ success: false, message: 'No code found or expired' });
+    const record = await Verification.findOne({ email, code });
+    if (!record) return res.json({ success: false, error: 'Invalid code' });
 
-    const ok = await compareCode(code, v.codeHash);
-    if (!ok) return res.status(400).json({ success: false, message: 'Code invalid' });
-
-    // code correct: create / find user & set session
+    // Create or fetch a user placeholder (email only) but don't force username yet
     let user = await User.findOne({ email });
     if (!user) {
-      user = await User.create({ email, username: email.split('@')[0] });
+      // generate basic avatar via ui-avatars or pravatar
+      user = await User.create({
+        email,
+        username: email.split('@')[0],
+        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0])}&background=667eea&color=fff`,
+        country: null,
+        server: null
+      });
     }
-    req.session.userId = user._id.toString();
-    await Verification.deleteMany({ email }); // single-use
 
-    return res.json({ success: true, user });
+    // put userId in session for persistence
+    req.session.userId = user._id.toString();
+    req.session.email = email;
+
+    // delete used code
+    await Verification.deleteMany({ email });
+
+    return res.json({ success: true, user: { _id: user._id, email: user.email } });
   } catch (err) {
-    console.error('verify-code error:', err);
-    return res.status(500).json({ success: false, message: 'Internal error' });
+    console.error('verify-code error', err);
+    return res.json({ success: false, error: 'Server error' });
   }
 });
 
-// ---- API: profile-setup ----
+// ---------- API: profile setup ----------
 app.post('/api/profile-setup', async (req, res) => {
   try {
-    const { username, profilePhoto, nameColor, server } = req.body;
-    if (!req.session.userId) return res.status(401).json({ success: false, message: 'Not authenticated' });
+    const { username, profilePhoto, nameColor, country } = req.body;
+    const sessionUserId = req.session.userId;
+    const email = req.session.email;
 
-    const user = await User.findById(req.session.userId);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!sessionUserId || !email) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
-    user.username = username || user.username;
-    user.profilePhoto = profilePhoto || user.profilePhoto;
-    user.nameColor = nameColor || user.nameColor;
-    await user.save();
+    const serverCode = serverForCountry(country || getCountryFromIp(req.ip));
+
+    const user = await User.findByIdAndUpdate(sessionUserId, {
+      username,
+      profilePhoto: profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=667eea&color=fff`,
+      nameColor: nameColor || '#4285F4',
+      country,
+      server: serverCode,
+      lastSeen: new Date()
+    }, { new: true, upsert: true });
+
+    // keep userId in session
+    req.session.userId = user._id.toString();
 
     return res.json({ success: true, user });
   } catch (err) {
-    console.error('profile-setup error:', err);
-    return res.status(500).json({ success: false, message: 'Internal error' });
+    console.error('profile-setup error', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 
-// ---- API: get current user ----
+// ---------- API: current user ----------
 app.get('/api/user', async (req, res) => {
   try {
-    const uid = req.session.userId;
-    if (!uid) return res.status(401).json({ success: false, message: 'Not authenticated' });
-    const user = await User.findById(uid);
-    return res.json({ success: true, user });
+    if (!req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
+    const user = await User.findById(req.session.userId);
+    if (!user) return res.status(401).json({ error: 'Not authenticated' });
+    return res.json({ user });
   } catch (err) {
-    console.error('api/user error:', err);
-    return res.status(500).json({ success: false });
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ---- API: messages history ----
+// ---------- API: messages for server ----------
 app.get('/api/messages/:serverId', async (req, res) => {
   try {
-    const serverId = req.params.serverId;
-    const messages = await Message.find({ serverId }).sort({ timestamp: -1 }).limit(200);
-    return res.json({ success: true, messages: messages.reverse() });
+    const messages = await Message.find({ serverId: req.params.serverId })
+      .sort({ timestamp: -1 })
+      .limit(100);
+    return res.json(messages.reverse());
   } catch (err) {
-    console.error('api/messages error:', err);
-    return res.status(500).json({ success: false });
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ---- Logout ----
+// ---------- Logout ----------
 app.get('/logout', (req, res) => {
-  req.session.destroy(err => {
-    if (err) console.error('session destroy err', err);
+  req.session.destroy(() => {
     res.redirect('/');
   });
 });
 
-// ---- Socket.io ----
-const onlineUsers = new Map(); // userId => { socketId, serverId }
+// ---------- Socket.io logic ----------
+/*
+  - rooms = serverId (like 'TR', 'US', etc.)
+  - track online counts per room
+*/
+const roomUsers = new Map(); // roomId -> Set(socket.id)
+const socketUserMap = new Map(); // socket.id -> { userId, roomId }
 
-io.use((socket, next) => {
-  // simple middleware example: if you want cookie-session integration later
-  next();
-});
-
-io.on('connection', socket => {
-  console.log('Socket connected:', socket.id);
-
-  socket.on('join-server', async ({ userId, serverId }) => {
+io.on('connection', (socket) => {
+  // When client joins a server (room)
+  socket.on('join-server', async (payload) => {
     try {
-      socket.join(serverId);
-      onlineUsers.set(userId, { socketId: socket.id, serverId });
-      await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+      // payload expected: { userId, serverId, username, nameColor, profilePhoto }
+      const { userId, serverId } = payload;
+      if (!serverId || !userId) return;
 
-      const onlineCount = Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length;
-      io.to(serverId).emit('user-count', { count: onlineCount });
+      socket.join(serverId);
+      socketUserMap.set(socket.id, { userId, roomId: serverId });
+
+      if (!roomUsers.has(serverId)) roomUsers.set(serverId, new Set());
+      roomUsers.get(serverId).add(socket.id);
+
+      // emit online count to room
+      const count = roomUsers.get(serverId).size;
+      io.to(serverId).emit('update-users', count);
+
+      // update user's lastSeen in DB (fire and forget)
+      User.findByIdAndUpdate(userId, { lastSeen: new Date(), server: serverId }).catch(()=>{});
     } catch (err) {
-      console.error('join-server err', err);
+      console.error('join-server error', err);
     }
   });
 
+  // send-message
   socket.on('send-message', async (data) => {
     try {
-      const message = await Message.create({
-        serverId: data.serverId || 'global',
+      // data: { serverId, userId, username, nameColor, profilePhoto, message, timestamp }
+      const msg = await Message.create({
+        serverId: data.serverId,
         userId: data.userId,
         username: data.username,
         nameColor: data.nameColor,
         profilePhoto: data.profilePhoto,
-        message: data.message
+        message: data.message,
+        timestamp: data.timestamp || new Date()
       });
 
-      io.to(message.serverId).emit('new-message', {
-        _id: message._id,
-        serverId: message.serverId,
-        userId: message.userId,
-        username: message.username,
-        nameColor: message.nameColor,
-        profilePhoto: message.profilePhoto,
-        message: message.message,
-        timestamp: message.timestamp,
-        seenBy: []
-      });
+      io.to(data.serverId).emit('new-message', msg);
     } catch (err) {
-      console.error('send-message err', err);
+      console.error('send-message error', err);
     }
   });
 
+  // edit message
   socket.on('edit-message', async ({ messageId, newMessage }) => {
     try {
-      const m = await Message.findByIdAndUpdate(messageId, { message: newMessage, edited: true, editedAt: new Date() }, { new: true });
-      io.to(m.serverId).emit('message-edited', { messageId: m._id, newMessage: m.message });
+      const msg = await Message.findByIdAndUpdate(messageId, { message: newMessage, edited: true, editedAt: new Date() }, { new: true });
+      if (msg) io.to(msg.serverId).emit('message-edited', { messageId: msg._id, newMessage: msg.message, edited: true });
     } catch (err) {
-      console.error('edit-message err', err);
+      console.error('edit-message error', err);
     }
   });
 
-  socket.on('typing', (data) => {
-    socket.to(data.serverId).emit('user-typing', { username: data.username, isTyping: data.isTyping });
-  });
-
+  // message-seen
   socket.on('message-seen', async ({ messageId, userId }) => {
     try {
-      const message = await Message.findById(messageId);
-      if (!message) return;
-      if (!message.seenBy.some(s => s.userId.toString() === userId)) {
-        message.seenBy.push({ userId, seenAt: new Date() });
-        await message.save();
-        io.to(message.serverId).emit('message-seen-update', { messageId, seenCount: message.seenBy.length });
+      const msg = await Message.findById(messageId);
+      if (!msg) return;
+      const already = msg.seenBy.some(s => s.userId?.toString() === userId?.toString());
+      if (!already) {
+        msg.seenBy.push({ userId, seenAt: new Date() });
+        await msg.save();
+        io.to(msg.serverId).emit('message-seen-update', { messageId: msg._id, seenCount: msg.seenBy.length });
       }
     } catch (err) {
-      console.error('message-seen err', err);
+      console.error('message-seen error', err);
     }
   });
 
+  // disconnect
   socket.on('disconnect', () => {
-    for (const [userId, val] of onlineUsers.entries()) {
-      if (val.socketId === socket.id) {
-        const serverId = val.serverId;
-        onlineUsers.delete(userId);
-        const onlineCount = Array.from(onlineUsers.values()).filter(u => u.serverId === serverId).length;
-        io.to(serverId).emit('user-count', { count: onlineCount });
-        break;
+    const mapping = socketUserMap.get(socket.id);
+    if (mapping) {
+      const { roomId } = mapping;
+      socketUserMap.delete(socket.id);
+      if (roomUsers.has(roomId)) {
+        roomUsers.get(roomId).delete(socket.id);
+        io.to(roomId).emit('update-users', roomUsers.get(roomId).size);
       }
     }
-    console.log('Socket disconnected:', socket.id);
   });
 });
 
-// ---- Start server ----
-const PORT_TO_USE = Number(PORT) || 3000;
-server.listen(PORT_TO_USE, () => console.log(`🚀 Server running on port ${PORT_TO_USE}`));
+// ---------- Serve index.html ----------
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+// ---------- Start ----------
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
