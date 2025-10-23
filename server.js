@@ -1,4 +1,4 @@
-// server.js - FIXED VERSION
+// server.js - SIMPLE VERSION
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -7,30 +7,19 @@ const mongoose = require('mongoose');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const nodemailer = require('nodemailer');
-const geoip = require('geoip-lite');
 const path = require('path');
-const multer = require('multer');
-const { GridFsStorage } = require('multer-gridfs-storage');
-const Grid = require('gridfs-stream');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this_in_env';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this';
 
 if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI missing in .env');
+  console.error('❌ MONGODB_URI missing');
   process.exit(1);
-}
-
-// Uploads klasörünü oluştur
-const uploadsDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  console.log('✅ Uploads directory created');
 }
 
 // MongoDB
@@ -46,30 +35,26 @@ const userSchema = new mongoose.Schema({
   nameColor: { type: String, default: '#4285F4' },
   country: String,
   server: String,
-  createdAt: { type: Date, default: Date.now },
-  lastSeen: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now }
 });
 
 const messageSchema = new mongoose.Schema({
-  serverId: { type: String, required: true, index: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  serverId: { type: String, required: true },
+  userId: mongoose.Schema.Types.ObjectId,
   username: String,
   nameColor: String,
   profilePhoto: String,
   message: String,
   timestamp: { type: Date, default: Date.now },
-  edited: { type: Boolean, default: false },
-  editedAt: Date,
   seenBy: [{ userId: mongoose.Schema.Types.ObjectId, seenAt: Date }]
 });
 
 const verificationSchema = new mongoose.Schema({
-  email: { type: String, required: true, index: true },
+  email: { type: String, required: true },
   code: String,
   createdAt: { type: Date, default: Date.now }
 });
 
-// TTL index for verification
 verificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 300 });
 
 const User = mongoose.model('User', userSchema);
@@ -77,30 +62,20 @@ const Message = mongoose.model('Message', messageSchema);
 const Verification = mongoose.model('Verification', verificationSchema);
 
 // Session
-const sessionMiddleware = session({
+app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: MONGODB_URI }),
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax'
-  }
-});
+  cookie: { maxAge: 24 * 60 * 60 * 1000, httpOnly: true }
+}));
 
-app.use(sessionMiddleware);
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Socket.io session
-io.use((socket, next) => {
-  sessionMiddleware(socket.request, {}, next);
-});
-
-// Mail transporter
+// Mail
 let transporter = null;
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
   transporter = nodemailer.createTransport({
@@ -109,34 +84,7 @@ if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     secure: false,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
   });
-  transporter.verify().then(() => console.log('✅ SMTP ready')).catch(e => console.warn('⚠️ SMTP verify failed:', e.message));
-} else {
-  console.log('ℹ️ SMTP not configured - codes will print to console');
 }
-
-// GridFS Storage Engine
-const storage = new GridFsStorage({
-  url: MONGODB_URI,
-  options: { useNewUrlParser: true, useUnifiedTopology: true },
-  file: (req, file) => {
-    return {
-      filename: Date.now() + '-' + file.originalname,
-      bucketName: 'uploads' // Collection name
-    };
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only images allowed'));
-    }
-  }
-});
 
 // Helpers
 function genCode() {
@@ -147,19 +95,6 @@ function normalizeEmail(e) {
   return (e || '').toString().trim().toLowerCase();
 }
 
-function getCountryFromIp(ip) {
-  if (!ip) return 'TR';
-  if (ip.includes(',')) ip = ip.split(',')[0].trim();
-  if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
-  const geo = geoip.lookup(ip);
-  return (geo && geo.country) ? geo.country : 'TR';
-}
-
-function serverForCountry(country) {
-  const mapping = { TR: 'TR', US: 'US', GB: 'GB', DE: 'DE', FR: 'FR', KR: 'KR', JP: 'JP', CN: 'CN' };
-  return mapping[country] || country || 'TR';
-}
-
 // API: send-code
 app.post('/api/send-code', async (req, res) => {
   try {
@@ -167,7 +102,6 @@ app.post('/api/send-code', async (req, res) => {
     if (!email) return res.json({ success: false, error: 'Missing email' });
 
     await Verification.deleteMany({ email });
-
     const code = genCode();
     await Verification.create({ email, code });
 
@@ -176,12 +110,12 @@ app.post('/api/send-code', async (req, res) => {
         from: process.env.SMTP_USER,
         to: email,
         subject: 'Global Chat - Doğrulama Kodu',
-        text: `Doğrulama kodunuz: ${code} (5 dakika geçerli)`
+        text: `Doğrulama kodunuz: ${code}`
       });
-      console.log(`✉️ Sent verification email to ${email}`);
+      console.log(`✉️ Email sent to ${email}`);
       return res.json({ success: true });
     } else {
-      console.log(`[DEV] Verification code for ${email}: ${code}`);
+      console.log(`[DEV] Code for ${email}: ${code}`);
       return res.json({ success: true, devCode: code });
     }
   } catch (err) {
@@ -199,17 +133,15 @@ app.post('/api/verify-code', async (req, res) => {
     if (!email || !code) return res.json({ success: false, error: 'Missing fields' });
 
     const record = await Verification.findOne({ email, code });
-    if (!record) {
-      return res.json({ success: false, error: 'Invalid or expired code' });
-    }
+    if (!record) return res.json({ success: false, error: 'Invalid code' });
 
     let user = await User.findOne({ email });
     if (!user) {
-      const usernameBase = email.split('@')[0];
+      const username = email.split('@')[0];
       user = await User.create({
         email,
-        username: usernameBase,
-        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(usernameBase)}&background=667eea&color=fff`,
+        username,
+        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=667eea&color=fff`,
         nameColor: '#4285F4'
       });
     }
@@ -219,49 +151,10 @@ app.post('/api/verify-code', async (req, res) => {
 
     await Verification.deleteMany({ email });
 
-    console.log(`✅ Verified: ${email}`);
     return res.json({ success: true, user: { _id: user._id, email: user.email } });
   } catch (err) {
     console.error('verify-code error', err);
     return res.json({ success: false, error: 'Server error' });
-  }
-});
-
-// API: upload avatar (GridFS)
-app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
-    
-    // GridFS file URL
-    const url = `/api/image/${req.file.filename}`;
-    return res.json({ success: true, url, fileId: req.file.id });
-  } catch (err) {
-    console.error('upload-avatar error', err);
-    return res.status(500).json({ success: false, error: 'Upload failed' });
-  }
-});
-
-// API: Get image from GridFS
-app.get('/api/image/:filename', async (req, res) => {
-  try {
-    const file = await gfs.files.findOne({ filename: req.params.filename });
-    
-    if (!file) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    // Check if image
-    if (file.contentType.startsWith('image/')) {
-      // Stream from GridFS
-      const readstream = gfs.createReadStream({ filename: file.filename });
-      res.set('Content-Type', file.contentType);
-      readstream.pipe(res);
-    } else {
-      return res.status(400).json({ error: 'Not an image' });
-    }
-  } catch (err) {
-    console.error('image fetch error', err);
-    return res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -270,24 +163,17 @@ app.post('/api/profile-setup', async (req, res) => {
   try {
     const { username, profilePhoto, nameColor, country } = req.body;
     const sessionUserId = req.session.userId;
-    const email = req.session.email;
 
-    if (!sessionUserId || !email) {
-      return res.status(401).json({ success: false, error: 'Not authenticated' });
-    }
-
-    const detectedCountry = country || getCountryFromIp(req.ip);
-    const serverCode = serverForCountry(detectedCountry);
+    if (!sessionUserId) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
     const user = await User.findByIdAndUpdate(
       sessionUserId,
       {
-        username: username || email.split('@')[0],
-        profilePhoto: profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(username || 'User')}&background=667eea&color=fff`,
+        username: username || 'User',
+        profilePhoto: profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(username || 'User')}`,
         nameColor: nameColor || '#4285F4',
-        country: detectedCountry,
-        server: serverCode,
-        lastSeen: new Date()
+        country: country || 'TR',
+        server: country || 'TR'
       },
       { new: true }
     );
@@ -307,7 +193,6 @@ app.get('/api/user', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Not authenticated' });
     return res.json({ user });
   } catch (err) {
-    console.error('api/user error', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
@@ -320,80 +205,49 @@ app.get('/api/messages/:serverId', async (req, res) => {
       .limit(100);
     return res.json(msgs);
   } catch (err) {
-    console.error('api/messages error', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// API: logout
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/'));
-});
-
 // Socket.io
 const roomUsers = new Map();
-const socketToMeta = new Map();
 
 io.on('connection', (socket) => {
-  const sessionUserId = socket.request.session?.userId;
-  
-  if (!sessionUserId) {
-    socket.disconnect();
-    return;
-  }
-
   socket.on('join-server', async (payload) => {
-    try {
-      const { serverId } = payload;
-      if (!serverId) return;
+    const { serverId } = payload;
+    if (!serverId) return;
 
-      const user = await User.findById(sessionUserId);
-      if (!user) return;
+    socket.join(serverId);
 
-      socket.join(serverId);
-      socketToMeta.set(socket.id, { userId: sessionUserId, roomId: serverId });
+    if (!roomUsers.has(serverId)) roomUsers.set(serverId, new Set());
+    roomUsers.get(serverId).add(socket.id);
 
-      if (!roomUsers.has(serverId)) roomUsers.set(serverId, new Map());
-      roomUsers.get(serverId).set(sessionUserId, socket.id);
-
-      // Unique user count
-      const uniqueCount = roomUsers.get(serverId).size;
-      io.to(serverId).emit('update-users', uniqueCount);
-
-      await User.findByIdAndUpdate(sessionUserId, { lastSeen: new Date(), server: serverId });
-    } catch (err) {
-      console.error('join-server error', err);
-    }
+    io.to(serverId).emit('update-users', roomUsers.get(serverId).size);
   });
 
   socket.on('send-message', async (data) => {
     try {
-      const user = await User.findById(sessionUserId);
-      if (!user) return;
-
-      const m = await Message.create({
+      const msg = await Message.create({
         serverId: data.serverId,
-        userId: sessionUserId,
-        username: user.username,
-        nameColor: user.nameColor,
-        profilePhoto: user.profilePhoto,
+        userId: data.userId,
+        username: data.username,
+        nameColor: data.nameColor,
+        profilePhoto: data.profilePhoto,
         message: data.message,
         timestamp: new Date()
       });
-
-      io.to(data.serverId).emit('new-message', m);
+      io.to(data.serverId).emit('new-message', msg);
     } catch (err) {
       console.error('send-message error', err);
     }
   });
 
-  socket.on('message-seen', async ({ messageId }) => {
+  socket.on('message-seen', async ({ messageId, userId }) => {
     try {
       const msg = await Message.findById(messageId);
       if (!msg) return;
-
-      if (!msg.seenBy.some(s => s.userId?.toString() === sessionUserId?.toString())) {
-        msg.seenBy.push({ userId: sessionUserId, seenAt: new Date() });
+      if (!msg.seenBy.some(s => s.userId?.toString() === userId?.toString())) {
+        msg.seenBy.push({ userId, seenAt: new Date() });
         await msg.save();
         io.to(msg.serverId).emit('message-seen-update', { messageId: msg._id, seenCount: msg.seenBy.length });
       }
@@ -403,19 +257,19 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    const meta = socketToMeta.get(socket.id);
-    if (meta) {
-      const { userId, roomId } = meta;
-      socketToMeta.delete(socket.id);
-
-      if (roomUsers.has(roomId)) {
-        roomUsers.get(roomId).delete(userId);
-        io.to(roomId).emit('update-users', roomUsers.get(roomId).size);
+    for (const [serverId, users] of roomUsers) {
+      if (users.has(socket.id)) {
+        users.delete(socket.id);
+        io.to(serverId).emit('update-users', users.size);
+        break;
       }
     }
   });
 });
 
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// Serve index
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
