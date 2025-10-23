@@ -12,28 +12,30 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: { origin: true, methods: ["GET","POST"] }
+});
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this_secret';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this';
 
-// --- sanity checks
+// --- basic checks ---
 if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI missing. Add it to .env and restart.');
+  console.error('❌ MONGODB_URI missing in .env');
   process.exit(1);
 }
 
-// --- MongoDB connect
+// --- MongoDB connect ---
 mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(()=>console.log('✅ MongoDB Connected'))
+  .then(() => console.log('✅ MongoDB Connected'))
   .catch(err => { console.error('❌ MongoDB Error:', err); process.exit(1); });
 
-// --- Schemas
+// --- Schemas ---
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   username: String,
-  profilePhoto: String, // store dataURL or external URL
+  profilePhoto: String, // data URL or URL
   nameColor: { type: String, default: '#4285F4' },
   country: String,
   server: String,
@@ -57,14 +59,14 @@ const messageSchema = new mongoose.Schema({
 const verificationSchema = new mongoose.Schema({
   email: { type: String, required: true, index: true },
   code: String,
-  createdAt: { type: Date, default: Date.now, expires: 300 } // TTL 5 minutes
+  createdAt: { type: Date, default: Date.now, expires: 300 } // 5 minutes TTL
 });
 
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 const Verification = mongoose.model('Verification', verificationSchema);
 
-// --- session (stored in mongo)
+// --- session ---
 const sessionMiddleware = session({
   secret: SESSION_SECRET,
   resave: false,
@@ -79,17 +81,17 @@ const sessionMiddleware = session({
 });
 app.use(sessionMiddleware);
 
-// allow socket access to session
+// allow socket to access express session
 io.use((socket, next) => {
   sessionMiddleware(socket.request, {}, next);
 });
 
-// --- middleware
-app.use(express.json({ limit: '5mb' })); // allow base64 avatar uploads
+// --- middleware ---
+app.use(express.json({ limit: '5mb' })); // allow avatar base64
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- nodemailer transporter (optional)
+// --- mailer (optional) ---
 let transporter = null;
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
   transporter = nodemailer.createTransport({
@@ -98,35 +100,34 @@ if (process.env.SMTP_USER && process.env.SMTP_PASS) {
     secure: false,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
   });
-  transporter.verify().then(()=>console.log('✅ SMTP ready')).catch(e=>console.warn('⚠️ SMTP verify failed:', e.message));
+  transporter.verify().then(()=>console.log('✅ SMTP ready')).catch(e=>console.warn('⚠ SMTP verify failed:', e.message));
 } else {
-  console.log('ℹ️ SMTP not configured — verification codes printed to server console (dev fallback).');
+  console.log('ℹ SMTP not configured — verification codes will be printed in server logs (dev fallback).');
 }
 
-// --- helpers
+// --- helpers ---
 function genCode() { return Math.floor(100000 + Math.random()*900000).toString(); }
 function normalizeEmail(e){ return (e||'').toString().trim().toLowerCase(); }
-function ipToCountry(ip){
-  if(!ip) return 'TR';
-  if (ip.includes(',')) ip = ip.split(',')[0].trim();
-  if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:','');
-  const geo = geoip.lookup(ip);
-  return geo && geo.country ? geo.country : 'TR';
+function ipFromReq(req){
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress || '';
+  if (ip.includes(',')) return ip.split(',')[0].trim();
+  if (ip.startsWith('::ffff:')) return ip.replace('::ffff:','');
+  return ip;
 }
-function serverForCountry(code){
-  const map = { TR:'TR', US:'US', GB:'GB', DE:'DE', FR:'FR', KR:'KR', JP:'JP', CN:'CN' };
-  return map[code] || code || 'TR';
+function countryFromIp(ip){
+  try{
+    const geo = geoip.lookup(ip);
+    return (geo && geo.country) ? geo.country : 'TR';
+  }catch(e){ return 'TR'; }
 }
 
-// --- API: send verification code
-app.post('/api/send-code', async (req, res) => {
+// --- API: send-code ---
+app.post('/api/send-code', async (req,res) => {
   try {
     const email = normalizeEmail(req.body.email);
     if (!email) return res.json({ success:false, error:'Missing email' });
 
-    // remove existing codes
     await Verification.deleteMany({ email });
-
     const code = genCode();
     await Verification.create({ email, code });
 
@@ -134,13 +135,13 @@ app.post('/api/send-code', async (req, res) => {
       await transporter.sendMail({
         from: process.env.SMTP_USER,
         to: email,
-        subject: 'Global Chat - Doğrulama Kodu',
+        subject: 'Doğrulama Kodu - Global Chat',
         text: `Doğrulama kodunuz: ${code} (5 dakika geçerli)`
       });
-      console.log(`✉️ Sent code to ${email}`);
+      console.log(`✉️ Sent verification to ${email}`);
       return res.json({ success:true });
     } else {
-      console.log(`[DEV] Code for ${email}: ${code}`);
+      console.log(`[DEV] Verification code for ${email}: ${code}`);
       return res.json({ success:true, devCode: code });
     }
   } catch (err) {
@@ -149,72 +150,60 @@ app.post('/api/send-code', async (req, res) => {
   }
 });
 
-// --- API: verify code
-app.post('/api/verify-code', async (req, res) => {
+// --- API: verify-code ---
+app.post('/api/verify-code', async (req,res) => {
   try {
     const email = normalizeEmail(req.body.email);
-    const code = (req.body.code || '').toString().trim();
-    if(!email || !code) return res.json({ success:false, error:'Missing fields' });
+    const code = (req.body.code||'').toString().trim();
+    if (!email || !code) return res.json({ success:false, error:'Missing fields' });
 
-    console.log(`[VERIFY ATTEMPT] ${email} code=${code} ip=${req.ip}`);
-
-    const rec = await Verification.findOne({ email, code });
-    if (!rec) {
+    console.log(`[VERIFY ATTEMPT] ${email} -> ${code}`);
+    const record = await Verification.findOne({ email, code });
+    if (!record) {
       const existing = await Verification.find({ email }).lean();
-      console.log(`[VERIFY FAIL] existing for ${email}:`, existing);
+      console.log(`[VERIFY_FAIL] ${email} existing:`, existing);
       return res.json({ success:false, error:'Invalid code' });
     }
 
     let user = await User.findOne({ email });
     if (!user) {
-      const username = email.split('@')[0];
+      const usernameBase = email.split('@')[0];
       user = await User.create({
         email,
-        username,
-        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=667eea&color=fff`,
-        nameColor: '#4285F4',
-        server: 'TR',
-        country: 'TR'
+        username: usernameBase,
+        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(usernameBase)}&background=667eea&color=fff`,
+        nameColor: '#4285F4'
       });
     }
 
-    // set session
     req.session.userId = user._id.toString();
-    req.session.email = user.email;
-
+    req.session.email = email;
     await Verification.deleteMany({ email });
 
-    return res.json({ success:true, user:{ _id: user._id, email: user.email } });
+    return res.json({ success:true, user: { _id: user._id, email: user.email } });
   } catch (err) {
     console.error('verify-code error', err);
     return res.json({ success:false, error:'Server error' });
   }
 });
 
-// --- API: detect country by IP (for fallback)
-app.get('/api/detect-country', (req, res) => {
-  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.ip;
-  const country = ipToCountry(ip);
-  return res.json({ country });
-});
-
-// --- API: profile-setup (accept profilePhoto as dataURL)
-app.post('/api/profile-setup', async (req, res) => {
+// --- API: profile-setup (avatar base64 allowed) ---
+app.post('/api/profile-setup', async (req,res) => {
   try {
-    const { username, profilePhoto, nameColor, country } = req.body;
     const sessionUserId = req.session.userId;
     if (!sessionUserId) return res.status(401).json({ success:false, error:'Not authenticated' });
 
-    const serverCode = serverForCountry(country || ipToCountry(req.ip));
+    const { username, profilePhoto, nameColor, country } = req.body;
+    const serverCode = country || countryFromIp(ipFromReq(req));
 
     const user = await User.findByIdAndUpdate(sessionUserId, {
-      username: username || 'User',
+      username: username || undefined,
       profilePhoto: profilePhoto || undefined,
       nameColor: nameColor || '#4285F4',
-      country: country || ipToCountry(req.ip),
+      country: country || undefined,
       server: serverCode,
       lastSeen: new Date()
-    }, { new:true });
+    }, { new: true });
 
     req.session.userId = user._id.toString();
     return res.json({ success:true, user });
@@ -224,8 +213,8 @@ app.post('/api/profile-setup', async (req, res) => {
   }
 });
 
-// --- API: current user
-app.get('/api/user', async (req, res) => {
+// --- API: current user ---
+app.get('/api/user', async (req,res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error:'Not authenticated' });
     const user = await User.findById(req.session.userId);
@@ -237,40 +226,38 @@ app.get('/api/user', async (req, res) => {
   }
 });
 
-// --- API: messages
-app.get('/api/messages/:serverId', async (req, res) => {
+// --- API: messages ---
+app.get('/api/messages/:serverId', async (req,res) => {
   try {
-    const msgs = await Message.find({ serverId: req.params.serverId })
+    const messages = await Message.find({ serverId: req.params.serverId })
       .sort({ timestamp: 1 })
       .limit(200);
-    return res.json(msgs);
+    return res.json(messages);
   } catch (err) {
     console.error('api/messages error', err);
     return res.status(500).json({ error:'Server error' });
   }
 });
 
-// --- Logout
-app.get('/logout', (req, res) => {
-  req.session.destroy(()=>res.redirect('/'));
+// --- Logout ---
+app.get('/logout', (req,res) => {
+  req.session.destroy(() => res.redirect('/'));
 });
 
-// --- Socket.io logic
-const roomUsers = new Map(); // serverId -> Set(socket.id)
-const socketMeta = new Map(); // socket.id -> {userId, serverId}
+// --- Socket.io logic ---
+// room -> set of socket ids
+const roomUsers = new Map();
+// socket.id -> meta { userId, serverId }
+const socketMeta = new Map();
 
 io.on('connection', (socket) => {
-  // join-server expects { userId, serverId, username, nameColor, profilePhoto }
-  socket.on('join-server', async (payload = {}) => {
+  // retrieve session userId if set
+  const sess = socket.request.session || {};
+  // join-server: payload { userId, serverId }
+  socket.on('join-server', async (payload) => {
     try {
-      // If payload lacks userId, try from session
-      const session = socket.request.session || {};
-      const sidUserId = session.userId;
-      const userId = payload.userId || sidUserId;
-      const serverId = payload.serverId || (session && session.server) || 'TR';
-
-      if (!userId) return; // not authenticated
-
+      const { userId, serverId } = payload || {};
+      if (!serverId) return;
       socket.join(serverId);
       socketMeta.set(socket.id, { userId, serverId });
 
@@ -278,20 +265,15 @@ io.on('connection', (socket) => {
       roomUsers.get(serverId).add(socket.id);
 
       io.to(serverId).emit('update-users', roomUsers.get(serverId).size);
-
-      // update lastSeen
-      User.findByIdAndUpdate(userId, { lastSeen: new Date(), server: serverId }).catch(()=>{});
-    } catch (err) {
-      console.error('join-server error', err);
-    }
+    } catch (e) { console.error('join-server err', e); }
   });
 
+  // send-message saves then emits to room (including sender)
   socket.on('send-message', async (data) => {
     try {
-      // basic validation
+      // Validate
       if (!data || !data.serverId || !data.userId) return;
-
-      const msg = await Message.create({
+      const m = await Message.create({
         serverId: data.serverId,
         userId: data.userId,
         username: data.username,
@@ -301,38 +283,25 @@ io.on('connection', (socket) => {
         timestamp: new Date()
       });
 
-      // broadcast to everyone in room (includes sender)
-      io.to(data.serverId).emit('new-message', msg);
+      // emit saved message to all in room (includes sender)
+      io.to(data.serverId).emit('new-message', m);
     } catch (err) {
       console.error('send-message error', err);
     }
   });
 
+  // When a client informs server they saw a message
   socket.on('message-seen', async ({ messageId, userId }) => {
     try {
-      if (!messageId || !userId) return;
       const msg = await Message.findById(messageId);
       if (!msg) return;
       if (!msg.seenBy.some(s => s.userId?.toString() === userId?.toString())) {
         msg.seenBy.push({ userId, seenAt: new Date() });
         await msg.save();
+        // broadcast seen count update to room
         io.to(msg.serverId).emit('message-seen-update', { messageId: msg._id, seenCount: msg.seenBy.length });
       }
-    } catch (err) {
-      console.error('message-seen error', err);
-    }
-  });
-
-  socket.on('edit-message', async ({ messageId, newMessage }) => {
-    try {
-      if (!messageId || !newMessage) return;
-      const msg = await Message.findByIdAndUpdate(messageId, {
-        message: newMessage, edited: true, editedAt: new Date()
-      }, { new: true });
-      if (msg) io.to(msg.serverId).emit('message-edited', { messageId: msg._id, newMessage: msg.message, edited: true });
-    } catch (err) {
-      console.error('edit-message error', err);
-    }
+    } catch (err) { console.error('message-seen error', err); }
   });
 
   socket.on('disconnect', () => {
@@ -349,7 +318,9 @@ io.on('connection', (socket) => {
 });
 
 // serve index
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/', (req,res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-// start server
-server.listen(PORT, ()=>console.log(`🚀 Server running on port ${PORT}`));
+// start
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
