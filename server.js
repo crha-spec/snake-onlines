@@ -48,6 +48,8 @@ const messageSchema = new mongoose.Schema({
   profilePhoto: String,
   message: String,
   timestamp: { type: Date, default: Date.now },
+  edited: { type: Boolean, default: false },
+  editedAt: Date,
   seenBy: [{ 
     userId: mongoose.Schema.Types.ObjectId, 
     username: String,
@@ -74,8 +76,9 @@ app.use(session({
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: MONGODB_URI }),
   cookie: { 
-    maxAge: 24 * 60 * 60 * 1000, // 24 saat
-    httpOnly: true 
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 gün
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production'
   }
 }));
 
@@ -122,19 +125,24 @@ async function getCountryFromIP(ip) {
   }
 }
 
-// API: Oturum kontrolü
+// API: Oturum kontrolü - ÖNEMLİ DEĞİŞİKLİK
 app.get('/api/check-session', async (req, res) => {
   try {
+    console.log('🔍 Checking session for userId:', req.session.userId);
+    
     if (!req.session.userId) {
+      console.log('❌ No session found');
       return res.json({ authenticated: false });
     }
 
     const user = await User.findById(req.session.userId);
     if (!user) {
+      console.log('❌ User not found in DB');
       req.session.destroy();
       return res.json({ authenticated: false });
     }
 
+    console.log('✅ Session valid for user:', user.email);
     return res.json({ 
       authenticated: true, 
       user: {
@@ -228,6 +236,7 @@ app.post('/api/verify-code', async (req, res) => {
       await user.save();
     }
 
+    // ÖNEMLİ: Session oluştur - 30 gün hatırlasın
     req.session.userId = user._id.toString();
     req.session.email = email;
 
@@ -248,7 +257,7 @@ app.post('/api/verify-code', async (req, res) => {
   }
 });
 
-// API: profile-setup (Profil fotoğrafı upload desteği)
+// API: profile-setup
 app.post('/api/profile-setup', async (req, res) => {
   try {
     const { username, profilePhoto, nameColor } = req.body;
@@ -269,6 +278,45 @@ app.post('/api/profile-setup', async (req, res) => {
     return res.json({ success: true, user });
   } catch (err) {
     console.error('profile-setup error', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// API: Mesaj düzenleme
+app.put('/api/messages/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { newMessage, userId } = req.body;
+    
+    if (!req.session.userId || req.session.userId !== userId) {
+      return res.status(401).json({ success: false, error: 'Not authorized' });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, error: 'Message not found' });
+    }
+
+    if (message.userId.toString() !== userId) {
+      return res.status(403).json({ success: false, error: 'Can only edit your own messages' });
+    }
+
+    message.message = newMessage;
+    message.edited = true;
+    message.editedAt = new Date();
+    
+    await message.save();
+
+    // Düzenlenen mesajı tüm kullanıcılara bildir
+    io.to(message.serverId).emit('message-edited', {
+      messageId: message._id,
+      newMessage: message.message,
+      editedAt: message.editedAt
+    });
+
+    return res.json({ success: true, message });
+  } catch (err) {
+    console.error('edit-message error', err);
     return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
@@ -343,6 +391,29 @@ io.on('connection', (socket) => {
     try {
       console.log('📨 Sending message:', data);
       
+      // ÖNCE mesajı istemciye göster (gecikme olmasın)
+      const tempMessage = {
+        _id: 'temp-' + Date.now(),
+        serverId: data.serverId,
+        userId: data.userId,
+        username: data.username,
+        nameColor: data.nameColor,
+        profilePhoto: data.profilePhoto,
+        message: data.message,
+        timestamp: new Date(),
+        seenBy: [{
+          userId: data.userId,
+          username: data.username,
+          seenAt: new Date()
+        }],
+        seenCount: 1,
+        isTemp: true
+      };
+      
+      // Mesajı hemen göster (gecikme olmasın)
+      socket.emit('new-message', tempMessage);
+      
+      // Sonra DB'ye kaydet ve herkese gönder
       const msg = await Message.create({
         serverId: data.serverId,
         userId: data.userId,
@@ -360,7 +431,6 @@ io.on('connection', (socket) => {
       
       console.log('✅ Message saved to DB:', msg._id);
       
-      // Mesajı TÜM kullanıcılara gönder (gönderen de dahil)
       const messageWithSeen = {
         ...msg.toObject(),
         seenCount: 1,
@@ -371,12 +441,19 @@ io.on('connection', (socket) => {
         }]
       };
       
-      // ÖNEMLİ: io.to() yerine io.emit() kullanıyoruz ki gönderen de görsün
-      io.to(data.serverId).emit('new-message', messageWithSeen);
-      console.log('📢 Message emitted to room:', data.serverId);
+      // Temp mesajı gerçek mesajla değiştir
+      socket.emit('message-replaced', {
+        tempId: tempMessage._id,
+        realMessage: messageWithSeen
+      });
+      
+      // Diğer kullanıcılara gerçek mesajı gönder
+      socket.to(data.serverId).emit('new-message', messageWithSeen);
       
     } catch (err) {
       console.error('send-message error', err);
+      // Hata durumunda temp mesajı kaldır
+      socket.emit('message-failed', { tempId: 'temp-' + Date.now() });
     }
   });
 
@@ -404,6 +481,35 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error('message-seen error', err);
+    }
+  });
+
+  // Mesaj düzenleme socket event'i
+  socket.on('edit-message', async (data) => {
+    try {
+      const { messageId, newMessage, userId } = data;
+      
+      const message = await Message.findById(messageId);
+      if (!message || message.userId.toString() !== userId) {
+        socket.emit('edit-message-error', { error: 'Not authorized' });
+        return;
+      }
+
+      message.message = newMessage;
+      message.edited = true;
+      message.editedAt = new Date();
+      
+      await message.save();
+
+      io.to(message.serverId).emit('message-edited', {
+        messageId: message._id,
+        newMessage: message.message,
+        editedAt: message.editedAt
+      });
+
+    } catch (err) {
+      console.error('edit-message socket error', err);
+      socket.emit('edit-message-error', { error: 'Server error' });
     }
   });
 
