@@ -1,4 +1,4 @@
-// server.js - Explanations inline where important
+// server.js
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -9,30 +9,28 @@ const MongoStore = require('connect-mongo');
 const nodemailer = require('nodemailer');
 const geoip = require('geoip-lite');
 const path = require('path');
-const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" } // adjust origin for production
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this_secret';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this_in_env';
 
-// ---------- MongoDB ----------
 if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI missing in .env');
+  console.error('❌ MONGODB_URI missing in .env — set it and restart.');
   process.exit(1);
 }
+
+// ---------- MongoDB ----------
 mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(()=>console.log('✅ MongoDB Connected'))
-  .catch(err=>{ console.error('❌ MongoDB Error:', err); process.exit(1); });
+  .catch(err => { console.error('❌ MongoDB Error:', err); process.exit(1); });
 
 // ---------- Schemas ----------
 const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, index: true, unique: true },
+  email: { type: String, required: true, unique: true },
   username: String,
   profilePhoto: String,
   nameColor: { type: String, default: '#4285F4' },
@@ -56,14 +54,14 @@ const messageSchema = new mongoose.Schema({
 const verificationSchema = new mongoose.Schema({
   email: { type: String, required: true, index: true },
   code: String,
-  createdAt: { type: Date, default: Date.now, expires: 300 } // expires in 5 minutes
+  createdAt: { type: Date, default: Date.now, expires: 300 } // 5 minutes TTL
 });
 
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 const Verification = mongoose.model('Verification', verificationSchema);
 
-// ---------- Session store ----------
+// ---------- Session (stored in Mongo) ----------
 const sessionMiddleware = session({
   secret: SESSION_SECRET,
   resave: false,
@@ -78,69 +76,56 @@ const sessionMiddleware = session({
 });
 app.use(sessionMiddleware);
 
-// Make session available in socket.io
-io.use((socket, next) => {
-  sessionMiddleware(socket.request, {}, next);
-});
-
-// ---------- Middleware ----------
+// Make express use json & static
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------- Mail transporter ----------
+// Attach session to socket requests
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, {}, next);
+});
+
+// ---------- Mail transporter (optional) ----------
 let transporter = null;
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
   transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587,
+    port: parseInt(process.env.SMTP_PORT || '587'),
     secure: false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
   });
-  // verify transporter (non-blocking)
-  transporter.verify().then(()=>console.log('✅ SMTP ready')).catch(err=>console.warn('⚠️ SMTP not ready:', err.message));
+  transporter.verify().then(()=>console.log('✅ SMTP ready')).catch(e=>console.warn('⚠️ SMTP verify failed:', e.message));
 } else {
-  console.log('ℹ️ SMTP not configured — codes will be printed to console (for testing).');
+  console.log('ℹ️ SMTP not configured — verification codes will be printed to server console (dev fallback).');
 }
 
 // ---------- Helpers ----------
 function genCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+  return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit string
+}
+function normalizeEmail(e) {
+  return (e || '').toString().trim().toLowerCase();
 }
 function getCountryFromIp(ip) {
   if (!ip) return 'TR';
-  // x-forwarded-for may contain comma list
   if (ip.includes(',')) ip = ip.split(',')[0].trim();
-  // remove ipv6 prefix
   if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
   const geo = geoip.lookup(ip);
   return (geo && geo.country) ? geo.country : 'TR';
 }
 function serverForCountry(country) {
-  // map some countries to server codes — extend as needed
-  const mapping = {
-    'TR': 'TR',
-    'US': 'US',
-    'GB': 'GB',
-    'DE': 'DE',
-    'FR': 'FR',
-    'KR': 'KR',
-    'JP': 'JP',
-    'CN': 'CN'
-  };
+  const mapping = { TR:'TR', US:'US', GB:'GB', DE:'DE', FR:'FR', KR:'KR', JP:'JP', CN:'CN' };
   return mapping[country] || country || 'TR';
 }
 
-// ---------- API: send code ----------
+// ---------- API: send-code ----------
 app.post('/api/send-code', async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
     if (!email) return res.json({ success: false, error: 'Missing email' });
 
-    // remove existing code for this email
+    // Remove old codes
     await Verification.deleteMany({ email });
 
     const code = genCode();
@@ -153,46 +138,55 @@ app.post('/api/send-code', async (req, res) => {
         subject: 'Global Chat - Doğrulama Kodu',
         text: `Doğrulama kodunuz: ${code} (5 dakika geçerli)`
       });
+      console.log(`Sent verification email to ${email}`);
+      return res.json({ success: true });
     } else {
       console.log(`[DEV] Verification code for ${email}: ${code}`);
+      // dev-debug: include devCode so client testing is easy (remove in prod)
+      return res.json({ success: true, devCode: code });
     }
-
-    return res.json({ success: true });
   } catch (err) {
     console.error('send-code error', err);
     return res.json({ success: false, error: 'Server error' });
   }
 });
 
-// ---------- API: verify code ----------
+// ---------- API: verify-code ----------
 app.post('/api/verify-code', async (req, res) => {
   try {
-    const { email, code } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const code = (req.body.code || '').toString().trim();
+    console.log(`[VERIFY ATTEMPT] email=${email} code=${code} ip=${req.ip}`);
+
     if (!email || !code) return res.json({ success: false, error: 'Missing fields' });
 
     const record = await Verification.findOne({ email, code });
-    if (!record) return res.json({ success: false, error: 'Invalid code' });
+    if (!record) {
+      const existing = await Verification.find({ email }).lean();
+      console.log(`[VERIFY FAIL] existing codes for ${email}:`, existing);
+      return res.json({ success: false, error: 'Invalid code' });
+    }
 
-    // Create or fetch a user placeholder (email only) but don't force username yet
+    // success: fetch/create user placeholder
     let user = await User.findOne({ email });
     if (!user) {
-      // generate basic avatar via ui-avatars or pravatar
+      const usernameBase = email.split('@')[0];
       user = await User.create({
         email,
-        username: email.split('@')[0],
-        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0])}&background=667eea&color=fff`,
-        country: null,
-        server: null
+        username: usernameBase,
+        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(usernameBase)}&background=667eea&color=fff`,
+        nameColor: '#4285F4'
       });
     }
 
-    // put userId in session for persistence
+    // put into session
     req.session.userId = user._id.toString();
     req.session.email = email;
 
-    // delete used code
+    // delete verification records
     await Verification.deleteMany({ email });
 
+    console.log(`[VERIFY SUCCESS] ${email} -> userId=${user._id}`);
     return res.json({ success: true, user: { _id: user._id, email: user.email } });
   } catch (err) {
     console.error('verify-code error', err);
@@ -200,13 +194,12 @@ app.post('/api/verify-code', async (req, res) => {
   }
 });
 
-// ---------- API: profile setup ----------
+// ---------- API: profile-setup ----------
 app.post('/api/profile-setup', async (req, res) => {
   try {
     const { username, profilePhoto, nameColor, country } = req.body;
     const sessionUserId = req.session.userId;
     const email = req.session.email;
-
     if (!sessionUserId || !email) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
     const serverCode = serverForCountry(country || getCountryFromIp(req.ip));
@@ -220,9 +213,7 @@ app.post('/api/profile-setup', async (req, res) => {
       lastSeen: new Date()
     }, { new: true, upsert: true });
 
-    // keep userId in session
     req.session.userId = user._id.toString();
-
     return res.json({ success: true, user });
   } catch (err) {
     console.error('profile-setup error', err);
@@ -238,83 +229,73 @@ app.get('/api/user', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Not authenticated' });
     return res.json({ user });
   } catch (err) {
+    console.error('api/user error', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ---------- API: messages for server ----------
+// ---------- API: messages ----------
 app.get('/api/messages/:serverId', async (req, res) => {
   try {
-    const messages = await Message.find({ serverId: req.params.serverId })
+    const msgs = await Message.find({ serverId: req.params.serverId })
       .sort({ timestamp: -1 })
       .limit(100);
-    return res.json(messages.reverse());
+    return res.json(msgs.reverse());
   } catch (err) {
+    console.error('api/messages error', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
 
 // ---------- Logout ----------
 app.get('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/');
-  });
+  req.session.destroy(() => res.redirect('/'));
 });
 
-// ---------- Socket.io logic ----------
-/*
-  - rooms = serverId (like 'TR', 'US', etc.)
-  - track online counts per room
-*/
-const roomUsers = new Map(); // roomId -> Set(socket.id)
-const socketUserMap = new Map(); // socket.id -> { userId, roomId }
+// ---------- Socket.io: rooms & messaging ----------
+const roomUsers = new Map(); // room -> Set of socket ids
+const socketToMeta = new Map(); // socket.id -> { userId, roomId }
 
 io.on('connection', (socket) => {
-  // When client joins a server (room)
-  socket.on('join-server', async (payload) => {
+  // join-server: payload { userId, serverId, username, nameColor, profilePhoto }
+  socket.on('join-server', (payload) => {
     try {
-      // payload expected: { userId, serverId, username, nameColor, profilePhoto }
       const { userId, serverId } = payload;
-      if (!serverId || !userId) return;
-
+      if (!userId || !serverId) return;
       socket.join(serverId);
-      socketUserMap.set(socket.id, { userId, roomId: serverId });
+      socketToMeta.set(socket.id, { userId, roomId: serverId });
 
       if (!roomUsers.has(serverId)) roomUsers.set(serverId, new Set());
       roomUsers.get(serverId).add(socket.id);
 
-      // emit online count to room
       const count = roomUsers.get(serverId).size;
       io.to(serverId).emit('update-users', count);
 
-      // update user's lastSeen in DB (fire and forget)
+      // update lastSeen asynchronously
       User.findByIdAndUpdate(userId, { lastSeen: new Date(), server: serverId }).catch(()=>{});
     } catch (err) {
       console.error('join-server error', err);
     }
   });
 
-  // send-message
   socket.on('send-message', async (data) => {
     try {
-      // data: { serverId, userId, username, nameColor, profilePhoto, message, timestamp }
-      const msg = await Message.create({
+      // create message
+      const m = await Message.create({
         serverId: data.serverId,
         userId: data.userId,
         username: data.username,
         nameColor: data.nameColor,
         profilePhoto: data.profilePhoto,
         message: data.message,
-        timestamp: data.timestamp || new Date()
+        timestamp: data.timestamp ? new Date(data.timestamp) : new Date()
       });
-
-      io.to(data.serverId).emit('new-message', msg);
+      io.to(data.serverId).emit('new-message', m);
     } catch (err) {
       console.error('send-message error', err);
     }
   });
 
-  // edit message
   socket.on('edit-message', async ({ messageId, newMessage }) => {
     try {
       const msg = await Message.findByIdAndUpdate(messageId, { message: newMessage, edited: true, editedAt: new Date() }, { new: true });
@@ -324,13 +305,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  // message-seen
   socket.on('message-seen', async ({ messageId, userId }) => {
     try {
       const msg = await Message.findById(messageId);
       if (!msg) return;
-      const already = msg.seenBy.some(s => s.userId?.toString() === userId?.toString());
-      if (!already) {
+      if (!msg.seenBy.some(s => s.userId?.toString() === userId?.toString())) {
         msg.seenBy.push({ userId, seenAt: new Date() });
         await msg.save();
         io.to(msg.serverId).emit('message-seen-update', { messageId: msg._id, seenCount: msg.seenBy.length });
@@ -340,12 +319,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  // disconnect
   socket.on('disconnect', () => {
-    const mapping = socketUserMap.get(socket.id);
-    if (mapping) {
-      const { roomId } = mapping;
-      socketUserMap.delete(socket.id);
+    const meta = socketToMeta.get(socket.id);
+    if (meta) {
+      const { roomId } = meta;
+      socketToMeta.delete(socket.id);
       if (roomUsers.has(roomId)) {
         roomUsers.get(roomId).delete(socket.id);
         io.to(roomId).emit('update-users', roomUsers.get(roomId).size);
@@ -354,8 +332,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// ---------- Serve index.html ----------
+// serve index
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// ---------- Start ----------
+// start
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
