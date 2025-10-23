@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Global Chat</title>
 <style>
-/* ---- Styles (responsive, readable) ---- */
+/* Comprehensive UI that includes avatar, color, time, responsive */
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
 .container{width:100%;max-width:920px;background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:hidden}
-.left{width:40%;min-height:500px;padding:24px;background:#fafafa;border-right:1px solid #eee}
-.right{width:60%;min-height:500px;padding:16px;display:flex;flex-direction:column}
+.left{width:36%;min-height:560px;padding:24px;background:#fafafa;border-right:1px solid #eee}
+.right{width:64%;min-height:560px;padding:16px;display:flex;flex-direction:column}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 h2{font-size:18px;color:#222}
 .small{font-size:13px;color:#666}
 .form-group{margin-bottom:12px}
 label{display:block;margin-bottom:6px;font-weight:600;color:#444}
-input[type="text"],input[type="email"],input[type="color"],input[type="password"]{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd}
+input[type="text"],input[type="email"],input[type="color"]{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd}
 button{padding:10px 14px;border-radius:8px;border:0;background:linear-gradient(90deg,#4f46e5,#9333ea);color:#fff;font-weight:700;cursor:pointer}
 .button-ghost{background:transparent;border:1px solid #ddd;color:#333}
 .hidden{display:none!important}
@@ -41,35 +41,20 @@ button{padding:10px 14px;border-radius:8px;border:0;background:linear-gradient(9
       </div>
 
       <div id="loginBox">
-        <div class="form-group">
-          <label>Email</label>
-          <input id="emailInput" type="email" placeholder="you@example.com" />
-        </div>
+        <div class="form-group"><label>Email</label><input id="emailInput" type="email" placeholder="you@example.com" /></div>
         <button id="sendCodeBtn">Kodu Gönder</button>
 
         <div id="codeBox" class="hidden" style="margin-top:12px">
-          <div class="form-group">
-            <label>Doğrulama Kodu</label>
-            <input id="codeInput" type="text" placeholder="6 haneli kod" />
-          </div>
+          <div class="form-group"><label>Doğrulama Kodu</label><input id="codeInput" type="text" placeholder="6 haneli kod" /></div>
           <button id="verifyBtn" class="button-ghost">Doğrula</button>
         </div>
       </div>
 
       <div id="profileBox" class="hidden">
         <h2>Profil Ayarları</h2>
-        <div class="form-group">
-          <label>Kullanıcı Adı</label>
-          <input id="usernameInput" type="text" placeholder="Görünen adınız" />
-        </div>
-        <div class="form-group">
-          <label>Avatar URL (opsiyonel)</label>
-          <input id="avatarInput" type="text" placeholder="https://..." />
-        </div>
-        <div class="form-group">
-          <label>İsim Rengi</label>
-          <input id="colorInput" type="color" value="#4285F4" />
-        </div>
+        <div class="form-group"><label>Kullanıcı Adı</label><input id="usernameInput" type="text" placeholder="Görünen adınız" /></div>
+        <div class="form-group"><label>Avatar URL (opsiyonel)</label><input id="avatarInput" type="text" placeholder="https://..." /></div>
+        <div class="form-group"><label>İsim Rengi</label><input id="colorInput" type="color" value="#4285F4" /></div>
         <button id="saveProfileBtn">Kaydet ve Sohbete Katıl</button>
       </div>
 
@@ -80,10 +65,7 @@ button{padding:10px 14px;border-radius:8px;border:0;background:linear-gradient(9
 
     <div class="right">
       <div class="header">
-        <div>
-          <h2>🌍 Global Chat</h2>
-          <div class="small">Konum bazlı odalar — sağ üstten çıkış yapabilirsin</div>
-        </div>
+        <div><h2>🌍 Global Chat</h2><div class="small">Konum bazlı odalar</div></div>
         <div class="small">Çevrimiçi: <span id="onlineCount">0</span></div>
       </div>
 
@@ -102,121 +84,132 @@ button{padding:10px 14px;border-radius:8px;border:0;background:linear-gradient(9
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-/* Client logic:
- - call /api/send-code  -> server emails code (or console.log)
- - call /api/verify-code -> server validates and creates session (server side)
- - call /api/profile-setup -> server fills user profile and returns user
- - then socket.io join-server with serverId (country-based)
- - send messages via socket.io, messages persisted server-side, broadcast to room
-*/
-
-let socket = null;
-let currentUser = null;
-
-async function postJSON(url, data) {
-  const res = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-  return res.json();
+async function postJSON(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  return r.json();
 }
 
-// send code
-document.getElementById('sendCodeBtn').addEventListener('click', async () => {
-  const email = document.getElementById('emailInput').value.trim();
+// UI elements
+const sendCodeBtn = document.getElementById('sendCodeBtn');
+const verifyBtn = document.getElementById('verifyBtn');
+const sendCodeInput = document.getElementById('emailInput');
+const codeBox = document.getElementById('codeBox');
+const loginBox = document.getElementById('loginBox');
+const profileBox = document.getElementById('profileBox');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const messagesEl = document.getElementById('messages');
+const sendBtn = document.getElementById('sendBtn');
+const messageInput = document.getElementById('messageInput');
+const onlineCountEl = document.getElementById('onlineCount');
+
+// events
+sendCodeBtn.addEventListener('click', async () => {
+  const email = (sendCodeInput.value || '').trim();
   if (!email) return alert('Email girin');
-  const r = await postJSON('/api/send-code', { email });
-  if (r.success) {
-    document.getElementById('codeBox').classList.remove('hidden');
+  const res = await postJSON('/api/send-code', { email });
+  if (res.success) {
+    codeBox.classList.remove('hidden');
     document.getElementById('infoBox').classList.remove('hidden');
-    alert('Kod gönderildi. E-postanı kontrol et.');
+    // if devCode returned, show small toast so you can test quickly (remove for prod)
+    if (res.devCode) {
+      alert('DEV: Kod (sunucu konsoluna da yazıldı): ' + res.devCode);
+    } else {
+      alert('Kod gönderildi. Posta kutunuzu kontrol edin.');
+    }
   } else {
-    alert('Kod gönderilemedi: ' + (r.error || 'unknown'));
+    alert('Kodu gönderirken hata: ' + (res.error || 'unknown'));
   }
 });
 
-// verify code
-document.getElementById('verifyBtn').addEventListener('click', async () => {
-  const email = document.getElementById('emailInput').value.trim();
-  const code = document.getElementById('codeInput').value.trim();
+verifyBtn.addEventListener('click', async () => {
+  const email = (sendCodeInput.value || '').trim();
+  const code = (document.getElementById('codeInput').value || '').trim();
   if (!email || !code) return alert('Email ve kod gerekli');
   const res = await postJSON('/api/verify-code', { email, code });
   if (res.success) {
-    // server set session
-    currentUser = { email };
-    document.getElementById('loginBox').classList.add('hidden');
-    document.getElementById('profileBox').classList.remove('hidden');
-    alert('Doğrulama başarılı — profil oluştur.');
+    loginBox.classList.add('hidden');
+    profileBox.classList.remove('hidden');
+    alert('Doğrulama başarılı. Profil oluşturun.');
   } else {
-    alert('Kod hatalı veya süresi doldu.');
+    alert('Doğrulama başarısız: ' + (res.error || 'Kod hatalı veya süresi doldu'));
   }
 });
 
-// save profile
-document.getElementById('saveProfileBtn').addEventListener('click', async () => {
-  const username = document.getElementById('usernameInput').value.trim();
-  const avatar = document.getElementById('avatarInput').value.trim();
-  const nameColor = document.getElementById('colorInput').value;
+saveProfileBtn.addEventListener('click', async () => {
+  const username = (document.getElementById('usernameInput').value || '').trim();
+  const avatar = (document.getElementById('avatarInput').value || '').trim();
+  const color = (document.getElementById('colorInput').value || '').trim();
   if (!username) return alert('Kullanıcı adı gerekli');
-
-  const res = await postJSON('/api/profile-setup', { username, profilePhoto: avatar || undefined, nameColor, country: null });
+  const res = await postJSON('/api/profile-setup', { username, profilePhoto: avatar || undefined, nameColor: color || undefined, country: null });
   if (res.success) {
-    currentUser = res.user;
-    startChat();
-    document.getElementById('profileBox').classList.add('hidden');
+    startChat(res.user);
+    profileBox.classList.add('hidden');
   } else {
     alert('Profil kaydedilemedi: ' + (res.error || 'server error'));
   }
 });
 
-// start chat after profile exists
-async function startChat() {
-  // connect socket
+let socket = null;
+let currentUser = null;
+
+async function startChat(user) {
+  // get maybe updated user from server
+  const r = await fetch('/api/user');
+  if (!r.ok) return alert('Kullanıcı oturumu yok — sayfayı yenileyip yeniden deneyin.');
+  const dj = await r.json();
+  currentUser = dj.user;
+
   socket = io();
 
-  // join server: use user's server (from profile). If not present, fetch country and server assignment via /api/user
-  const userResp = await fetch('/api/user');
-  if (!userResp.ok) { alert('Oturum yok'); return; }
-  const { user } = await userResp.json();
-  currentUser = user;
+  const serverId = currentUser.server || 'TR';
+  socket.emit('join-server', { userId: currentUser._id, serverId, username: currentUser.username, nameColor: currentUser.nameColor, profilePhoto: currentUser.profilePhoto });
 
-  const serverId = user.server || 'TR';
-  socket.emit('join-server', { userId: user._id, serverId, username: user.username, nameColor: user.nameColor, profilePhoto: user.profilePhoto });
-
-  // fetch last messages
+  // load messages
   const msgsRes = await fetch('/api/messages/' + encodeURIComponent(serverId));
   if (msgsRes.ok) {
     const msgs = await msgsRes.json();
     msgs.forEach(renderMessage);
   }
 
-  // listeners
   socket.on('new-message', msg => renderMessage(msg));
-  socket.on('update-users', count => document.getElementById('onlineCount').innerText = count);
-  socket.on('message-edited', data => {
-    // update DOM element if present (simple implementation)
-    const el = document.querySelector(`[data-msg-id="${data.messageId}"] .message-text`);
-    if (el) el.innerText = data.newMessage + ' (düzenlendi)';
+  socket.on('update-users', count => onlineCountEl.innerText = count);
+  socket.on('message-edited', d => {
+    const el = document.querySelector(`[data-msg-id="${d.messageId}"] .text`);
+    if (el) el.innerText = d.newMessage + ' (düzenlendi)';
   });
-  socket.on('message-seen-update', data => {
-    // optional: update seen count
-    const el = document.querySelector(`[data-msg-id="${data.messageId}"] .seen-count`);
-    if (el) el.innerText = data.seenCount;
+  socket.on('message-seen-update', d => {
+    const el = document.querySelector(`[data-msg-id="${d.messageId}"] .seen-count`);
+    if (el) el.innerText = d.seenCount;
   });
-
-  // enable chat UI
-  document.getElementById('chatArea').style.display = 'flex';
 }
 
-// send message
-document.getElementById('sendBtn').addEventListener('click', sendMessage);
-document.getElementById('messageInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendMessage();
-});
+function renderMessage(msg) {
+  const el = document.createElement('div');
+  el.className = 'message';
+  el.setAttribute('data-msg-id', msg._id || '');
+  const avatar = msg.profilePhoto || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(msg.username || 'anon'));
+  const time = new Date(msg.timestamp).toLocaleTimeString();
+  el.innerHTML = `
+    <img class="avatar" src="${avatar}" />
+    <div class="bubble">
+      <div class="meta">
+        <div class="username" style="color:${msg.nameColor || '#333'}">${escapeHtml(msg.username || 'Anon')}</div>
+        <div class="time">${time}</div>
+      </div>
+      <div class="text">${escapeHtml(msg.message)}</div>
+    </div>
+  `;
+  messagesEl.appendChild(el);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+sendBtn.addEventListener('click', sendMessage);
+messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
 function sendMessage() {
-  const txtEl = document.getElementById('messageInput');
-  const text = txtEl.value.trim();
+  const text = (messageInput.value || '').trim();
   if (!text) return;
-  if (!socket || !currentUser) return alert('Oturum yok');
-
+  if (!socket || !currentUser) return alert('Sohbet başlatılmadı');
   const payload = {
     serverId: currentUser.server || 'TR',
     userId: currentUser._id,
@@ -227,31 +220,11 @@ function sendMessage() {
     timestamp: new Date().toISOString()
   };
   socket.emit('send-message', payload);
-  txtEl.value = '';
+  messageInput.value = '';
 }
 
-function renderMessage(msg) {
-  const messages = document.getElementById('messages');
-  const el = document.createElement('div');
-  el.className = 'message';
-  el.setAttribute('data-msg-id', msg._id || '');
-  el.innerHTML = `
-    <img class="avatar" src="${msg.profilePhoto || 'https://ui-avatars.com/api/?name='+encodeURIComponent(msg.username||'anon')}" />
-    <div class="bubble">
-      <div class="meta"><div class="username" style="color:${msg.nameColor||'#333'}">${escapeHtml(msg.username||'Anon')}</div><div class="time">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>
-      <div class="text">${escapeHtml(msg.message)}</div>
-    </div>
-  `;
-  messages.appendChild(el);
-  messages.scrollTop = messages.scrollHeight;
-}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// quick logout (reload)
-function logout() { fetch('/logout').then(()=>location.reload()); }
-
-// optional: auto-detect country and show server selection in future
 </script>
 </body>
 </html>
