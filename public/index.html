@@ -292,6 +292,18 @@
             text-align: center;
             border: 1px solid #bbdefb;
         }
+        
+        .logout-btn {
+            background: #e74c3c;
+            width: auto;
+            padding: 8px 15px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .logout-btn:hover {
+            background: #c0392b;
+        }
     </style>
 </head>
 <body>
@@ -343,6 +355,7 @@
             </div>
             
             <button onclick="saveProfile()">Kaydet ve Sohbete Gir</button>
+            <button class="logout-btn" onclick="logout()">Çıkış Yap</button>
             <div id="profileError" class="error" style="display: none;"></div>
         </div>
 
@@ -376,6 +389,7 @@
                     </button>
                 </div>
             </div>
+            <button class="logout-btn" onclick="logout()" style="margin-top: 15px;">Çıkış Yap</button>
         </div>
     </div>
 
@@ -386,6 +400,51 @@
         let currentServer = null;
         let typingTimer = null;
         let isTyping = false;
+
+        // Sayfa yüklendiğinde oturum kontrolü
+        document.addEventListener('DOMContentLoaded', async function() {
+            await checkSession();
+            updateColorPreview();
+        });
+
+        // Oturum kontrolü
+        async function checkSession() {
+            try {
+                const response = await fetch('/api/check-session');
+                const data = await response.json();
+                
+                if (data.authenticated && data.user) {
+                    currentUser = data.user;
+                    currentServer = data.user.country || 'TR';
+                    
+                    // Doğrudan sohbete yönlendir
+                    showScreen('chatScreen');
+                    initializeChat();
+                }
+            } catch (error) {
+                console.error('Session check error:', error);
+            }
+        }
+
+        // Çıkış işlemi
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                currentUser = null;
+                currentServer = null;
+                if (socket) {
+                    socket.disconnect();
+                    socket = null;
+                }
+                showScreen('loginScreen');
+                // Formları temizle
+                document.getElementById('email').value = '';
+                document.getElementById('code').value = '';
+                document.getElementById('codeSection').style.display = 'none';
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
 
         // Renk önizleme güncelleme
         function updateColorPreview() {
@@ -561,14 +620,18 @@
                 document.getElementById('onlineCount').textContent = `Online: ${count}`;
             });
 
-            // Yeni mesaj
+            // Yeni mesaj - ÖNEMLİ: Kendi mesajım da dahil tüm mesajlar burada
             socket.on('new-message', (message) => {
+                console.log('📨 New message received:', message);
                 addMessageToChat(message);
-                // Mesajı görüldü olarak işaretle
-                socket.emit('message-seen', {
-                    messageId: message._id,
-                    userId: currentUser._id
-                });
+                
+                // Kendi mesajım değilse görüldü olarak işaretle
+                if (message.userId !== currentUser._id) {
+                    socket.emit('message-seen', {
+                        messageId: message._id,
+                        userId: currentUser._id
+                    });
+                }
             });
 
             // Görülme güncellemesi
@@ -597,11 +660,13 @@
                 
                 messages.forEach(message => {
                     addMessageToChat(message);
-                    // Mesajı görüldü olarak işaretle
-                    socket.emit('message-seen', {
-                        messageId: message._id,
-                        userId: currentUser._id
-                    });
+                    // Kendi mesajım değilse görüldü olarak işaretle
+                    if (message.userId !== currentUser._id) {
+                        socket.emit('message-seen', {
+                            messageId: message._id,
+                            userId: currentUser._id
+                        });
+                    }
                 });
                 
                 scrollToBottom();
@@ -629,7 +694,10 @@
                 message: message
             };
 
+            console.log('🚀 Sending message:', messageData);
             socket.emit('send-message', messageData);
+            
+            // Input'u temizle
             input.value = '';
             autoResize(input);
         }
@@ -638,6 +706,13 @@
         function addMessageToChat(message) {
             const messagesDiv = document.getElementById('messages');
             const isOwn = message.userId === currentUser._id;
+            
+            // Aynı mesaj zaten ekli mi kontrol et
+            const existingMessage = document.querySelector(`[data-message-id="${message._id}"]`);
+            if (existingMessage) {
+                console.log('⚠️ Message already exists:', message._id);
+                return;
+            }
             
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
@@ -665,6 +740,8 @@
             
             messagesDiv.appendChild(messageDiv);
             scrollToBottom();
+            
+            console.log('✅ Message added to chat:', message._id);
         }
 
         // Görülme bilgisini güncelle
@@ -761,9 +838,6 @@
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
         }
-
-        // Sayfa yüklendiğinde renk önizlemeyi ayarla
-        document.addEventListener('DOMContentLoaded', updateColorPreview);
     </script>
 </body>
 </html>
