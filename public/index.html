@@ -1,165 +1,257 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🌍 Global Chat</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Global Chat</title>
 <style>
-/* ---------- Genel Stil ---------- */
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;}
-
-/* ---------- Containerlar ---------- */
-.login-container,.profile-setup,.chat-container{background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:40px;max-width:500px;width:90%;text-align:center;transition:all 0.3s;}
-.hidden{display:none !important;}
-
-/* ---------- Login ---------- */
-.login-container h1{color:#333;margin-bottom:30px;font-size:32px;}
-.form-group{margin-bottom:20px;text-align:left;}
-.form-group label{display:block;margin-bottom:8px;color:#555;font-weight:600;}
-.form-group input{width:100%;padding:12px;border:2px solid #ddd;border-radius:10px;font-size:16px;transition:border 0.3s;}
-.form-group input:focus{outline:none;border-color:#667eea;}
-.send-code-btn,.verify-code-btn,.save-btn,.send-btn,.logout-btn{padding:15px;font-size:16px;font-weight:600;border:none;border-radius:10px;cursor:pointer;transition:all 0.3s;}
-.send-code-btn,.verify-code-btn,.save-btn,.send-btn{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;width:100%;margin-top:10px;}
-.logout-btn{background:rgba(255,255,255,0.2);color:white;border:2px solid white;padding:10px 20px;border-radius:20px;}
-.logout-btn:hover{background:white;color:#667eea;}
-
-/* ---------- Profil Setup ---------- */
-.profile-setup h2{margin-bottom:25px;color:#333;}
-.profile-setup input[type=color]{padding:0;width:50px;height:50px;border:none;cursor:pointer;}
-
-/* ---------- Chat ---------- */
-.chat-container .chat-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;}
-.chat-container .chat-header h2{margin-bottom:5px;}
-.messages-area{height:60vh;overflow-y:auto;padding:20px;background:#f5f5f5;border-radius:15px;}
-.message{display:flex;gap:15px;margin-bottom:20px;align-items:flex-start;}
-.message-avatar{width:45px;height:45px;border-radius:50%;object-fit:cover;flex-shrink:0;}
-.message-content{flex:1;background:white;padding:12px 15px;border-radius:15px;box-shadow:0 2px 5px rgba(0,0,0,0.1);}
-.message-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
-.message-username{font-weight:600;font-size:15px;}
-.message-time{font-size:12px;color:#999;}
-.message-text{color:#333;line-height:1.5;word-wrap:break-word;}
-.message-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:#999;}
-.typing-indicator{padding:10px 20px;font-size:14px;color:#667eea;font-style:italic;display:none;}
-.chat-input-container{display:flex;gap:10px;padding:20px;}
-
-/* ---------- Responsive ---------- */
-@media(max-width:768px){.login-container,.profile-setup{padding:30px 20px;}.messages-area{height:50vh;}}
+/* ---- Styles (responsive, readable) ---- */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.container{width:100%;max-width:920px;background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:hidden}
+.left{width:40%;min-height:500px;padding:24px;background:#fafafa;border-right:1px solid #eee}
+.right{width:60%;min-height:500px;padding:16px;display:flex;flex-direction:column}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+h2{font-size:18px;color:#222}
+.small{font-size:13px;color:#666}
+.form-group{margin-bottom:12px}
+label{display:block;margin-bottom:6px;font-weight:600;color:#444}
+input[type="text"],input[type="email"],input[type="color"],input[type="password"]{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd}
+button{padding:10px 14px;border-radius:8px;border:0;background:linear-gradient(90deg,#4f46e5,#9333ea);color:#fff;font-weight:700;cursor:pointer}
+.button-ghost{background:transparent;border:1px solid #ddd;color:#333}
+.hidden{display:none!important}
+.messages{flex:1;overflow:auto;padding:12px;background:#f5f7fb;border-radius:8px}
+.input-row{display:flex;gap:10px;padding:12px;border-top:1px solid #eee}
+.message{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start}
+.avatar{width:44px;height:44px;border-radius:50%;background:#ddd;flex-shrink:0;object-fit:cover}
+.bubble{background:#fff;padding:10px;border-radius:10px;box-shadow:0 2px 8px rgba(10,10,10,0.06);max-width:78%}
+.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.username{font-weight:700}
+.time{font-size:12px;color:#888}
+@media(max-width:900px){.left{display:none}.right{width:100%}}
 </style>
 </head>
 <body>
+<div class="container">
+  <div style="display:flex;flex-wrap:wrap">
+    <div class="left" id="leftPanel">
+      <div class="header">
+        <h2>Giriş / Doğrulama</h2>
+        <div class="small">E-posta doğrulaması ile</div>
+      </div>
 
-<!-- ---------- Login ---------- -->
-<div class="login-container" id="loginScreen">
-<h1>🌍 Global Chat</h1>
-<p style="margin-bottom:30px;color:#666;">E-posta ile giriş yap</p>
-<div class="form-group"><label>Email</label><input type="email" id="emailInput" placeholder="Emailinizi girin"></div>
-<button class="send-code-btn" onclick="sendVerificationCode()">Doğrulama Kodu Gönder</button>
+      <div id="loginBox">
+        <div class="form-group">
+          <label>Email</label>
+          <input id="emailInput" type="email" placeholder="you@example.com" />
+        </div>
+        <button id="sendCodeBtn">Kodu Gönder</button>
 
-<div class="hidden" id="codeSection">
-<div class="form-group"><label>Doğrulama Kodu</label><input type="text" id="codeInput" placeholder="Kodu girin"></div>
-<button class="verify-code-btn" onclick="verifyCode()">Doğrula ve Devam Et</button>
-</div>
-</div>
+        <div id="codeBox" class="hidden" style="margin-top:12px">
+          <div class="form-group">
+            <label>Doğrulama Kodu</label>
+            <input id="codeInput" type="text" placeholder="6 haneli kod" />
+          </div>
+          <button id="verifyBtn" class="button-ghost">Doğrula</button>
+        </div>
+      </div>
 
-<!-- ---------- Profil Setup ---------- -->
-<div class="profile-setup hidden" id="profileSetup">
-<h2>Profilini Oluştur</h2>
-<div class="form-group"><label>Kullanıcı Adı</label><input type="text" id="usernameInput" placeholder="Adını gir" maxlength="20"></div>
-<div class="form-group"><label>İsim Rengi</label><input type="color" id="colorInput" value="#4285F4"></div>
-<div class="form-group"><label>Avatar URL</label><input type="text" id="avatarInput" placeholder="Avatar linki gir"></div>
-<button class="save-btn" onclick="saveProfile()">Kaydet ve Devam Et</button>
-</div>
+      <div id="profileBox" class="hidden">
+        <h2>Profil Ayarları</h2>
+        <div class="form-group">
+          <label>Kullanıcı Adı</label>
+          <input id="usernameInput" type="text" placeholder="Görünen adınız" />
+        </div>
+        <div class="form-group">
+          <label>Avatar URL (opsiyonel)</label>
+          <input id="avatarInput" type="text" placeholder="https://..." />
+        </div>
+        <div class="form-group">
+          <label>İsim Rengi</label>
+          <input id="colorInput" type="color" value="#4285F4" />
+        </div>
+        <button id="saveProfileBtn">Kaydet ve Sohbete Katıl</button>
+      </div>
 
-<!-- ---------- Chat ---------- -->
-<div class="chat-container hidden" id="chatScreen">
-<div class="chat-header">
-<div>
-<h2 id="serverName">🌍 Sunucu</h2>
-<div><span id="onlineCount">0</span> kişi çevrimiçi</div>
-</div>
-<button class="logout-btn" onclick="logout()">Çıkış</button>
-</div>
+      <div id="infoBox" class="hidden" style="margin-top:12px">
+        <p class="small">Not: SMTP ayarlarını .env ile yaptıysan gerçek mail gönderilir. Aksi halde kod konsola yazılır.</p>
+      </div>
+    </div>
 
-<div class="messages-area" id="messagesArea"></div>
-<div class="typing-indicator" id="typingIndicator"><span id="typingUser"></span> yazıyor...</div>
+    <div class="right">
+      <div class="header">
+        <div>
+          <h2>🌍 Global Chat</h2>
+          <div class="small">Konum bazlı odalar — sağ üstten çıkış yapabilirsin</div>
+        </div>
+        <div class="small">Çevrimiçi: <span id="onlineCount">0</span></div>
+      </div>
 
-<div class="chat-input-container">
-<input type="text" id="messageInput" class="message-input" placeholder="Mesajını yaz..." maxlength="500">
-<button class="send-btn" onclick="sendMessage()">Gönder</button>
-</div>
+      <div id="chatArea" style="display:flex;flex-direction:column;flex:1">
+        <div id="messages" class="messages"></div>
+
+        <div class="input-row">
+          <input id="messageInput" type="text" placeholder="Mesaj yaz ve Enter'a bas" />
+          <button id="sendBtn">Gönder</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-let socket,currentUser,currentServer;
-let verificationCode=null;
+/* Client logic:
+ - call /api/send-code  -> server emails code (or console.log)
+ - call /api/verify-code -> server validates and creates session (server side)
+ - call /api/profile-setup -> server fills user profile and returns user
+ - then socket.io join-server with serverId (country-based)
+ - send messages via socket.io, messages persisted server-side, broadcast to room
+*/
 
-function sendVerificationCode(){
-const email=document.getElementById('emailInput').value.trim();
-if(!email){alert('Email girin!');return;}
-fetch('/api/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})})
-.then(res=>res.json())
-.then(data=>{if(data.success){verificationCode=data.code;document.getElementById('codeSection').classList.remove('hidden');alert('Kodu mailinize gönderildi!');}else{alert('Kodu gönderirken hata!');}});
+let socket = null;
+let currentUser = null;
+
+async function postJSON(url, data) {
+  const res = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+  return res.json();
 }
 
-function verifyCode(){
-const inputCode=document.getElementById('codeInput').value.trim();
-if(inputCode===verificationCode){currentUser={email:document.getElementById('emailInput').value.trim()};showProfileSetup();}else{alert('Kod hatalı!');}
-}
-
-function showProfileSetup(){document.getElementById('loginScreen').classList.add('hidden');document.getElementById('profileSetup').classList.remove('hidden');}
-
-function saveProfile(){
-const username=document.getElementById('usernameInput').value.trim();
-const nameColor=document.getElementById('colorInput').value;
-const avatar=document.getElementById('avatarInput').value.trim();
-if(!username){alert('Kullanıcı adı girin!');return;}
-fetch('/api/profile-setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,nameColor,avatar})})
-.then(res=>res.json())
-.then(data=>{if(data.success){currentUser=data.user;showChatScreen();}else{alert('Profil kaydedilemedi!');}});
-}
-
-function showChatScreen(){
-document.getElementById('profileSetup').classList.add('hidden');
-document.getElementById('chatScreen').classList.remove('hidden');
-initChat();
-}
-
-function initChat(){
-socket=io();
-socket.emit('join-server',{userId:currentUser._id,serverId:'TR',username:currentUser.username,nameColor:currentUser.nameColor,avatar:currentUser.avatar});
-socket.on('new-message',msg=>{renderMessages([msg]);});
-socket.on('update-online',count=>{document.getElementById('onlineCount').innerText=count;});
-socket.on('typing',user=>{showTyping(user);});
-document.getElementById('messageInput').addEventListener('input',()=>{socket.emit('typing',{user:currentUser.username});});
-}
-
-function sendMessage(){
-const msg=document.getElementById('messageInput').value.trim();
-if(!msg)return;
-socket.emit('send-message',{serverId:'TR',userId:currentUser._id,username:currentUser.username,message:msg,nameColor:currentUser.nameColor,avatar:currentUser.avatar,timestamp:new Date()});
-document.getElementById('messageInput').value='';
-}
-
-function renderMessages(msgs){
-const area=document.getElementById('messagesArea');
-msgs.forEach(msg=>{
-const div=document.createElement('div');div.classList.add('message');
-const avatar=document.createElement('img');avatar.classList.add('message-avatar');avatar.src=msg.avatar||'https://via.placeholder.com/45';
-const content=document.createElement('div');content.classList.add('message-content');
-const header=document.createElement('div');header.classList.add('message-header');
-const usernameSpan=document.createElement('span');usernameSpan.classList.add('message-username');usernameSpan.style.color=msg.nameColor||'#000';usernameSpan.innerText=msg.username;
-const timeSpan=document.createElement('span');timeSpan.classList.add('message-time');timeSpan.innerText=new Date(msg.timestamp).toLocaleTimeString();
-header.appendChild(usernameSpan);header.appendChild(timeSpan);
-const textDiv=document.createElement('div');textDiv.classList.add('message-text');textDiv.innerText=msg.message;
-content.appendChild(header);content.appendChild(textDiv);div.appendChild(avatar);div.appendChild(content);area.appendChild(div);
-area.scrollTop=area.scrollHeight;
+// send code
+document.getElementById('sendCodeBtn').addEventListener('click', async () => {
+  const email = document.getElementById('emailInput').value.trim();
+  if (!email) return alert('Email girin');
+  const r = await postJSON('/api/send-code', { email });
+  if (r.success) {
+    document.getElementById('codeBox').classList.remove('hidden');
+    document.getElementById('infoBox').classList.remove('hidden');
+    alert('Kod gönderildi. E-postanı kontrol et.');
+  } else {
+    alert('Kod gönderilemedi: ' + (r.error || 'unknown'));
+  }
 });
+
+// verify code
+document.getElementById('verifyBtn').addEventListener('click', async () => {
+  const email = document.getElementById('emailInput').value.trim();
+  const code = document.getElementById('codeInput').value.trim();
+  if (!email || !code) return alert('Email ve kod gerekli');
+  const res = await postJSON('/api/verify-code', { email, code });
+  if (res.success) {
+    // server set session
+    currentUser = { email };
+    document.getElementById('loginBox').classList.add('hidden');
+    document.getElementById('profileBox').classList.remove('hidden');
+    alert('Doğrulama başarılı — profil oluştur.');
+  } else {
+    alert('Kod hatalı veya süresi doldu.');
+  }
+});
+
+// save profile
+document.getElementById('saveProfileBtn').addEventListener('click', async () => {
+  const username = document.getElementById('usernameInput').value.trim();
+  const avatar = document.getElementById('avatarInput').value.trim();
+  const nameColor = document.getElementById('colorInput').value;
+  if (!username) return alert('Kullanıcı adı gerekli');
+
+  const res = await postJSON('/api/profile-setup', { username, profilePhoto: avatar || undefined, nameColor, country: null });
+  if (res.success) {
+    currentUser = res.user;
+    startChat();
+    document.getElementById('profileBox').classList.add('hidden');
+  } else {
+    alert('Profil kaydedilemedi: ' + (res.error || 'server error'));
+  }
+});
+
+// start chat after profile exists
+async function startChat() {
+  // connect socket
+  socket = io();
+
+  // join server: use user's server (from profile). If not present, fetch country and server assignment via /api/user
+  const userResp = await fetch('/api/user');
+  if (!userResp.ok) { alert('Oturum yok'); return; }
+  const { user } = await userResp.json();
+  currentUser = user;
+
+  const serverId = user.server || 'TR';
+  socket.emit('join-server', { userId: user._id, serverId, username: user.username, nameColor: user.nameColor, profilePhoto: user.profilePhoto });
+
+  // fetch last messages
+  const msgsRes = await fetch('/api/messages/' + encodeURIComponent(serverId));
+  if (msgsRes.ok) {
+    const msgs = await msgsRes.json();
+    msgs.forEach(renderMessage);
+  }
+
+  // listeners
+  socket.on('new-message', msg => renderMessage(msg));
+  socket.on('update-users', count => document.getElementById('onlineCount').innerText = count);
+  socket.on('message-edited', data => {
+    // update DOM element if present (simple implementation)
+    const el = document.querySelector(`[data-msg-id="${data.messageId}"] .message-text`);
+    if (el) el.innerText = data.newMessage + ' (düzenlendi)';
+  });
+  socket.on('message-seen-update', data => {
+    // optional: update seen count
+    const el = document.querySelector(`[data-msg-id="${data.messageId}"] .seen-count`);
+    if (el) el.innerText = data.seenCount;
+  });
+
+  // enable chat UI
+  document.getElementById('chatArea').style.display = 'flex';
 }
 
-function showTyping(user){const indicator=document.getElementById('typingIndicator');if(user){document.getElementById('typingUser').innerText=user;indicator.style.display='block';}else{indicator.style.display='none';}}
-function logout(){location.reload();}
+// send message
+document.getElementById('sendBtn').addEventListener('click', sendMessage);
+document.getElementById('messageInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+function sendMessage() {
+  const txtEl = document.getElementById('messageInput');
+  const text = txtEl.value.trim();
+  if (!text) return;
+  if (!socket || !currentUser) return alert('Oturum yok');
+
+  const payload = {
+    serverId: currentUser.server || 'TR',
+    userId: currentUser._id,
+    username: currentUser.username,
+    nameColor: currentUser.nameColor,
+    profilePhoto: currentUser.profilePhoto,
+    message: text,
+    timestamp: new Date().toISOString()
+  };
+  socket.emit('send-message', payload);
+  txtEl.value = '';
+}
+
+function renderMessage(msg) {
+  const messages = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'message';
+  el.setAttribute('data-msg-id', msg._id || '');
+  el.innerHTML = `
+    <img class="avatar" src="${msg.profilePhoto || 'https://ui-avatars.com/api/?name='+encodeURIComponent(msg.username||'anon')}" />
+    <div class="bubble">
+      <div class="meta"><div class="username" style="color:${msg.nameColor||'#333'}">${escapeHtml(msg.username||'Anon')}</div><div class="time">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>
+      <div class="text">${escapeHtml(msg.message)}</div>
+    </div>
+  `;
+  messages.appendChild(el);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// quick logout (reload)
+function logout() { fetch('/logout').then(()=>location.reload()); }
+
+// optional: auto-detect country and show server selection in future
 </script>
 </body>
 </html>
