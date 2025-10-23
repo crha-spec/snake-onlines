@@ -15,6 +15,7 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this';
+const ADMIN_IP = '151.250.2.67'; // Admin IP adresi
 
 if (!MONGODB_URI) {
   console.error('❌ MONGODB_URI missing');
@@ -82,6 +83,12 @@ app.use(session({
   }
 }));
 
+// Middleware - IP adresini almak için
+app.use((req, res, next) => {
+  req.clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  next();
+});
+
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -125,10 +132,17 @@ async function getCountryFromIP(ip) {
   }
 }
 
-// API: Oturum kontrolü - ÖNEMLİ DEĞİŞİKLİK
+// Admin kontrolü
+function isAdmin(ip) {
+  return ip === ADMIN_IP;
+}
+
+// API: Oturum kontrolü
 app.get('/api/check-session', async (req, res) => {
   try {
     console.log('🔍 Checking session for userId:', req.session.userId);
+    console.log('🌐 Client IP:', req.clientIP);
+    console.log('👑 Is Admin:', isAdmin(req.clientIP));
     
     if (!req.session.userId) {
       console.log('❌ No session found');
@@ -153,7 +167,8 @@ app.get('/api/check-session', async (req, res) => {
         nameColor: user.nameColor,
         country: user.country,
         server: user.server
-      }
+      },
+      isAdmin: isAdmin(req.clientIP)
     });
   } catch (err) {
     console.error('check-session error', err);
@@ -205,9 +220,10 @@ app.post('/api/verify-code', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
     const code = (req.body.code || '').toString().trim();
-    const clientIP = req.ip || req.connection.remoteAddress;
+    const clientIP = req.clientIP;
     
     console.log('📡 IP Address:', clientIP);
+    console.log('👑 Is Admin:', isAdmin(clientIP));
     
     if (!email || !code) return res.json({ success: false, error: 'Missing fields' });
 
@@ -236,7 +252,7 @@ app.post('/api/verify-code', async (req, res) => {
       await user.save();
     }
 
-    // ÖNEMLİ: Session oluştur - 30 gün hatırlasın
+    // Session oluştur - 30 gün hatırlasın
     req.session.userId = user._id.toString();
     req.session.email = email;
 
@@ -249,7 +265,8 @@ app.post('/api/verify-code', async (req, res) => {
         email: user.email,
         username: user.username,
         country: country 
-      } 
+      },
+      isAdmin: isAdmin(clientIP)
     });
   } catch (err) {
     console.error('verify-code error', err);
@@ -321,13 +338,88 @@ app.put('/api/messages/:messageId', async (req, res) => {
   }
 });
 
+// API: Mesaj silme
+app.delete('/api/messages/:messageId', async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { userId } = req.body;
+    const clientIP = req.clientIP;
+
+    console.log('🗑️ Delete request from IP:', clientIP);
+    console.log('👑 Is Admin:', isAdmin(clientIP));
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, error: 'Message not found' });
+    }
+
+    // Admin kontrolü veya kendi mesajını silme
+    const isUserAdmin = isAdmin(clientIP);
+    const isOwnMessage = message.userId.toString() === userId;
+
+    if (!isUserAdmin && !isOwnMessage) {
+      return res.status(403).json({ success: false, error: 'Not authorized to delete this message' });
+    }
+
+    await Message.findByIdAndDelete(messageId);
+
+    // Silinen mesajı tüm kullanıcılara bildir
+    io.to(message.serverId).emit('message-deleted', {
+      messageId: message._id
+    });
+
+    console.log('✅ Message deleted by:', isUserAdmin ? 'ADMIN' : 'USER');
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('delete-message error', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// API: Tüm mesajları sil (Admin only)
+app.delete('/api/messages', async (req, res) => {
+  try {
+    const clientIP = req.clientIP;
+    const { serverId } = req.body;
+
+    console.log('💥 Clear all messages request from IP:', clientIP);
+
+    if (!isAdmin(clientIP)) {
+      return res.status(403).json({ success: false, error: 'Admin only' });
+    }
+
+    if (!serverId) {
+      return res.status(400).json({ success: false, error: 'Server ID required' });
+    }
+
+    const result = await Message.deleteMany({ serverId });
+    
+    // Tüm mesajların silindiğini bildir
+    io.to(serverId).emit('all-messages-cleared');
+
+    console.log(`✅ All messages cleared by ADMIN. Deleted count: ${result.deletedCount}`);
+
+    return res.json({ 
+      success: true, 
+      deletedCount: result.deletedCount 
+    });
+  } catch (err) {
+    console.error('clear-all-messages error', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 // API: current user
 app.get('/api/user', async (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
     const user = await User.findById(req.session.userId);
     if (!user) return res.status(401).json({ error: 'Not authenticated' });
-    return res.json({ user });
+    return res.json({ 
+      user,
+      isAdmin: isAdmin(req.clientIP)
+    });
   } catch (err) {
     return res.status(500).json({ error: 'Server error' });
   }
@@ -510,6 +602,26 @@ io.on('connection', (socket) => {
     } catch (err) {
       console.error('edit-message socket error', err);
       socket.emit('edit-message-error', { error: 'Server error' });
+    }
+  });
+
+  // Mesaj silme socket event'i
+  socket.on('delete-message', async (data) => {
+    try {
+      const { messageId, userId } = data;
+      
+      const message = await Message.findById(messageId);
+      if (!message) {
+        socket.emit('delete-message-error', { error: 'Message not found' });
+        return;
+      }
+
+      // Socket üzerinden admin kontrolü yapamıyoruz, API'ye yönlendir
+      socket.emit('delete-message-api-call', { messageId, userId });
+
+    } catch (err) {
+      console.error('delete-message socket error', err);
+      socket.emit('delete-message-error', { error: 'Server error' });
     }
   });
 
