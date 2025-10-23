@@ -73,7 +73,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: MONGODB_URI }),
-  cookie: { maxAge: 24 * 60 * 60 * 1000, httpOnly: true }
+  cookie: { 
+    maxAge: 24 * 60 * 60 * 1000, // 24 saat
+    httpOnly: true 
+  }
 }));
 
 // Middleware
@@ -107,6 +110,9 @@ function normalizeEmail(e) {
 // IP ve Ülke tespiti için API
 async function getCountryFromIP(ip) {
   try {
+    // Localhost için default değer
+    if (ip === '::1' || ip === '127.0.0.1') return 'TR';
+    
     const response = await fetch(`http://ip-api.com/json/${ip}`);
     const data = await response.json();
     return data.countryCode || 'TR';
@@ -115,6 +121,47 @@ async function getCountryFromIP(ip) {
     return 'TR';
   }
 }
+
+// API: Oturum kontrolü
+app.get('/api/check-session', async (req, res) => {
+  try {
+    if (!req.session.userId) {
+      return res.json({ authenticated: false });
+    }
+
+    const user = await User.findById(req.session.userId);
+    if (!user) {
+      req.session.destroy();
+      return res.json({ authenticated: false });
+    }
+
+    return res.json({ 
+      authenticated: true, 
+      user: {
+        _id: user._id,
+        email: user.email,
+        username: user.username,
+        profilePhoto: user.profilePhoto,
+        nameColor: user.nameColor,
+        country: user.country,
+        server: user.server
+      }
+    });
+  } catch (err) {
+    console.error('check-session error', err);
+    return res.json({ authenticated: false });
+  }
+});
+
+// API: Çıkış
+app.post('/api/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ success: false, error: 'Logout failed' });
+    }
+    res.json({ success: true });
+  });
+});
 
 // API: send-code
 app.post('/api/send-code', async (req, res) => {
@@ -150,7 +197,9 @@ app.post('/api/verify-code', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
     const code = (req.body.code || '').toString().trim();
-    const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const clientIP = req.ip || req.connection.remoteAddress;
+    
+    console.log('📡 IP Address:', clientIP);
     
     if (!email || !code) return res.json({ success: false, error: 'Missing fields' });
 
@@ -159,6 +208,7 @@ app.post('/api/verify-code', async (req, res) => {
 
     // IP'den ülke tespiti
     const country = await getCountryFromIP(clientIP);
+    console.log('🌍 Detected country:', country);
 
     let user = await User.findOne({ email });
     if (!user) {
@@ -171,6 +221,11 @@ app.post('/api/verify-code', async (req, res) => {
         country: country,
         server: country
       });
+    } else {
+      // Mevcut kullanıcıyı güncelle
+      user.country = country;
+      user.server = country;
+      await user.save();
     }
 
     req.session.userId = user._id.toString();
@@ -183,6 +238,7 @@ app.post('/api/verify-code', async (req, res) => {
       user: { 
         _id: user._id, 
         email: user.email,
+        username: user.username,
         country: country 
       } 
     });
@@ -285,6 +341,8 @@ io.on('connection', (socket) => {
 
   socket.on('send-message', async (data) => {
     try {
+      console.log('📨 Sending message:', data);
+      
       const msg = await Message.create({
         serverId: data.serverId,
         userId: data.userId,
@@ -300,7 +358,9 @@ io.on('connection', (socket) => {
         }]
       });
       
-      // Mesajı gönderene hemen görüldü bilgisi ile gönder
+      console.log('✅ Message saved to DB:', msg._id);
+      
+      // Mesajı TÜM kullanıcılara gönder (gönderen de dahil)
       const messageWithSeen = {
         ...msg.toObject(),
         seenCount: 1,
@@ -311,7 +371,10 @@ io.on('connection', (socket) => {
         }]
       };
       
+      // ÖNEMLİ: io.to() yerine io.emit() kullanıyoruz ki gönderen de görsün
       io.to(data.serverId).emit('new-message', messageWithSeen);
+      console.log('📢 Message emitted to room:', data.serverId);
+      
     } catch (err) {
       console.error('send-message error', err);
     }
