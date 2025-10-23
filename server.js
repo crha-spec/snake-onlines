@@ -10,8 +10,8 @@ const nodemailer = require('nodemailer');
 const geoip = require('geoip-lite');
 const path = require('path');
 const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const { GridFsStorage } = require('multer-gridfs-storage');
+const Grid = require('gridfs-stream');
 
 const app = express();
 const server = http.createServer(app);
@@ -26,13 +26,11 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
-// Cloudinary Config (optional - for avatar upload)
-if (process.env.CLOUDINARY_CLOUD_NAME) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-  });
+// Uploads klasörünü oluştur
+const uploadsDir = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('✅ Uploads directory created');
 }
 
 // MongoDB
@@ -116,23 +114,27 @@ if (process.env.SMTP_USER && process.env.SMTP_PASS) {
   console.log('ℹ️ SMTP not configured - codes will print to console');
 }
 
-// Multer setup for avatar upload
-const storage = process.env.CLOUDINARY_CLOUD_NAME
-  ? new CloudinaryStorage({
-      cloudinary: cloudinary,
-      params: { folder: 'avatars', allowed_formats: ['jpg', 'png', 'jpeg', 'gif', 'webp'] }
-    })
-  : multer.diskStorage({
-      destination: './public/uploads/',
-      filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-    });
+// GridFS Storage Engine
+const storage = new GridFsStorage({
+  url: MONGODB_URI,
+  options: { useNewUrlParser: true, useUnifiedTopology: true },
+  file: (req, file) => {
+    return {
+      filename: Date.now() + '-' + file.originalname,
+      bucketName: 'uploads' // Collection name
+    };
+  }
+});
 
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only images allowed'));
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images allowed'));
+    }
   }
 });
 
@@ -225,16 +227,41 @@ app.post('/api/verify-code', async (req, res) => {
   }
 });
 
-// API: upload avatar
+// API: upload avatar (GridFS)
 app.post('/api/upload-avatar', upload.single('avatar'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
     
-    const url = req.file.path || `/uploads/${req.file.filename}`;
-    return res.json({ success: true, url });
+    // GridFS file URL
+    const url = `/api/image/${req.file.filename}`;
+    return res.json({ success: true, url, fileId: req.file.id });
   } catch (err) {
     console.error('upload-avatar error', err);
     return res.status(500).json({ success: false, error: 'Upload failed' });
+  }
+});
+
+// API: Get image from GridFS
+app.get('/api/image/:filename', async (req, res) => {
+  try {
+    const file = await gfs.files.findOne({ filename: req.params.filename });
+    
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Check if image
+    if (file.contentType.startsWith('image/')) {
+      // Stream from GridFS
+      const readstream = gfs.createReadStream({ filename: file.filename });
+      res.set('Content-Type', file.contentType);
+      readstream.pipe(res);
+    } else {
+      return res.status(400).json({ error: 'Not an image' });
+    }
+  } catch (err) {
+    console.error('image fetch error', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 
