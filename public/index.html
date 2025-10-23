@@ -317,6 +317,24 @@
             background: #c0392b;
         }
         
+        .admin-panel {
+            background: #2ecc71;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            border: 1px solid #27ae60;
+        }
+        
+        .admin-btn {
+            background: #e74c3c;
+            margin: 5px;
+        }
+        
+        .admin-btn:hover {
+            background: #c0392b;
+        }
+        
         /* Context Menu */
         .context-menu {
             position: fixed;
@@ -439,6 +457,12 @@
         <div id="chatScreen" class="screen">
             <h1>🌍 Global Chat <span id="onlineCount">Online: 0</span></h1>
             
+            <!-- Admin Panel -->
+            <div id="adminPanel" class="admin-panel" style="display: none;">
+                <strong>👑 ADMIN PANEL</strong>
+                <button class="admin-btn" onclick="clearAllMessages()">Tüm Mesajları Temizle</button>
+            </div>
+            
             <div class="chat-container">
                 <div class="chat-header">
                     <div id="serverInfo">Ülke: TR</div>
@@ -496,15 +520,16 @@
         let typingTimer = null;
         let isTyping = false;
         let selectedMessage = null;
+        let isAdmin = false;
 
-        // Sayfa yüklendiğinde oturum kontrolü - ÖNEMLİ DEĞİŞİKLİK
+        // Sayfa yüklendiğinde oturum kontrolü
         document.addEventListener('DOMContentLoaded', async function() {
             console.log('🔍 Page loaded, checking session...');
             await checkSession();
             updateColorPreview();
         });
 
-        // Oturum kontrolü - GÜNCELLENDİ
+        // Oturum kontrolü
         async function checkSession() {
             try {
                 const response = await fetch('/api/check-session');
@@ -516,8 +541,15 @@
                     console.log('✅ User already logged in:', data.user.email);
                     currentUser = data.user;
                     currentServer = data.user.country || 'TR';
+                    isAdmin = data.isAdmin || false;
                     
-                    // Doğrudan sohbete yönlendir - EMAIL İSTEMEDEN!
+                    // Admin panelini göster
+                    if (isAdmin) {
+                        document.getElementById('adminPanel').style.display = 'block';
+                        console.log('👑 Admin privileges activated');
+                    }
+                    
+                    // Doğrudan sohbete yönlendir
                     showScreen('chatScreen');
                     initializeChat();
                 } else {
@@ -536,6 +568,7 @@
                 await fetch('/api/logout', { method: 'POST' });
                 currentUser = null;
                 currentServer = null;
+                isAdmin = false;
                 if (socket) {
                     socket.disconnect();
                     socket = null;
@@ -547,6 +580,32 @@
                 document.getElementById('codeSection').style.display = 'none';
             } catch (error) {
                 console.error('Logout error:', error);
+            }
+        }
+
+        // Tüm mesajları temizle (Admin only)
+        async function clearAllMessages() {
+            if (!confirm('Tüm mesajları silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/messages', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ serverId: currentServer })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showSuccess('loginError', `Tüm mesajlar silindi! (${data.deletedCount} mesaj)`);
+                } else {
+                    showError('loginError', data.error || 'Silme işlemi başarısız');
+                }
+            } catch (error) {
+                console.error('Clear messages error:', error);
+                showError('loginError', 'Bağlantı hatası');
             }
         }
 
@@ -629,6 +688,13 @@
                 if (data.success) {
                     currentUser = data.user;
                     currentServer = data.user.country || 'TR';
+                    isAdmin = data.isAdmin || false;
+                    
+                    // Admin panelini göster
+                    if (isAdmin) {
+                        document.getElementById('adminPanel').style.display = 'block';
+                        console.log('👑 Admin privileges activated');
+                    }
                     
                     // Ülke bilgisini göster
                     document.getElementById('countryName').textContent = currentServer;
@@ -724,7 +790,7 @@
                 document.getElementById('onlineCount').textContent = `Online: ${count}`;
             });
 
-            // Yeni mesaj - GECİKME OLMADAN!
+            // Yeni mesaj
             socket.on('new-message', (message) => {
                 console.log('📨 New message received:', message);
                 addMessageToChat(message);
@@ -766,6 +832,17 @@
                 updateMessageContent(data.messageId, data.newMessage, data.editedAt);
             });
 
+            // Mesaj silindi
+            socket.on('message-deleted', (data) => {
+                removeMessage(data.messageId);
+            });
+
+            // Tüm mesajlar temizlendi
+            socket.on('all-messages-cleared', () => {
+                document.getElementById('messages').innerHTML = '';
+                showSuccess('loginError', 'Tüm mesajlar temizlendi!');
+            });
+
             // Yazıyor indikatörü
             socket.on('user-typing', (data) => {
                 showTyping(data.username);
@@ -802,7 +879,7 @@
             }
         }
 
-        // Mesaj gönderme - GECİKME OLMADAN!
+        // Mesaj gönderme
         function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
@@ -846,8 +923,8 @@
             messageDiv.dataset.messageId = message._id;
             messageDiv.dataset.userId = message.userId;
             
-            // Context menu için event listener
-            if (isOwn) {
+            // Context menu için event listener (sadece kendi mesajlarında veya admin'de)
+            if (isOwn || isAdmin) {
                 messageDiv.addEventListener('contextmenu', function(e) {
                     e.preventDefault();
                     showContextMenu(e, message);
@@ -900,8 +977,22 @@
                         hour: '2-digit',
                         minute: '2-digit'
                     });
-                    timeDiv.innerHTML = `${timeDiv.textContent} <span class="message-edited">(düzenlendi ${editedTime})</span>`;
+                    const editedText = messageDiv.querySelector('.message-edited') || document.createElement('div');
+                    editedText.className = 'message-edited';
+                    editedText.textContent = `(düzenlendi ${editedTime})`;
+                    
+                    if (!messageDiv.querySelector('.message-edited')) {
+                        timeDiv.parentNode.insertBefore(editedText, timeDiv.nextSibling);
+                    }
                 }
+            }
+        }
+
+        // Mesajı kaldır (silme için)
+        function removeMessage(messageId) {
+            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageDiv) {
+                messageDiv.remove();
             }
         }
 
@@ -920,6 +1011,13 @@
         function showContextMenu(e, message) {
             selectedMessage = message;
             const contextMenu = document.getElementById('contextMenu');
+            const isOwnMessage = message.userId === currentUser._id;
+            
+            // Menü öğelerini güncelle
+            const menuItems = contextMenu.querySelectorAll('.context-menu-item');
+            menuItems[0].style.display = isOwnMessage ? 'block' : 'none'; // Düzenle sadece kendi mesajında
+            menuItems[1].style.display = 'block'; // Sil her zaman göster (admin veya kendi mesajı)
+            
             contextMenu.style.display = 'block';
             contextMenu.style.left = e.pageX + 'px';
             contextMenu.style.top = e.pageY + 'px';
@@ -932,7 +1030,7 @@
         }
 
         function editMessage() {
-            if (!selectedMessage) return;
+            if (!selectedMessage || selectedMessage.userId !== currentUser._id) return;
             
             const editModal = document.getElementById('editModal');
             const editInput = document.getElementById('editMessageInput');
@@ -976,9 +1074,34 @@
             }
         }
 
-        function deleteMessage() {
-            // Silme özelliği eklenebilir
-            alert('Silme özelliği henüz eklenmedi');
+        async function deleteMessage() {
+            if (!selectedMessage) return;
+            
+            if (!confirm('Bu mesajı silmek istediğinizden emin misiniz?')) {
+                hideContextMenu();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/messages/${selectedMessage._id}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUser._id })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Mesaj başarıyla silindi, socket event'i ile kaldırılacak
+                    console.log('✅ Message deleted successfully');
+                } else {
+                    showError('loginError', data.error || 'Mesaj silinemedi');
+                }
+            } catch (error) {
+                console.error('Delete message error:', error);
+                showError('loginError', 'Bağlantı hatası');
+            }
+            
             hideContextMenu();
         }
 
