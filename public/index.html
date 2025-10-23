@@ -1,95 +1,190 @@
-<!DOCTYPE html>
+</script>
+</body>
+</html><!DOCTYPE html>
 <html lang="tr">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
 <title>Global Chat</title>
 <style>
-/* Comprehensive UI that includes avatar, color, time, responsive */
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.container{width:100%;max-width:920px;background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:hidden}
-.left{width:36%;min-height:560px;padding:24px;background:#fafafa;border-right:1px solid #eee}
-.right{width:64%;min-height:560px;padding:16px;display:flex;flex-direction:column}
+.container{width:100%;max-width:920px;background:#fff;border-radius:14px;box-shadow:0 20px 40px rgba(0,0,0,0.15);overflow:hidden;display:flex;position:relative}
+.left{width:36%;min-height:560px;padding:24px;background:#fafafa;border-right:1px solid #eee;transition:transform .3s}
+.right{flex:1;min-height:560px;padding:16px;display:flex;flex-direction:column}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 h2{font-size:18px;color:#222}
 .small{font-size:13px;color:#666}
 .form-group{margin-bottom:12px}
-label{display:block;margin-bottom:6px;font-weight:600;color:#444}
-input[type="text"],input[type="email"],input[type="color"]{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd}
-button{padding:10px 14px;border-radius:8px;border:0;background:linear-gradient(90deg,#4f46e5,#9333ea);color:#fff;font-weight:700;cursor:pointer}
+label{display:block;margin-bottom:6px;font-weight:600;color:#444;font-size:14px}
+input[type="text"],input[type="email"],input[type="color"]{width:100%;padding:12px;border-radius:8px;border:1px solid #ddd;font-size:15px}
+input[type="file"]{display:none}
+button{padding:12px 16px;border-radius:8px;border:0;background:linear-gradient(90deg,#4f46e5,#9333ea);color:#fff;font-weight:700;cursor:pointer;font-size:14px;transition:opacity .2s}
+button:disabled{opacity:.5;cursor:not-allowed}
+button:hover:not(:disabled){opacity:.9}
 .button-ghost{background:transparent;border:1px solid #ddd;color:#333}
+.button-secondary{background:linear-gradient(90deg,#10b981,#059669)}
 .hidden{display:none!important}
-.messages{flex:1;overflow:auto;padding:12px;background:#f5f7fb;border-radius:8px}
+.messages{flex:1;overflow:auto;padding:12px;background:#f5f7fb;border-radius:8px;scroll-behavior:smooth}
 .input-row{display:flex;gap:10px;padding:12px;border-top:1px solid #eee}
+.input-row input{flex:1}
 .message{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start}
-.avatar{width:44px;height:44px;border-radius:50%;background:#ddd;flex-shrink:0;object-fit:cover}
-.bubble{background:#fff;padding:10px;border-radius:10px;box-shadow:0 2px 8px rgba(10,10,10,0.06);max-width:78%}
-.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.username{font-weight:700}
-.time{font-size:12px;color:#888}
-@media(max-width:900px){.left{display:none}.right{width:100%}}
+.message.own{flex-direction:row-reverse}
+.avatar{width:40px;height:40px;border-radius:50%;background:#ddd;flex-shrink:0;object-fit:cover}
+.bubble{background:#fff;padding:10px 12px;border-radius:12px;box-shadow:0 2px 8px rgba(10,10,10,0.06);max-width:70%;position:relative}
+.message.own .bubble{background:#dcf8c6;margin-left:auto}
+.meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px}
+.username{font-weight:700;font-size:14px}
+.time{font-size:11px;color:#888}
+.text{font-size:14px;word-wrap:break-word}
+.seen-info{font-size:11px;color:#34b7f1;margin-top:4px;text-align:right}
+.avatar-preview{width:80px;height:80px;border-radius:50%;object-fit:cover;margin:10px 0;border:3px solid #e5e7eb}
+.upload-btn-group{display:flex;gap:8px;margin-top:8px}
+.upload-btn-group button{flex:1;font-size:13px;padding:10px}
+.toast{position:fixed;top:20px;right:20px;background:#fff;padding:16px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);z-index:9999;display:flex;align-items:center;gap:10px;animation:slideIn .3s}
+.toast.success{border-left:4px solid #10b981}
+.toast.error{border-left:4px solid #ef4444}
+@keyframes slideIn{from{transform:translateX(400px);opacity:0}to{transform:translateX(0);opacity:1}}
+.hamburger{display:none;position:absolute;top:16px;left:16px;background:#fff;border:1px solid #ddd;padding:8px 12px;border-radius:8px;cursor:pointer;z-index:10}
+.hamburger span{display:block;width:20px;height:2px;background:#333;margin:4px 0}
+
+@media(max-width:900px){
+  .container{flex-direction:column;max-width:100%;border-radius:0;height:100vh}
+  .left{position:fixed;top:0;left:0;width:80%;max-width:320px;height:100vh;z-index:999;transform:translateX(-100%);box-shadow:2px 0 10px rgba(0,0,0,0.1)}
+  .left.open{transform:translateX(0)}
+  .right{width:100%;padding:12px}
+  .hamburger{display:block}
+  .overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:998}
+  .overlay.open{display:block}
+  .bubble{max-width:85%}
+  .avatar{width:36px;height:36px}
+  input[type="text"],input[type="email"]{font-size:16px}
+}
+
+@media(orientation:landscape) and (max-height:500px){
+  .container{height:100vh}
+  .messages{max-height:60vh}
+}
 </style>
 </head>
 <body>
+
+<div class="overlay" id="overlay"></div>
+
 <div class="container">
-  <div style="display:flex;flex-wrap:wrap">
-    <div class="left" id="leftPanel">
-      <div class="header">
-        <h2>Giriş / Doğrulama</h2>
-        <div class="small">E-posta doğrulaması ile</div>
+  <div class="hamburger" id="hamburger">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+
+  <div class="left" id="leftPanel">
+    <div class="header">
+      <h2>Giriş / Doğrulama</h2>
+      <div class="small">E-posta doğrulaması</div>
+    </div>
+
+    <div id="loginBox">
+      <div class="form-group">
+        <label>Email</label>
+        <input id="emailInput" type="email" placeholder="you@example.com" />
       </div>
+      <button id="sendCodeBtn">Kodu Gönder</button>
 
-      <div id="loginBox">
-        <div class="form-group"><label>Email</label><input id="emailInput" type="email" placeholder="you@example.com" /></div>
-        <button id="sendCodeBtn">Kodu Gönder</button>
-
-        <div id="codeBox" class="hidden" style="margin-top:12px">
-          <div class="form-group"><label>Doğrulama Kodu</label><input id="codeInput" type="text" placeholder="6 haneli kod" /></div>
-          <button id="verifyBtn" class="button-ghost">Doğrula</button>
+      <div id="codeBox" class="hidden" style="margin-top:12px">
+        <div class="form-group">
+          <label>Doğrulama Kodu</label>
+          <input id="codeInput" type="text" placeholder="6 haneli kod" />
         </div>
-      </div>
-
-      <div id="profileBox" class="hidden">
-        <h2>Profil Ayarları</h2>
-        <div class="form-group"><label>Kullanıcı Adı</label><input id="usernameInput" type="text" placeholder="Görünen adınız" /></div>
-        <div class="form-group"><label>Avatar URL (opsiyonel)</label><input id="avatarInput" type="text" placeholder="https://..." /></div>
-        <div class="form-group"><label>İsim Rengi</label><input id="colorInput" type="color" value="#4285F4" /></div>
-        <button id="saveProfileBtn">Kaydet ve Sohbete Katıl</button>
-      </div>
-
-      <div id="infoBox" class="hidden" style="margin-top:12px">
-        <p class="small">Not: SMTP ayarlarını .env ile yaptıysan gerçek mail gönderilir. Aksi halde kod konsola yazılır.</p>
+        <button id="verifyBtn" class="button-ghost">Doğrula</button>
       </div>
     </div>
 
-    <div class="right">
-      <div class="header">
-        <div><h2>🌍 Global Chat</h2><div class="small">Konum bazlı odalar</div></div>
-        <div class="small">Çevrimiçi: <span id="onlineCount">0</span></div>
-      </div>
-
-      <div id="chatArea" style="display:flex;flex-direction:column;flex:1">
-        <div id="messages" class="messages"></div>
-
-        <div class="input-row">
-          <input id="messageInput" type="text" placeholder="Mesaj yaz ve Enter'a bas" />
-          <button id="sendBtn">Gönder</button>
+    <div id="profileBox" class="hidden">
+      <h2 style="margin-bottom:16px">Profil Ayarları</h2>
+      
+      <div class="form-group">
+        <label>Profil Fotoğrafı</label>
+        <img id="avatarPreview" class="avatar-preview hidden" />
+        <input id="avatarFile" type="file" accept="image/*" />
+        <div class="upload-btn-group">
+          <button type="button" class="button-secondary" onclick="document.getElementById('avatarFile').click()">
+            🖼️ Galeri
+          </button>
+          <button type="button" class="button-secondary" onclick="document.getElementById('cameraInput').click()">
+            📷 Kamera
+          </button>
         </div>
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" />
       </div>
 
+      <div class="form-group">
+        <label>Kullanıcı Adı</label>
+        <input id="usernameInput" type="text" placeholder="Görünen adınız" />
+      </div>
+
+      <div class="form-group">
+        <label>İsim Rengi</label>
+        <input id="colorInput" type="color" value="#4285F4" />
+      </div>
+
+      <div class="form-group">
+        <label>Sunucu Seçimi</label>
+        <button id="locationBtn" class="button-secondary" style="width:100%">
+          📍 Konumuma Göre Ata
+        </button>
+        <div class="small" style="margin-top:8px" id="locationInfo">Konum izni vermeniz gerekiyor</div>
+      </div>
+
+      <button id="saveProfileBtn" style="width:100%;margin-top:16px">Kaydet ve Sohbete Katıl</button>
+    </div>
+
+    <div id="infoBox" class="hidden" style="margin-top:12px">
+      <p class="small">💡 SMTP ayarları .env'de yapılandırılmışsa gerçek mail gönderilir.</p>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="header">
+      <div>
+        <h2>🌍 Global Chat</h2>
+        <div class="small">Konum bazlı odalar</div>
+      </div>
+      <div class="small">Çevrimiçi: <span id="onlineCount">0</span></div>
+    </div>
+
+    <div id="chatArea" style="display:flex;flex-direction:column;flex:1">
+      <div id="messages" class="messages"></div>
+
+      <div class="input-row">
+        <input id="messageInput" type="text" placeholder="Mesaj yaz..." />
+        <button id="sendBtn">Gönder</button>
+      </div>
     </div>
   </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// Helpers
 async function postJSON(url, body) {
-  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return r.json();
 }
 
-// UI elements
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function showToast(msg, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span><span>${msg}</span>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// Elements
 const sendCodeBtn = document.getElementById('sendCodeBtn');
 const verifyBtn = document.getElementById('verifyBtn');
 const sendCodeInput = document.getElementById('emailInput');
@@ -101,130 +196,291 @@ const messagesEl = document.getElementById('messages');
 const sendBtn = document.getElementById('sendBtn');
 const messageInput = document.getElementById('messageInput');
 const onlineCountEl = document.getElementById('onlineCount');
-
-// events
-sendCodeBtn.addEventListener('click', async () => {
-  const email = (sendCodeInput.value || '').trim();
-  if (!email) return alert('Email girin');
-  const res = await postJSON('/api/send-code', { email });
-  if (res.success) {
-    codeBox.classList.remove('hidden');
-    document.getElementById('infoBox').classList.remove('hidden');
-    // if devCode returned, show small toast so you can test quickly (remove for prod)
-    if (res.devCode) {
-      alert('DEV: Kod (sunucu konsoluna da yazıldı): ' + res.devCode);
-    } else {
-      alert('Kod gönderildi. Posta kutunuzu kontrol edin.');
-    }
-  } else {
-    alert('Kodu gönderirken hata: ' + (res.error || 'unknown'));
-  }
-});
-
-verifyBtn.addEventListener('click', async () => {
-  const email = (sendCodeInput.value || '').trim();
-  const code = (document.getElementById('codeInput').value || '').trim();
-  if (!email || !code) return alert('Email ve kod gerekli');
-  const res = await postJSON('/api/verify-code', { email, code });
-  if (res.success) {
-    loginBox.classList.add('hidden');
-    profileBox.classList.remove('hidden');
-    alert('Doğrulama başarılı. Profil oluşturun.');
-  } else {
-    alert('Doğrulama başarısız: ' + (res.error || 'Kod hatalı veya süresi doldu'));
-  }
-});
-
-saveProfileBtn.addEventListener('click', async () => {
-  const username = (document.getElementById('usernameInput').value || '').trim();
-  const avatar = (document.getElementById('avatarInput').value || '').trim();
-  const color = (document.getElementById('colorInput').value || '').trim();
-  if (!username) return alert('Kullanıcı adı gerekli');
-  const res = await postJSON('/api/profile-setup', { username, profilePhoto: avatar || undefined, nameColor: color || undefined, country: null });
-  if (res.success) {
-    startChat(res.user);
-    profileBox.classList.add('hidden');
-  } else {
-    alert('Profil kaydedilemedi: ' + (res.error || 'server error'));
-  }
-});
+const avatarFile = document.getElementById('avatarFile');
+const cameraInput = document.getElementById('cameraInput');
+const avatarPreview = document.getElementById('avatarPreview');
+const locationBtn = document.getElementById('locationBtn');
+const locationInfo = document.getElementById('locationInfo');
+const hamburger = document.getElementById('hamburger');
+const leftPanel = document.getElementById('leftPanel');
+const overlay = document.getElementById('overlay');
 
 let socket = null;
 let currentUser = null;
+let uploadedAvatarUrl = null;
+let detectedCountry = null;
 
+// Hamburger menu
+hamburger.addEventListener('click', () => {
+  leftPanel.classList.toggle('open');
+  overlay.classList.toggle('open');
+});
+
+overlay.addEventListener('click', () => {
+  leftPanel.classList.remove('open');
+  overlay.classList.remove('open');
+});
+
+// Avatar preview
+avatarFile.addEventListener('change', handleAvatarUpload);
+cameraInput.addEventListener('change', handleAvatarUpload);
+
+async function handleAvatarUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Preview
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    avatarPreview.src = ev.target.result;
+    avatarPreview.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+
+  // Upload
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  try {
+    const res = await fetch('/api/upload-avatar', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) {
+      uploadedAvatarUrl = data.url;
+      showToast('Fotoğraf yüklendi!', 'success');
+    } else {
+      showToast('Yükleme başarısız', 'error');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Yükleme hatası', 'error');
+  }
+}
+
+// Location detection
+locationBtn.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    showToast('Tarayıcınız konum desteklemiyor', 'error');
+    return;
+  }
+
+  locationBtn.disabled = true;
+  locationBtn.innerText = '📍 Konum alınıyor...';
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      try {
+        // Reverse geocoding ile ülke bul (basit IP fallback)
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+        const data = await res.json();
+        detectedCountry = data.address?.country_code?.toUpperCase() || 'TR';
+        locationInfo.innerText = `✅ Tespit edilen: ${detectedCountry}`;
+        locationBtn.innerText = '✅ Konum Alındı';
+        showToast(`Ülke: ${detectedCountry}`, 'success');
+      } catch (err) {
+        console.error(err);
+        detectedCountry = 'TR';
+        locationInfo.innerText = '⚠️ Konum belirlenemedi, TR kullanılacak';
+        locationBtn.innerText = '📍 Konum Alınamadı';
+      } finally {
+        locationBtn.disabled = false;
+      }
+    },
+    (err) => {
+      console.error(err);
+      detectedCountry = 'TR';
+      locationInfo.innerText = '❌ Konum izni reddedildi, TR sunucusu kullanılacak';
+      locationBtn.innerText = '❌ İzin Reddedildi';
+      locationBtn.disabled = false;
+      showToast('Konum izni gerekli', 'error');
+    }
+  );
+});
+
+// Send code
+sendCodeBtn.addEventListener('click', async () => {
+  const email = (sendCodeInput.value || '').trim();
+  if (!email) return showToast('Email girin', 'error');
+
+  sendCodeBtn.disabled = true;
+  sendCodeBtn.innerText = 'Gönderiliyor...';
+
+  const res = await postJSON('/api/send-code', { email });
+
+  sendCodeBtn.disabled = false;
+  sendCodeBtn.innerText = 'Kodu Gönder';
+
+  if (res.success) {
+    codeBox.classList.remove('hidden');
+    document.getElementById('infoBox').classList.remove('hidden');
+    if (res.devCode) {
+      showToast(`DEV: Kod ${res.devCode}`, 'success');
+    } else {
+      showToast('Kod e-postanıza gönderildi', 'success');
+    }
+  } else {
+    showToast(res.error || 'Kod gönderilemedi', 'error');
+  }
+});
+
+// Verify code
+verifyBtn.addEventListener('click', async () => {
+  const email = (sendCodeInput.value || '').trim();
+  const code = (document.getElementById('codeInput').value || '').trim();
+  if (!email || !code) return showToast('Email ve kod gerekli', 'error');
+
+  verifyBtn.disabled = true;
+  verifyBtn.innerText = 'Doğrulanıyor...';
+
+  const res = await postJSON('/api/verify-code', { email, code });
+
+  verifyBtn.disabled = false;
+  verifyBtn.innerText = 'Doğrula';
+
+  if (res.success) {
+    loginBox.classList.add('hidden');
+    profileBox.classList.remove('hidden');
+    showToast('Doğrulama başarılı!', 'success');
+  } else {
+    showToast(res.error || 'Doğrulama başarısız', 'error');
+  }
+});
+
+// Save profile
+saveProfileBtn.addEventListener('click', async () => {
+  const username = (document.getElementById('usernameInput').value || '').trim();
+  const color = (document.getElementById('colorInput').value || '').trim();
+
+  if (!username) return showToast('Kullanıcı adı gerekli', 'error');
+
+  saveProfileBtn.disabled = true;
+  saveProfileBtn.innerText = 'Kaydediliyor...';
+
+  const res = await postJSON('/api/profile-setup', {
+    username,
+    profilePhoto: uploadedAvatarUrl,
+    nameColor: color || '#4285F4',
+    country: detectedCountry
+  });
+
+  saveProfileBtn.disabled = false;
+  saveProfileBtn.innerText = 'Kaydet ve Sohbete Katıl';
+
+  if (res.success) {
+    showToast('Profil kaydedildi!', 'success');
+    profileBox.classList.add('hidden');
+    leftPanel.classList.remove('open');
+    overlay.classList.remove('open');
+    startChat(res.user);
+  } else {
+    showToast(res.error || 'Profil kaydedilemedi', 'error');
+  }
+});
+
+// Auto-login on page load
+window.addEventListener('load', async () => {
+  try {
+    const r = await fetch('/api/user');
+    if (r.ok) {
+      const data = await r.json();
+      if (data.user) {
+        loginBox.classList.add('hidden');
+        profileBox.classList.add('hidden');
+        startChat(data.user);
+      }
+    }
+  } catch (err) {
+    console.log('Not logged in');
+  }
+});
+
+// Start chat
 async function startChat(user) {
-  // get maybe updated user from server
   const r = await fetch('/api/user');
-  if (!r.ok) return alert('Kullanıcı oturumu yok — sayfayı yenileyip yeniden deneyin.');
+  if (!r.ok) return showToast('Oturum hatası', 'error');
   const dj = await r.json();
   currentUser = dj.user;
 
   socket = io();
 
   const serverId = currentUser.server || 'TR';
-  socket.emit('join-server', { userId: currentUser._id, serverId, username: currentUser.username, nameColor: currentUser.nameColor, profilePhoto: currentUser.profilePhoto });
+  socket.emit('join-server', { serverId });
 
-  // load messages
+  // Load messages
   const msgsRes = await fetch('/api/messages/' + encodeURIComponent(serverId));
   if (msgsRes.ok) {
     const msgs = await msgsRes.json();
     msgs.forEach(renderMessage);
+    scrollToBottom();
   }
 
-  socket.on('new-message', msg => renderMessage(msg));
-  socket.on('update-users', count => onlineCountEl.innerText = count);
-  socket.on('message-edited', d => {
-    const el = document.querySelector(`[data-msg-id="${d.messageId}"] .text`);
-    if (el) el.innerText = d.newMessage + ' (düzenlendi)';
+  socket.on('new-message', msg => {
+    renderMessage(msg);
+    scrollToBottom();
+    
+    // Mark as seen
+    if (msg.userId !== currentUser._id) {
+      socket.emit('message-seen', { messageId: msg._id });
+    }
   });
+
+  socket.on('update-users', count => {
+    onlineCountEl.innerText = count;
+  });
+
   socket.on('message-seen-update', d => {
-    const el = document.querySelector(`[data-msg-id="${d.messageId}"] .seen-count`);
-    if (el) el.innerText = d.seenCount;
+    const el = document.querySelector(`[data-msg-id="${d.messageId}"] .seen-info`);
+    if (el) el.innerText = `✓✓ ${d.seenCount}`;
   });
+
+  showToast('Sohbete bağlandınız!', 'success');
 }
 
+// Render message
 function renderMessage(msg) {
+  const isOwn = currentUser && msg.userId === currentUser._id;
   const el = document.createElement('div');
-  el.className = 'message';
+  el.className = `message ${isOwn ? 'own' : 'other'}`;
   el.setAttribute('data-msg-id', msg._id || '');
-  const avatar = msg.profilePhoto || ('https://ui-avatars.com/api/?name=' + encodeURIComponent(msg.username || 'anon'));
-  const time = new Date(msg.timestamp).toLocaleTimeString();
+
+  const avatar = msg.profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(msg.username || 'User')}`;
+  const time = new Date(msg.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const seenCount = msg.seenBy?.length || 0;
+
   el.innerHTML = `
-    <img class="avatar" src="${avatar}" />
+    <img class="avatar" src="${avatar}" onerror="this.src='https://ui-avatars.com/api/?name=User'" />
     <div class="bubble">
       <div class="meta">
-        <div class="username" style="color:${msg.nameColor || '#333'}">${escapeHtml(msg.username || 'Anon')}</div>
+        <div class="username" style="color:${msg.nameColor || '#333'}">${escapeHtml(msg.username || 'Anonim')}</div>
         <div class="time">${time}</div>
       </div>
       <div class="text">${escapeHtml(msg.message)}</div>
+      ${isOwn && seenCount > 0 ? `<div class="seen-info">✓✓ ${seenCount}</div>` : ''}
     </div>
   `;
+
   messagesEl.appendChild(el);
+}
+
+function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+// Send message
 sendBtn.addEventListener('click', sendMessage);
-messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+messageInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
 
 function sendMessage() {
   const text = (messageInput.value || '').trim();
-  if (!text) return;
-  if (!socket || !currentUser) return alert('Sohbet başlatılmadı');
+  if (!text) return showToast('Boş mesaj gönderilemez', 'error');
+  if (!socket || !currentUser) return showToast('Sohbet başlatılmadı', 'error');
+
   const payload = {
     serverId: currentUser.server || 'TR',
-    userId: currentUser._id,
-    username: currentUser.username,
-    nameColor: currentUser.nameColor,
-    profilePhoto: currentUser.profilePhoto,
-    message: text,
-    timestamp: new Date().toISOString()
+    message: text
   };
+
   socket.emit('send-message', payload);
   messageInput.value = '';
 }
-
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-</script>
-</body>
-</html>
