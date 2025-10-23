@@ -25,8 +25,7 @@
     "nodemailer": "^6.9.7",
     "geoip-lite": "^1.4.7",
     "multer": "^1.4.5-lts.1",
-    "cloudinary": "^1.41.0",
-    "multer-storage-cloudinary": "^4.0.0",
+    "multer-gridfs-storage": "^5.0.2",
     "dotenv": "^16.3.1"
   },
   "devDependencies": {
