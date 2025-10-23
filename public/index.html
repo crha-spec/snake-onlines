@@ -131,6 +131,12 @@
             max-width: 70%;
             position: relative;
             animation: fadeIn 0.3s ease;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .message:hover {
+            background-color: rgba(102, 126, 234, 0.05);
         }
         
         @keyframes fadeIn {
@@ -189,6 +195,12 @@
             display: flex;
             align-items: center;
             gap: 5px;
+        }
+        
+        .message-edited {
+            font-size: 10px;
+            opacity: 0.6;
+            font-style: italic;
         }
         
         .input-area {
@@ -304,6 +316,70 @@
         .logout-btn:hover {
             background: #c0392b;
         }
+        
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: white;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 150px;
+            display: none;
+        }
+        
+        .context-menu-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s;
+        }
+        
+        .context-menu-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .context-menu-item:last-child {
+            border-bottom: none;
+        }
+        
+        .edit-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+            display: none;
+        }
+        
+        .edit-modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+        }
+        
+        .edit-modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .edit-modal-buttons button {
+            flex: 1;
+            margin: 0;
+        }
+        
+        .cancel-btn {
+            background: #95a5a6 !important;
+        }
     </style>
 </head>
 <body>
@@ -393,6 +469,25 @@
         </div>
     </div>
 
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" onclick="editMessage()">Düzenle</div>
+        <div class="context-menu-item" onclick="deleteMessage()">Sil</div>
+        <div class="context-menu-item" onclick="hideContextMenu()">İptal</div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="edit-modal" id="editModal">
+        <div class="edit-modal-content">
+            <h3>Mesajı Düzenle</h3>
+            <textarea id="editMessageInput" class="message-input" rows="3" style="width: 100%; margin: 10px 0;"></textarea>
+            <div class="edit-modal-buttons">
+                <button class="cancel-btn" onclick="hideEditModal()">İptal</button>
+                <button onclick="saveEditedMessage()">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         let socket = null;
@@ -400,29 +495,38 @@
         let currentServer = null;
         let typingTimer = null;
         let isTyping = false;
+        let selectedMessage = null;
 
-        // Sayfa yüklendiğinde oturum kontrolü
+        // Sayfa yüklendiğinde oturum kontrolü - ÖNEMLİ DEĞİŞİKLİK
         document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🔍 Page loaded, checking session...');
             await checkSession();
             updateColorPreview();
         });
 
-        // Oturum kontrolü
+        // Oturum kontrolü - GÜNCELLENDİ
         async function checkSession() {
             try {
                 const response = await fetch('/api/check-session');
                 const data = await response.json();
                 
+                console.log('📋 Session check result:', data);
+                
                 if (data.authenticated && data.user) {
+                    console.log('✅ User already logged in:', data.user.email);
                     currentUser = data.user;
                     currentServer = data.user.country || 'TR';
                     
-                    // Doğrudan sohbete yönlendir
+                    // Doğrudan sohbete yönlendir - EMAIL İSTEMEDEN!
                     showScreen('chatScreen');
                     initializeChat();
+                } else {
+                    console.log('❌ No active session, showing login screen');
+                    showScreen('loginScreen');
                 }
             } catch (error) {
                 console.error('Session check error:', error);
+                showScreen('loginScreen');
             }
         }
 
@@ -620,7 +724,7 @@
                 document.getElementById('onlineCount').textContent = `Online: ${count}`;
             });
 
-            // Yeni mesaj - ÖNEMLİ: Kendi mesajım da dahil tüm mesajlar burada
+            // Yeni mesaj - GECİKME OLMADAN!
             socket.on('new-message', (message) => {
                 console.log('📨 New message received:', message);
                 addMessageToChat(message);
@@ -634,9 +738,32 @@
                 }
             });
 
+            // Temp mesaj gerçek mesajla değiştirildi
+            socket.on('message-replaced', (data) => {
+                const tempMessage = document.querySelector(`[data-message-id="${data.tempId}"]`);
+                if (tempMessage) {
+                    tempMessage.remove();
+                    addMessageToChat(data.realMessage);
+                }
+            });
+
+            // Mesaj gönderme başarısız
+            socket.on('message-failed', (data) => {
+                const tempMessage = document.querySelector(`[data-message-id="${data.tempId}"]`);
+                if (tempMessage) {
+                    tempMessage.remove();
+                    showError('loginError', 'Mesaj gönderilemedi');
+                }
+            });
+
             // Görülme güncellemesi
             socket.on('message-seen-update', (data) => {
                 updateMessageSeen(data.messageId, data.seenCount, data.seenBy);
+            });
+
+            // Mesaj düzenlendi
+            socket.on('message-edited', (data) => {
+                updateMessageContent(data.messageId, data.newMessage, data.editedAt);
             });
 
             // Yazıyor indikatörü
@@ -675,7 +802,7 @@
             }
         }
 
-        // Mesaj gönderme
+        // Mesaj gönderme - GECİKME OLMADAN!
         function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
@@ -709,7 +836,7 @@
             
             // Aynı mesaj zaten ekli mi kontrol et
             const existingMessage = document.querySelector(`[data-message-id="${message._id}"]`);
-            if (existingMessage) {
+            if (existingMessage && !message.isTemp) {
                 console.log('⚠️ Message already exists:', message._id);
                 return;
             }
@@ -717,6 +844,15 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
             messageDiv.dataset.messageId = message._id;
+            messageDiv.dataset.userId = message.userId;
+            
+            // Context menu için event listener
+            if (isOwn) {
+                messageDiv.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    showContextMenu(e, message);
+                });
+            }
             
             const time = new Date(message.timestamp).toLocaleTimeString('tr-TR', {
                 hour: '2-digit',
@@ -728,12 +864,17 @@
                 `<div class="message-seen">👁️ ${seenCount} kişi gördü</div>` : 
                 '';
 
+            const editedText = message.edited ? 
+                `<div class="message-edited">(düzenlendi)</div>` : 
+                '';
+
             messageDiv.innerHTML = `
                 <div class="message-header">
                     <img src="${message.profilePhoto}" class="profile-photo" alt="${message.username}">
                     <span class="username" style="color: ${message.nameColor}">${message.username}</span>
                 </div>
                 <div class="message-content">${escapeHtml(message.message)}</div>
+                ${editedText}
                 <div class="message-time">${time}</div>
                 ${seenText}
             `;
@@ -742,6 +883,26 @@
             scrollToBottom();
             
             console.log('✅ Message added to chat:', message._id);
+        }
+
+        // Mesaj içeriğini güncelle (düzenleme için)
+        function updateMessageContent(messageId, newMessage, editedAt) {
+            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageDiv) {
+                const contentDiv = messageDiv.querySelector('.message-content');
+                const timeDiv = messageDiv.querySelector('.message-time');
+                
+                contentDiv.innerHTML = escapeHtml(newMessage);
+                
+                // Düzenlenme zamanını ekle
+                if (editedAt) {
+                    const editedTime = new Date(editedAt).toLocaleTimeString('tr-TR', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    timeDiv.innerHTML = `${timeDiv.textContent} <span class="message-edited">(düzenlendi ${editedTime})</span>`;
+                }
+            }
         }
 
         // Görülme bilgisini güncelle
@@ -754,6 +915,75 @@
                 }
             }
         }
+
+        // Context Menu
+        function showContextMenu(e, message) {
+            selectedMessage = message;
+            const contextMenu = document.getElementById('contextMenu');
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = e.pageX + 'px';
+            contextMenu.style.top = e.pageY + 'px';
+        }
+
+        function hideContextMenu() {
+            const contextMenu = document.getElementById('contextMenu');
+            contextMenu.style.display = 'none';
+            selectedMessage = null;
+        }
+
+        function editMessage() {
+            if (!selectedMessage) return;
+            
+            const editModal = document.getElementById('editModal');
+            const editInput = document.getElementById('editMessageInput');
+            
+            editInput.value = selectedMessage.message;
+            editModal.style.display = 'flex';
+            
+            hideContextMenu();
+        }
+
+        function hideEditModal() {
+            const editModal = document.getElementById('editModal');
+            editModal.style.display = 'none';
+            selectedMessage = null;
+        }
+
+        async function saveEditedMessage() {
+            if (!selectedMessage) return;
+            
+            const editInput = document.getElementById('editMessageInput');
+            const newMessage = editInput.value.trim();
+            
+            if (!newMessage || newMessage === selectedMessage.message) {
+                hideEditModal();
+                return;
+            }
+
+            try {
+                // Socket üzerinden düzenleme
+                socket.emit('edit-message', {
+                    messageId: selectedMessage._id,
+                    newMessage: newMessage,
+                    userId: currentUser._id
+                });
+                
+                hideEditModal();
+                
+            } catch (error) {
+                console.error('Edit message error:', error);
+                showError('loginError', 'Mesaj düzenlenemedi');
+            }
+        }
+
+        function deleteMessage() {
+            // Silme özelliği eklenebilir
+            alert('Silme özelliği henüz eklenmedi');
+            hideContextMenu();
+        }
+
+        // Context menu'yu sayfa tıklamalarında gizle
+        document.addEventListener('click', hideContextMenu);
 
         // Yazıyor indikatörü
         function handleTyping() {
