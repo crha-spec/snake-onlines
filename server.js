@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
@@ -8,118 +7,116 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const nodemailer = require('nodemailer');
 const path = require('path');
-const geoip = require('geoip-lite');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this_secret';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change_this';
 
 if (!MONGODB_URI) {
-  console.error('❌ MONGODB_URI is required in .env');
+  console.error('❌ MONGODB_URI missing');
   process.exit(1);
 }
 
-// ---------- MongoDB ----------
-mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(()=>console.log('✅ MongoDB Connected'))
-  .catch(err => { console.error('❌ MongoDB Error:', err); process.exit(1); });
+// MongoDB
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => {
+    console.error('❌ MongoDB Error:', err);
+    process.exit(1);
+  });
 
-// ---------- Schemas ----------
+// Schemas
 const userSchema = new mongoose.Schema({
-  email: { type: String, required: false, unique: false }, // may be undefined for quick guests
+  email: { type: String, required: true, unique: true },
   username: String,
   profilePhoto: String,
   nameColor: { type: String, default: '#4285F4' },
   country: String,
   server: String,
-  createdAt: { type: Date, default: Date.now },
-  lastSeen: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now }
 });
 
 const messageSchema = new mongoose.Schema({
-  serverId: { type: String, required: true, index: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  serverId: { type: String, required: true },
+  userId: mongoose.Schema.Types.ObjectId,
   username: String,
   nameColor: String,
   profilePhoto: String,
   message: String,
   timestamp: { type: Date, default: Date.now },
-  edited: { type: Boolean, default: false },
-  editedAt: Date,
-  seenBy: [{ userId: mongoose.Schema.Types.ObjectId, seenAt: Date }]
+  seenBy: [{ 
+    userId: mongoose.Schema.Types.ObjectId, 
+    username: String,
+    seenAt: Date 
+  }]
 });
 
 const verificationSchema = new mongoose.Schema({
-  email: { type: String, required: true, index: true },
+  email: { type: String, required: true },
   code: String,
-  createdAt: { type: Date, default: Date.now, expires: 300 } // 5 minutes TTL
+  createdAt: { type: Date, default: Date.now }
 });
+
+verificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 300 });
 
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 const Verification = mongoose.model('Verification', verificationSchema);
 
-// ---------- Session ----------
-const sessionMiddleware = session({
+// Session
+app.use(session({
   secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   store: MongoStore.create({ mongoUrl: MONGODB_URI }),
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000,
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax'
-  }
-});
-app.use(sessionMiddleware);
+  cookie: { maxAge: 24 * 60 * 60 * 1000, httpOnly: true }
+}));
 
-// make session accessible in socket
-io.use((socket, next) => {
-  sessionMiddleware(socket.request, {}, next);
-});
-
-// ---------- Middleware ----------
-app.use(express.json({ limit: '5mb' })); // base64 avatar potentially large
-app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+// Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------- Mailer (optional) ----------
+// Mail
 let transporter = null;
 if (process.env.SMTP_USER && process.env.SMTP_PASS) {
   transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
     secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
   });
-  transporter.verify().then(()=>console.log('✅ SMTP ready')).catch(e=>console.warn('⚠️ SMTP verify failed:', e.message));
-} else {
-  console.log('ℹ️ SMTP not configured — verification codes will be printed to console and returned in dev responses.');
 }
 
-// ---------- Helpers ----------
-const genCode = () => Math.floor(100000 + Math.random() * 900000).toString();
-const normalizeEmail = e => (e || '').toString().trim().toLowerCase();
-const ipToCountry = ip => {
-  if (!ip) return 'TR';
-  if (ip.includes(',')) ip = ip.split(',')[0].trim();
-  if (ip.startsWith('::ffff:')) ip = ip.replace('::ffff:', '');
-  const g = geoip.lookup(ip);
-  return (g && g.country) ? g.country : 'TR';
-};
-const serverForCountry = c => {
-  const map = { TR:'TR', US:'US', GB:'GB', DE:'DE', FR:'FR', KR:'KR', JP:'JP', CN:'CN' };
-  return map[c] || (c || 'TR');
-};
+// Helpers
+function genCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
-// ---------- API: send verification code ----------
+function normalizeEmail(e) {
+  return (e || '').toString().trim().toLowerCase();
+}
+
+// IP ve Ülke tespiti için API
+async function getCountryFromIP(ip) {
+  try {
+    const response = await fetch(`http://ip-api.com/json/${ip}`);
+    const data = await response.json();
+    return data.countryCode || 'TR';
+  } catch (error) {
+    console.error('IP detection error:', error);
+    return 'TR';
+  }
+}
+
+// API: send-code
 app.post('/api/send-code', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
@@ -134,12 +131,12 @@ app.post('/api/send-code', async (req, res) => {
         from: process.env.SMTP_USER,
         to: email,
         subject: 'Global Chat - Doğrulama Kodu',
-        text: `Doğrulama kodunuz: ${code} (5 dakika geçerli)`
+        text: `Doğrulama kodunuz: ${code}`
       });
-      console.log(`✉️ Sent code to ${email}`);
+      console.log(`✉️ Email sent to ${email}`);
       return res.json({ success: true });
     } else {
-      console.log(`[DEV] Verification code for ${email}: ${code}`);
+      console.log(`[DEV] Code for ${email}: ${code}`);
       return res.json({ success: true, devCode: code });
     }
   } catch (err) {
@@ -148,33 +145,31 @@ app.post('/api/send-code', async (req, res) => {
   }
 });
 
-// ---------- API: verify code ----------
+// API: verify-code (IP tespiti eklendi)
 app.post('/api/verify-code', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
     const code = (req.body.code || '').toString().trim();
+    const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    
     if (!email || !code) return res.json({ success: false, error: 'Missing fields' });
 
-    console.log(`[VERIFY ATTEMPT] ${email} / ${code} from ${req.ip}`);
+    const record = await Verification.findOne({ email, code });
+    if (!record) return res.json({ success: false, error: 'Invalid code' });
 
-    const rec = await Verification.findOne({ email, code });
-    if (!rec) {
-      const existing = await Verification.find({ email }).lean();
-      console.log(`[VERIFY FAIL] ${email} existing:`, existing);
-      return res.json({ success: false, error: 'Invalid code or expired' });
-    }
+    // IP'den ülke tespiti
+    const country = await getCountryFromIP(clientIP);
 
-    // create or find user
     let user = await User.findOne({ email });
     if (!user) {
-      const usernameBase = email.split('@')[0];
+      const username = email.split('@')[0];
       user = await User.create({
         email,
-        username: usernameBase,
-        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(usernameBase)}&background=667eea&color=fff`,
+        username,
+        profilePhoto: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=667eea&color=fff`,
         nameColor: '#4285F4',
-        country: ipToCountry(req.ip),
-        server: serverForCountry(ipToCountry(req.ip))
+        country: country,
+        server: country
       });
     }
 
@@ -183,32 +178,38 @@ app.post('/api/verify-code', async (req, res) => {
 
     await Verification.deleteMany({ email });
 
-    return res.json({ success: true, user: { _id: user._id, email: user.email } });
+    return res.json({ 
+      success: true, 
+      user: { 
+        _id: user._id, 
+        email: user.email,
+        country: country 
+      } 
+    });
   } catch (err) {
     console.error('verify-code error', err);
     return res.json({ success: false, error: 'Server error' });
   }
 });
 
-// ---------- API: profile-setup (includes avatar upload as base64) ----------
+// API: profile-setup (Profil fotoğrafı upload desteği)
 app.post('/api/profile-setup', async (req, res) => {
   try {
+    const { username, profilePhoto, nameColor } = req.body;
     const sessionUserId = req.session.userId;
+
     if (!sessionUserId) return res.status(401).json({ success: false, error: 'Not authenticated' });
 
-    const { username, profilePhoto, nameColor, country } = req.body;
-    const serverCode = serverForCountry(country || ipToCountry(req.ip));
+    const user = await User.findByIdAndUpdate(
+      sessionUserId,
+      {
+        username: username || 'User',
+        profilePhoto: profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(username || 'User')}`,
+        nameColor: nameColor || '#4285F4'
+      },
+      { new: true }
+    );
 
-    const user = await User.findByIdAndUpdate(sessionUserId, {
-      username: username || 'User',
-      profilePhoto: profilePhoto || undefined,
-      nameColor: nameColor || '#4285F4',
-      country: country || ipToCountry(req.ip),
-      server: serverCode,
-      lastSeen: new Date()
-    }, { new: true, upsert: true });
-
-    req.session.userId = user._id.toString();
     return res.json({ success: true, user });
   } catch (err) {
     console.error('profile-setup error', err);
@@ -216,7 +217,7 @@ app.post('/api/profile-setup', async (req, res) => {
   }
 });
 
-// ---------- API: current user ----------
+// API: current user
 app.get('/api/user', async (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Not authenticated' });
@@ -224,85 +225,66 @@ app.get('/api/user', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Not authenticated' });
     return res.json({ user });
   } catch (err) {
-    console.error('api/user error', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ---------- API: messages ----------
+// API: messages
 app.get('/api/messages/:serverId', async (req, res) => {
   try {
-    const msgs = await Message.find({ serverId: req.params.serverId }).sort({ timestamp: 1 }).limit(200);
+    const msgs = await Message.find({ serverId: req.params.serverId })
+      .sort({ timestamp: 1 })
+      .limit(100);
     return res.json(msgs);
   } catch (err) {
-    console.error('api/messages error', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ---------- API: logout ----------
-app.get('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/'));
-});
-
-// ---------- Socket.io realtime ----------
-// track sockets per room and mapping for seen counts
-const rooms = new Map(); // room -> Set(socket.id)
-const socketMeta = new Map(); // socket.id -> { userId, roomId }
+// Socket.io
+const roomUsers = new Map();
 
 io.on('connection', (socket) => {
-  // joinCountry or join-server
-  socket.on('joinCountry', async (payload) => {
-    try {
-      const ip = socket.request.headers['x-forwarded-for'] || socket.request.connection.remoteAddress;
-      const countryFromIp = ipToCountry(ip);
-      const country = payload?.country || countryFromIp || 'TR';
-      const serverId = serverForCountry(country);
-
-      // attach meta
-      const userId = socket.request.session?.userId || payload?.userId || null;
-      const username = payload?.username || (socket.request.session?.email ? socket.request.session.email.split('@')[0] : ('User'+Math.floor(Math.random()*1000)));
-      const profilePhoto = payload?.profilePhoto || (socket.request.session?.profilePhoto) || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=667eea&color=fff`;
-      const nameColor = payload?.nameColor || '#4285F4';
-
-      socket.join(serverId);
-      socketMeta.set(socket.id, { userId, roomId: serverId });
-
-      if (!rooms.has(serverId)) rooms.set(serverId, new Set());
-      rooms.get(serverId).add(socket.id);
-
-      io.to(serverId).emit('update-users', rooms.get(serverId).size);
-
-      // update user lastSeen/server in DB if userId present
-      if (userId) {
-        User.findByIdAndUpdate(userId, { lastSeen: new Date(), server: serverId }).catch(()=>{});
-      }
-    } catch (err) {
-      console.error('joinCountry error', err);
-    }
-  });
+  console.log('✅ User connected:', socket.id);
 
   socket.on('join-server', async (payload) => {
-    // backward compatibility: payload { userId, serverId, username, profilePhoto }
-    try {
-      const room = payload.serverId || payload.room || 'TR';
-      const userId = payload.userId || socket.request.session?.userId || null;
-      socket.join(room);
-      socketMeta.set(socket.id, { userId, roomId: room });
+    const { serverId, userId } = payload;
+    if (!serverId) return;
 
-      if (!rooms.has(room)) rooms.set(room, new Set());
-      rooms.get(room).add(socket.id);
-      io.to(room).emit('update-users', rooms.get(room).size);
-      if (userId) User.findByIdAndUpdate(userId, { lastSeen: new Date(), server: room }).catch(()=>{});
+    socket.join(serverId);
+    
+    if (!roomUsers.has(serverId)) roomUsers.set(serverId, new Map());
+    roomUsers.get(serverId).set(socket.id, userId);
+    
+    io.to(serverId).emit('update-users', roomUsers.get(serverId).size);
+    
+    // Kullanıcı katıldığında tüm mesajları görüldü olarak işaretle
+    try {
+      const messages = await Message.find({ serverId });
+      for (const msg of messages) {
+        if (!msg.seenBy.some(s => s.userId?.toString() === userId)) {
+          const user = await User.findById(userId);
+          msg.seenBy.push({ 
+            userId, 
+            username: user?.username || 'User',
+            seenAt: new Date() 
+          });
+          await msg.save();
+          
+          io.to(serverId).emit('message-seen-update', { 
+            messageId: msg._id, 
+            seenCount: msg.seenBy.length,
+            seenBy: msg.seenBy 
+          });
+        }
+      }
     } catch (err) {
-      console.error('join-server error', err);
+      console.error('Mark messages as seen error:', err);
     }
   });
 
   socket.on('send-message', async (data) => {
     try {
-      // validate
-      if (!data || !data.serverId || !data.message || !data.userId) return;
       const msg = await Message.create({
         serverId: data.serverId,
         userId: data.userId,
@@ -310,11 +292,26 @@ io.on('connection', (socket) => {
         nameColor: data.nameColor,
         profilePhoto: data.profilePhoto,
         message: data.message,
-        timestamp: new Date()
+        timestamp: new Date(),
+        seenBy: [{
+          userId: data.userId,
+          username: data.username,
+          seenAt: new Date()
+        }]
       });
-
-      // emit to entire room (including sender) — single authoritative emit
-      io.to(data.serverId).emit('new-message', msg);
+      
+      // Mesajı gönderene hemen görüldü bilgisi ile gönder
+      const messageWithSeen = {
+        ...msg.toObject(),
+        seenCount: 1,
+        seenBy: [{
+          userId: data.userId,
+          username: data.username,
+          seenAt: new Date()
+        }]
+      };
+      
+      io.to(data.serverId).emit('new-message', messageWithSeen);
     } catch (err) {
       console.error('send-message error', err);
     }
@@ -324,50 +321,57 @@ io.on('connection', (socket) => {
     try {
       const msg = await Message.findById(messageId);
       if (!msg) return;
+      
+      const user = await User.findById(userId);
+      if (!user) return;
+
       if (!msg.seenBy.some(s => s.userId?.toString() === userId?.toString())) {
-        msg.seenBy.push({ userId, seenAt: new Date() });
+        msg.seenBy.push({ 
+          userId, 
+          username: user.username,
+          seenAt: new Date() 
+        });
         await msg.save();
-        io.to(msg.serverId).emit('message-seen-update', { messageId: msg._id, seenCount: msg.seenBy.length });
+        
+        io.to(msg.serverId).emit('message-seen-update', { 
+          messageId: msg._id, 
+          seenCount: msg.seenBy.length,
+          seenBy: msg.seenBy 
+        });
       }
     } catch (err) {
       console.error('message-seen error', err);
     }
   });
 
-  socket.on('edit-message', async ({ messageId, newMessage }) => {
-    try {
-      const updated = await Message.findByIdAndUpdate(messageId, { message: newMessage, edited: true, editedAt: new Date() }, { new: true });
-      if (updated) io.to(updated.serverId).emit('message-edited', { messageId: updated._id, newMessage: updated.message });
-    } catch (err) {
-      console.error('edit-message error', err);
-    }
+  socket.on('typing-start', (data) => {
+    socket.to(data.serverId).emit('user-typing', {
+      userId: data.userId,
+      username: data.username
+    });
+  });
+
+  socket.on('typing-stop', (data) => {
+    socket.to(data.serverId).emit('user-stop-typing', {
+      userId: data.userId
+    });
   });
 
   socket.on('disconnect', () => {
-    const meta = socketMeta.get(socket.id);
-    if (meta) {
-      const { roomId } = meta;
-      socketMeta.delete(socket.id);
-      if (rooms.has(roomId)) {
-        rooms.get(roomId).delete(socket.id);
-        io.to(roomId).emit('update-users', rooms.get(roomId).size);
-      }
-    } else {
-      // try to remove from all rooms
-      for (const [roomId, set] of rooms.entries()) {
-        if (set.has(socket.id)) {
-          set.delete(socket.id);
-          io.to(roomId).emit('update-users', set.size);
-        }
+    for (const [serverId, users] of roomUsers) {
+      if (users.has(socket.id)) {
+        users.delete(socket.id);
+        io.to(serverId).emit('update-users', users.size);
+        break;
       }
     }
+    console.log('❌ User disconnected:', socket.id);
   });
 });
 
-// ---------- Frontend landing ----------
+// Serve index
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ---------- Start ----------
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
