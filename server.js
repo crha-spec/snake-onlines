@@ -4,19 +4,21 @@ const socketIo = require('socket.io');
 const axios = require('axios');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-// CORS ayarlarını düzgün yapılandır
+// Vercel için Socket.io yapılandırması
 const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  path: '/socket.io/'
 });
 
 // Middleware
@@ -26,20 +28,26 @@ app.use(cors({
   origin: "*",
   credentials: true
 }));
-app.use(express.static('public'));
 
-// MongoDB bağlantısı - hata yönetimi ile
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-app';
+// Static files - Vercel için path düzeltmesi
+app.use(express.static(path.join(__dirname, 'public')));
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('✅ MongoDB bağlantısı başarılı'))
-.catch(err => {
-  console.error('❌ MongoDB bağlantı hatası:', err);
-  console.log('⚠️  MongoDB olmadan devam ediliyor...');
-});
+// MongoDB bağlantısı
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (MONGODB_URI) {
+  mongoose.connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log('✅ MongoDB bağlantısı başarılı'))
+  .catch(err => {
+    console.error('❌ MongoDB bağlantı hatası:', err);
+    console.log('⚠️  MongoDB olmadan devam ediliyor...');
+  });
+} else {
+  console.log('⚠️  MONGODB_URI bulunamadı, memory modunda çalışılıyor...');
+}
 
 // Kullanıcı Profil Şeması
 const userProfileSchema = new mongoose.Schema({
@@ -90,32 +98,33 @@ const TURKISH_CITIES = [
 // Bellekte saklanan veriler
 const rooms = new Map();
 const socketToUser = new Map();
-const connectedUsers = new Map(); // Socket ID -> User Info
+const connectedUsers = new Map();
 
 // IP'den şehir bulma
 async function getCityFromIP(ip) {
   try {
-    // Vercel'de gerçek IP'yi almak için
     let realIP = ip;
     if (ip.includes('::ffff:')) {
       realIP = ip.split(':').pop();
     }
     
-    // Localhost için fallback
-    if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1') {
-      return 'İstanbul'; // Test için
+    // Vercel ve localhost için fallback
+    if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1' || realIP === 'localhost') {
+      return 'İstanbul';
     }
 
-    console.log('🔍 IP sorgulanıyor:', realIP);
+    // Vercel'in header'larından IP'yi al
+    if (ip === '::ffff:127.0.0.1' || !ip || ip === '::1') {
+      return 'İstanbul';
+    }
+
     const response = await axios.get(`http://ip-api.com/json/${realIP}?fields=status,message,city,country`, {
       timeout: 5000
     });
     
     if (response.data.status === 'success' && response.data.city) {
       const city = response.data.city;
-      console.log('📍 API şehir döndü:', city);
       
-      // Türkçe şehir isimleriyle eşleştirme
       const turkishCity = TURKISH_CITIES.find(turkishCity => 
         city.toLowerCase().includes(turkishCity.toLowerCase()) ||
         turkishCity.toLowerCase().includes(city.toLowerCase())
@@ -144,7 +153,6 @@ function generateColor(username) {
 // Kullanıcı profilini getir veya oluştur
 async function getOrCreateUserProfile(userData) {
   try {
-    // MongoDB bağlı değilse memory'de devam et
     if (mongoose.connection.readyState !== 1) {
       return {
         userId: userData.userId,
@@ -168,7 +176,6 @@ async function getOrCreateUserProfile(userData) {
       await userProfile.save();
       console.log('✅ Yeni kullanıcı profili oluşturuldu:', userData.userName);
     } else {
-      // Profili güncelle
       userProfile.userName = userData.userName;
       userProfile.userPhoto = userData.userPhoto || userProfile.userPhoto;
       userProfile.lastSeen = new Date();
@@ -179,7 +186,6 @@ async function getOrCreateUserProfile(userData) {
     return userProfile;
   } catch (error) {
     console.error('❌ Kullanıcı profili hatası:', error);
-    // Hata durumunda memory'de devam et
     return {
       userId: userData.userId,
       userName: userData.userName,
@@ -222,7 +228,7 @@ io.on('connection', async (socket) => {
   console.log('🔗 Yeni kullanıcı bağlandı:', socket.id);
 
   try {
-    // IP'den şehir belirleme
+    // Vercel'de IP adresini doğru şekilde al
     const clientIP = socket.handshake.headers['x-forwarded-for'] || 
                     socket.handshake.address || 
                     socket.conn.remoteAddress;
@@ -231,7 +237,6 @@ io.on('connection', async (socket) => {
     const city = await getCityFromIP(clientIP);
     console.log(`📍 Kullanıcı ${socket.id} şehri: ${city}`);
 
-    // İlk bağlantıda kullanıcı bilgilerini bekle
     socket.on('user-join', async (userData) => {
       try {
         console.log('👤 Kullanıcı katılım verisi:', userData);
@@ -252,11 +257,9 @@ io.on('connection', async (socket) => {
           joinedAt: new Date()
         };
 
-        // Socket-to-user mapping
         socketToUser.set(socket.id, user.id);
         addUserToRoom(user.id, city, user);
 
-        // Kullanıcıya bilgilerini gönder
         socket.emit('user-assigned', {
           userId: user.id,
           userName: user.userName,
@@ -265,21 +268,17 @@ io.on('connection', async (socket) => {
           userColor: user.userColor
         });
 
-        // Kullanıcıyı odaya ekle
         socket.join(city);
 
-        // Odadaki kullanıcı listesini güncelle
         const roomUsers = getRoomUsers(city);
         io.to(city).emit('user-list-update', roomUsers);
 
-        // Kullanıcı katıldı bildirimi
         socket.to(city).emit('user-joined', {
           userName: user.userName,
           users: roomUsers
         });
 
         console.log(`✅ Kullanıcı ${user.userName} ${city} odasına katıldı`);
-        console.log(`👥 Odadaki kullanıcı sayısı: ${roomUsers.length}`);
 
       } catch (error) {
         console.error('❌ Kullanıcı katılma hatası:', error);
@@ -287,7 +286,6 @@ io.on('connection', async (socket) => {
       }
     });
 
-    // Profil güncelleme
     socket.on('update-profile', async (profileData) => {
       try {
         console.log('🔄 Profil güncelleniyor:', profileData);
@@ -295,7 +293,6 @@ io.on('connection', async (socket) => {
         const userProfile = await getOrCreateUserProfile(profileData);
 
         if (userProfile) {
-          // Kullanıcı bilgisini güncelle
           const userId = socketToUser.get(socket.id);
           if (userId && connectedUsers.has(userId)) {
             const userInfo = connectedUsers.get(userId);
@@ -304,7 +301,6 @@ io.on('connection', async (socket) => {
             connectedUsers.set(userId, userInfo);
           }
 
-          // Tüm odalara profil güncelleme bildirimi gönder
           const roomUsers = getRoomUsers(userProfile.city);
           io.to(userProfile.city).emit('profile-updated', {
             userId: userProfile.userId,
@@ -312,7 +308,6 @@ io.on('connection', async (socket) => {
             userPhoto: userProfile.userPhoto
           });
 
-          // Kullanıcı listesini yenile
           io.to(userProfile.city).emit('user-list-update', roomUsers);
 
           console.log(`✅ Profil güncellendi: ${userProfile.userName}`);
@@ -322,7 +317,6 @@ io.on('connection', async (socket) => {
       }
     });
 
-    // Mesaj alma
     socket.on('message', async (messageData) => {
       try {
         const userId = socketToUser.get(socket.id);
@@ -348,7 +342,6 @@ io.on('connection', async (socket) => {
           seen: false
         };
 
-        // Odaya mesajı yayınla
         io.to(userInfo.city).emit('message', message);
         console.log(`💬 Mesaj ${userInfo.city} odasında yayınlandı:`, message.text.substring(0, 50) + '...');
 
@@ -358,7 +351,6 @@ io.on('connection', async (socket) => {
       }
     });
 
-    // Yazıyor indikatörü
     socket.on('typing', async (isTyping) => {
       try {
         const userId = socketToUser.get(socket.id);
@@ -372,13 +364,11 @@ io.on('connection', async (socket) => {
           isTyping: isTyping
         });
 
-        console.log(`⌨️  ${userInfo.userName} ${isTyping ? 'yazıyor...' : 'yazmayı bıraktı'}`);
       } catch (error) {
         console.error('❌ Typing indicator hatası:', error);
       }
     });
 
-    // Mesaj okundu
     socket.on('message-seen', (data) => {
       try {
         const userId = socketToUser.get(socket.id);
@@ -387,19 +377,16 @@ io.on('connection', async (socket) => {
         const userInfo = connectedUsers.get(userId);
         if (!userInfo) return;
 
-        // Mesajın okunduğunu odadaki herkese bildir
         io.to(data.room).emit('message-seen', {
           messageId: data.messageId,
           seenBy: userInfo.userName
         });
 
-        console.log(`👀 Mesaj okundu: ${data.messageId} by ${userInfo.userName}`);
       } catch (error) {
         console.error('❌ Mesaj okundu hatası:', error);
       }
     });
 
-    // Bağlantı kesilme
     socket.on('disconnect', async (reason) => {
       console.log('🔌 Kullanıcı ayrıldı:', socket.id, 'Neden:', reason);
 
@@ -410,31 +397,25 @@ io.on('connection', async (socket) => {
         const userInfo = connectedUsers.get(userId);
         if (!userInfo) return;
 
-        // Kullanıcıyı odadan çıkar
         removeUserFromRoom(userId, userInfo.city);
         socketToUser.delete(socket.id);
 
-        // Odadaki kullanıcı listesini güncelle
         const roomUsers = getRoomUsers(userInfo.city);
         
-        // Kullanıcı ayrıldı bildirimi gönder
         socket.to(userInfo.city).emit('user-left', {
           userName: userInfo.userName,
           users: roomUsers
         });
 
-        // Kullanıcı listesini güncelle
         io.to(userInfo.city).emit('user-list-update', roomUsers);
 
         console.log(`👋 Kullanıcı ${userInfo.userName} ${userInfo.city} odasından ayrıldı`);
-        console.log(`👥 Kalan kullanıcı sayısı: ${roomUsers.length}`);
 
       } catch (error) {
         console.error('❌ Kullanıcı ayrılma hatası:', error);
       }
     });
 
-    // Hata yönetimi
     socket.on('error', (error) => {
       console.error('❌ Socket hatası:', error);
     });
@@ -465,7 +446,7 @@ app.get('/api/users/:userId', async (req, res) => {
 app.get('/api/users/city/:city', async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.json([]); // Boş array dön
+      return res.json([]);
     }
 
     const users = await UserProfile.find({ city: req.params.city });
@@ -498,13 +479,19 @@ app.get('/test', (req, res) => {
   res.json({
     message: 'Sunucu çalışıyor!',
     timestamp: new Date().toISOString(),
-    nodeVersion: process.version
+    nodeVersion: process.version,
+    environment: process.env.NODE_ENV
   });
 });
 
-// Ana sayfa
+// Ana sayfa - Vercel için path düzeltmesi
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Tüm route'ları index.html'e yönlendir (SPA için)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // 404 handler
@@ -523,7 +510,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Sunucuyu başlat
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
   console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🔗 Test: http://localhost:${PORT}/test`);
