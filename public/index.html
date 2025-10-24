@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Şehir Sohbet Odası</title>
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Socket.io CDN -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        /* Önceki CSS kodları aynen kalacak */
+        /* CSS kodları aynı kalacak, sadece socket.io CDN eklendi */
         * {
             margin: 0;
             padding: 0;
@@ -785,7 +786,7 @@
                 this.showConnectionStatus('Sunucuya bağlanılıyor...', false);
                 
                 try {
-                    // Vercel için socket.io bağlantısı
+                    // Socket.io bağlantısı - CDN kullanıldığı için path belirtmeye gerek yok
                     this.socket = io({
                         transports: ['websocket', 'polling'],
                         timeout: 10000,
