@@ -10,14 +10,14 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Vercel için özel Socket.io yapılandırması
+// Vercel için Socket.io yapılandırması - SADECE POLLING
 const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling']
+  transports: ['polling'] // Sadece polling kullan
 });
 
 // Middleware
@@ -28,7 +28,7 @@ app.use(cors({
   credentials: true
 }));
 
-// Static files serving - Vercel için
+// Static files serving
 app.use(express.static('public'));
 
 // MongoDB bağlantısı
@@ -108,12 +108,13 @@ async function getCityFromIP(ip) {
     }
     
     // Vercel ve localhost için fallback
-    if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1' || realIP === 'localhost') {
+    if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1') {
       return 'İstanbul';
     }
 
     // Vercel'in header'larından IP'yi al
-    if (ip === '::ffff:127.0.0.1' || !ip || ip === '::1') {
+    const forwardedFor = ip;
+    if (!forwardedFor || forwardedFor === '::1') {
       return 'İstanbul';
     }
 
@@ -210,16 +211,21 @@ function addUserToRoom(userId, room, userInfo) {
   }
   rooms.get(room).add(userId);
   connectedUsers.set(userId, userInfo);
+  socketToUser.set(userInfo.socketId, userId);
 }
 
-function removeUserFromRoom(userId, room) {
-  if (rooms.has(room)) {
+function removeUserFromRoom(socketId, room) {
+  const userId = socketToUser.get(socketId);
+  if (userId && rooms.has(room)) {
     rooms.get(room).delete(userId);
     if (rooms.get(room).size === 0) {
       rooms.delete(room);
     }
   }
-  connectedUsers.delete(userId);
+  if (userId) {
+    connectedUsers.delete(userId);
+  }
+  socketToUser.delete(socketId);
 }
 
 // Socket.io bağlantı yönetimi
@@ -236,6 +242,7 @@ io.on('connection', async (socket) => {
     const city = await getCityFromIP(clientIP);
     console.log(`📍 Kullanıcı ${socket.id} şehri: ${city}`);
 
+    // İlk bağlantıda kullanıcı bilgilerini bekle
     socket.on('user-join', async (userData) => {
       try {
         console.log('👤 Kullanıcı katılım verisi:', userData);
@@ -256,9 +263,9 @@ io.on('connection', async (socket) => {
           joinedAt: new Date()
         };
 
-        socketToUser.set(socket.id, user.id);
         addUserToRoom(user.id, city, user);
 
+        // Kullanıcıya bilgilerini gönder
         socket.emit('user-assigned', {
           userId: user.id,
           userName: user.userName,
@@ -267,17 +274,21 @@ io.on('connection', async (socket) => {
           userColor: user.userColor
         });
 
+        // Kullanıcıyı odaya ekle
         socket.join(city);
 
+        // Odadaki kullanıcı listesini güncelle
         const roomUsers = getRoomUsers(city);
         io.to(city).emit('user-list-update', roomUsers);
 
+        // Kullanıcı katıldı bildirimi
         socket.to(city).emit('user-joined', {
           userName: user.userName,
           users: roomUsers
         });
 
         console.log(`✅ Kullanıcı ${user.userName} ${city} odasına katıldı`);
+        console.log(`👥 Odadaki kullanıcı sayısı: ${roomUsers.length}`);
 
       } catch (error) {
         console.error('❌ Kullanıcı katılma hatası:', error);
@@ -285,6 +296,7 @@ io.on('connection', async (socket) => {
       }
     });
 
+    // Profil güncelleme
     socket.on('update-profile', async (profileData) => {
       try {
         console.log('🔄 Profil güncelleniyor:', profileData);
@@ -292,6 +304,7 @@ io.on('connection', async (socket) => {
         const userProfile = await getOrCreateUserProfile(profileData);
 
         if (userProfile) {
+          // Kullanıcı bilgisini güncelle
           const userId = socketToUser.get(socket.id);
           if (userId && connectedUsers.has(userId)) {
             const userInfo = connectedUsers.get(userId);
@@ -300,6 +313,7 @@ io.on('connection', async (socket) => {
             connectedUsers.set(userId, userInfo);
           }
 
+          // Tüm odalara profil güncelleme bildirimi gönder
           const roomUsers = getRoomUsers(userProfile.city);
           io.to(userProfile.city).emit('profile-updated', {
             userId: userProfile.userId,
@@ -307,6 +321,7 @@ io.on('connection', async (socket) => {
             userPhoto: userProfile.userPhoto
           });
 
+          // Kullanıcı listesini yenile
           io.to(userProfile.city).emit('user-list-update', roomUsers);
 
           console.log(`✅ Profil güncellendi: ${userProfile.userName}`);
@@ -316,6 +331,7 @@ io.on('connection', async (socket) => {
       }
     });
 
+    // Mesaj alma
     socket.on('message', async (messageData) => {
       try {
         const userId = socketToUser.get(socket.id);
@@ -341,6 +357,7 @@ io.on('connection', async (socket) => {
           seen: false
         };
 
+        // Odaya mesajı yayınla
         io.to(userInfo.city).emit('message', message);
         console.log(`💬 Mesaj ${userInfo.city} odasında yayınlandı:`, message.text.substring(0, 50) + '...');
 
@@ -350,6 +367,7 @@ io.on('connection', async (socket) => {
       }
     });
 
+    // Yazıyor indikatörü
     socket.on('typing', async (isTyping) => {
       try {
         const userId = socketToUser.get(socket.id);
@@ -363,11 +381,13 @@ io.on('connection', async (socket) => {
           isTyping: isTyping
         });
 
+        console.log(`⌨️  ${userInfo.userName} ${isTyping ? 'yazıyor...' : 'yazmayı bıraktı'}`);
       } catch (error) {
         console.error('❌ Typing indicator hatası:', error);
       }
     });
 
+    // Mesaj okundu
     socket.on('message-seen', (data) => {
       try {
         const userId = socketToUser.get(socket.id);
@@ -376,16 +396,19 @@ io.on('connection', async (socket) => {
         const userInfo = connectedUsers.get(userId);
         if (!userInfo) return;
 
+        // Mesajın okunduğunu odadaki herkese bildir
         io.to(data.room).emit('message-seen', {
           messageId: data.messageId,
           seenBy: userInfo.userName
         });
 
+        console.log(`👀 Mesaj okundu: ${data.messageId} by ${userInfo.userName}`);
       } catch (error) {
         console.error('❌ Mesaj okundu hatası:', error);
       }
     });
 
+    // Bağlantı kesilme
     socket.on('disconnect', async (reason) => {
       console.log('🔌 Kullanıcı ayrıldı:', socket.id, 'Neden:', reason);
 
@@ -396,25 +419,30 @@ io.on('connection', async (socket) => {
         const userInfo = connectedUsers.get(userId);
         if (!userInfo) return;
 
-        removeUserFromRoom(userId, userInfo.city);
-        socketToUser.delete(socket.id);
+        // Kullanıcıyı odadan çıkar
+        removeUserFromRoom(socket.id, userInfo.city);
 
+        // Odadaki kullanıcı listesini güncelle
         const roomUsers = getRoomUsers(userInfo.city);
         
+        // Kullanıcı ayrıldı bildirimi gönder
         socket.to(userInfo.city).emit('user-left', {
           userName: userInfo.userName,
           users: roomUsers
         });
 
+        // Kullanıcı listesini güncelle
         io.to(userInfo.city).emit('user-list-update', roomUsers);
 
         console.log(`👋 Kullanıcı ${userInfo.userName} ${userInfo.city} odasından ayrıldı`);
+        console.log(`👥 Kalan kullanıcı sayısı: ${roomUsers.length}`);
 
       } catch (error) {
         console.error('❌ Kullanıcı ayrılma hatası:', error);
       }
     });
 
+    // Hata yönetimi
     socket.on('error', (error) => {
       console.error('❌ Socket hatası:', error);
     });
@@ -514,12 +542,20 @@ process.on('unhandledRejection', (reason, promise) => {
 // Sunucuyu başlat
 const PORT = process.env.PORT || 3000;
 
-// Vercel için server.listen'i düzelt
-if (process.env.VERCEL) {
-  // Vercel environment
-  module.exports = app;
-} else {
-  // Local development
+// Vercel için
+module.exports = (req, res) => {
+  // Vercel serverless fonksiyonu
+  if (req.url.startsWith('/socket.io/')) {
+    // Socket.io isteklerini server'a yönlendir
+    server.emit('request', req, res);
+  } else {
+    // Diğer istekleri Express'e yönlendir
+    app(req, res);
+  }
+};
+
+// Local development için
+if (process.env.NODE_ENV !== 'production') {
   server.listen(PORT, () => {
     console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
