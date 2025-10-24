@@ -30,6 +30,33 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .profile-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .profile-button:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .profile-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
         .header h1 {
             font-size: 18px;
             font-weight: 500;
@@ -92,6 +119,7 @@
             font-weight: bold;
             margin-right: 10px;
             font-size: 16px;
+            object-fit: cover;
         }
 
         .user-info {
@@ -118,21 +146,31 @@
         }
 
         .message {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
             max-width: 70%;
-            padding: 12px 16px;
-            border-radius: 8px;
-            position: relative;
-            word-wrap: break-word;
         }
 
         .message.own {
             align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 8px;
+            position: relative;
+            word-wrap: break-word;
+            max-width: 100%;
+        }
+
+        .message.own .message-content {
             background: #dcf8c6;
             border-bottom-right-radius: 2px;
         }
 
-        .message.other {
-            align-self: flex-start;
+        .message.other .message-content {
             background: white;
             border-bottom-left-radius: 2px;
         }
@@ -264,14 +302,165 @@
             background: #ff5252;
             color: white;
         }
+
+        /* Modal Stilleri */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .modal h2 {
+            color: #075e54;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: #075e54;
+        }
+
+        .photo-preview {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 15px auto;
+            display: block;
+            border: 3px solid #075e54;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: block;
+            padding: 12px 15px;
+            background: #075e54;
+            color: white;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .file-input-label:hover {
+            background: #054d44;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: #075e54;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #054d44;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .welcome-modal .modal-content {
+            text-align: center;
+        }
+
+        .avatar-placeholder {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #075e54;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 auto 20px;
+        }
     </style>
 </head>
 <body>
     <div class="connection-status" id="connectionStatus"></div>
     
     <div class="header">
-        <button class="mobile-users-toggle" id="mobileUsersToggle">👥</button>
-        <h1 id="roomTitle">Şehir Sohbet Odası</h1>
+        <div class="header-left">
+            <button class="mobile-users-toggle" id="mobileUsersToggle">👥</button>
+            <button class="profile-button" id="profileButton">
+                <img src="" alt="Profil" class="profile-avatar" id="profileAvatar">
+            </button>
+            <h1 id="roomTitle">Şehir Sohbet Odası</h1>
+        </div>
         <div class="online-count" id="onlineCount">0 online</div>
     </div>
 
@@ -302,12 +491,55 @@
         </div>
     </div>
 
+    <!-- Hoş Geldin Modal -->
+    <div class="modal welcome-modal" id="welcomeModal">
+        <div class="modal-content">
+            <div class="avatar-placeholder" id="welcomeAvatar">?</div>
+            <h2>Hoş Geldiniz!</h2>
+            <div class="form-group">
+                <label for="usernameInput">Kullanıcı Adınız</label>
+                <input type="text" id="usernameInput" class="form-input" placeholder="Kullanıcı adınızı girin" maxlength="20">
+            </div>
+            <div class="form-group">
+                <div class="file-input-wrapper">
+                    <input type="file" id="photoInput" class="file-input" accept="image/*">
+                    <label for="photoInput" class="file-input-label">Profil Fotoğrafı Seç</label>
+                </div>
+                <img id="photoPreview" class="photo-preview" style="display: none;">
+            </div>
+            <button class="btn btn-primary" id="startChatButton">Sohbete Başla</button>
+        </div>
+    </div>
+
+    <!-- Profil Ayarları Modal -->
+    <div class="modal" id="profileModal">
+        <div class="modal-content">
+            <h2>Profil Ayarları</h2>
+            <div class="form-group">
+                <label for="editUsername">Kullanıcı Adı</label>
+                <input type="text" id="editUsername" class="form-input" maxlength="20">
+            </div>
+            <div class="form-group">
+                <div class="file-input-wrapper">
+                    <input type="file" id="editPhotoInput" class="file-input" accept="image/*">
+                    <label for="editPhotoInput" class="file-input-label">Fotoğraf Değiştir</label>
+                </div>
+                <img id="editPhotoPreview" class="photo-preview">
+            </div>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="cancelProfileButton">İptal</button>
+                <button class="btn btn-primary" id="saveProfileButton">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         class ChatApp {
             constructor() {
                 this.socket = null;
-                this.userId = this.generateUserId();
-                this.userName = `Kullanıcı-${this.userId.slice(-4)}`;
+                this.userId = localStorage.getItem('userId') || this.generateUserId();
+                this.userName = localStorage.getItem('userName') || '';
+                this.userPhoto = localStorage.getItem('userPhoto') || '';
                 this.userCity = 'Genel';
                 this.userColor = this.generateColor(this.userName);
                 this.currentRoom = null;
@@ -316,7 +548,13 @@
                 
                 this.initializeElements();
                 this.initializeEventListeners();
-                this.connectToServer();
+                
+                if (!this.userName) {
+                    this.showWelcomeModal();
+                } else {
+                    this.connectToServer();
+                }
+                
                 this.loadMessagesFromStorage();
             }
 
@@ -331,6 +569,22 @@
                 this.usersSidebar = document.getElementById('usersSidebar');
                 this.mobileUsersToggle = document.getElementById('mobileUsersToggle');
                 this.connectionStatus = document.getElementById('connectionStatus');
+                this.profileButton = document.getElementById('profileButton');
+                this.profileAvatar = document.getElementById('profileAvatar');
+                
+                // Modal elements
+                this.welcomeModal = document.getElementById('welcomeModal');
+                this.usernameInput = document.getElementById('usernameInput');
+                this.photoInput = document.getElementById('photoInput');
+                this.photoPreview = document.getElementById('photoPreview');
+                this.startChatButton = document.getElementById('startChatButton');
+                
+                this.profileModal = document.getElementById('profileModal');
+                this.editUsername = document.getElementById('editUsername');
+                this.editPhotoInput = document.getElementById('editPhotoInput');
+                this.editPhotoPreview = document.getElementById('editPhotoPreview');
+                this.cancelProfileButton = document.getElementById('cancelProfileButton');
+                this.saveProfileButton = document.getElementById('saveProfileButton');
             }
 
             initializeEventListeners() {
@@ -338,6 +592,16 @@
                 this.messageInput.addEventListener('keypress', this.handleKeyPress.bind(this));
                 this.sendButton.addEventListener('click', this.sendMessage.bind(this));
                 this.mobileUsersToggle.addEventListener('click', this.toggleUsersSidebar.bind(this));
+                this.profileButton.addEventListener('click', this.showProfileModal.bind(this));
+
+                // Welcome modal events
+                this.photoInput.addEventListener('change', this.handlePhotoSelect.bind(this));
+                this.startChatButton.addEventListener('click', this.startChat.bind(this));
+                
+                // Profile modal events
+                this.editPhotoInput.addEventListener('change', this.handleEditPhotoSelect.bind(this));
+                this.cancelProfileButton.addEventListener('click', this.hideProfileModal.bind(this));
+                this.saveProfileButton.addEventListener('click', this.saveProfile.bind(this));
 
                 // Auto-resize textarea
                 this.messageInput.addEventListener('input', function() {
@@ -347,7 +611,9 @@
             }
 
             generateUserId() {
-                return Math.random().toString(36).substr(2, 9);
+                const id = Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('userId', id);
+                return id;
             }
 
             generateColor(username) {
@@ -360,12 +626,152 @@
                 return colors[index % colors.length];
             }
 
+            showWelcomeModal() {
+                this.welcomeModal.classList.add('active');
+                this.usernameInput.focus();
+            }
+
+            hideWelcomeModal() {
+                this.welcomeModal.classList.remove('active');
+            }
+
+            showProfileModal() {
+                this.editUsername.value = this.userName;
+                this.editPhotoPreview.src = this.userPhoto || this.createDefaultAvatar(this.userName);
+                this.profileModal.classList.add('active');
+            }
+
+            hideProfileModal() {
+                this.profileModal.classList.remove('active');
+            }
+
+            handlePhotoSelect(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.previewImage(file, this.photoPreview);
+                }
+            }
+
+            handleEditPhotoSelect(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    this.previewImage(file, this.editPhotoPreview);
+                }
+            }
+
+            previewImage(file, previewElement) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewElement.src = e.target.result;
+                    previewElement.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+
+            startChat() {
+                const username = this.usernameInput.value.trim();
+                if (!username) {
+                    alert('Lütfen kullanıcı adınızı girin!');
+                    return;
+                }
+
+                this.userName = username;
+                this.userColor = this.generateColor(username);
+                
+                // Save to localStorage
+                localStorage.setItem('userName', username);
+                localStorage.setItem('userId', this.userId);
+
+                // Handle profile photo
+                const file = this.photoInput.files[0];
+                if (file) {
+                    this.uploadProfilePhoto(file);
+                } else {
+                    this.userPhoto = this.createDefaultAvatar(username);
+                    localStorage.setItem('userPhoto', this.userPhoto);
+                    this.updateProfileDisplay();
+                    this.hideWelcomeModal();
+                    this.connectToServer();
+                }
+            }
+
+            uploadProfilePhoto(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.userPhoto = e.target.result;
+                    localStorage.setItem('userPhoto', this.userPhoto);
+                    this.updateProfileDisplay();
+                    
+                    // Send to server
+                    if (this.socket) {
+                        this.socket.emit('update-profile', {
+                            userId: this.userId,
+                            userName: this.userName,
+                            userPhoto: this.userPhoto
+                        });
+                    }
+                    
+                    this.hideWelcomeModal();
+                    if (!this.socket) {
+                        this.connectToServer();
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+
+            saveProfile() {
+                const newUsername = this.editUsername.value.trim();
+                if (!newUsername) {
+                    alert('Lütfen kullanıcı adınızı girin!');
+                    return;
+                }
+
+                this.userName = newUsername;
+                localStorage.setItem('userName', newUsername);
+
+                const file = this.editPhotoInput.files[0];
+                if (file) {
+                    this.uploadProfilePhoto(file);
+                } else {
+                    this.userPhoto = this.editPhotoPreview.src;
+                    localStorage.setItem('userPhoto', this.userPhoto);
+                    this.updateProfileDisplay();
+                }
+
+                // Send update to server
+                if (this.socket) {
+                    this.socket.emit('update-profile', {
+                        userId: this.userId,
+                        userName: this.userName,
+                        userPhoto: this.userPhoto
+                    });
+                }
+
+                this.hideProfileModal();
+            }
+
+            updateProfileDisplay() {
+                this.profileAvatar.src = this.userPhoto || this.createDefaultAvatar(this.userName);
+                this.profileAvatar.alt = this.userName;
+            }
+
+            createDefaultAvatar(username) {
+                return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="${this.userColor}"/><text x="50" y="60" font-family="Arial" font-size="40" text-anchor="middle" fill="white">${username.charAt(0).toUpperCase()}</text></svg>`;
+            }
+
             connectToServer() {
                 this.socket = io();
 
                 this.socket.on('connect', () => {
                     this.showConnectionStatus('Bağlandı', false);
                     console.log('Sunucuya bağlandı');
+                    
+                    // Send user profile to server
+                    this.socket.emit('user-join', {
+                        userId: this.userId,
+                        userName: this.userName,
+                        userPhoto: this.userPhoto
+                    });
                 });
 
                 this.socket.on('user-assigned', (data) => {
@@ -373,6 +779,7 @@
                     this.currentRoom = data.city;
                     this.roomTitle.textContent = `${this.userCity} Sohbet Odası`;
                     this.loadMessagesFromStorage();
+                    this.updateProfileDisplay();
                 });
 
                 this.socket.on('user-joined', (data) => {
@@ -401,6 +808,10 @@
 
                 this.socket.on('user-list-update', (users) => {
                     this.updateUserList(users);
+                });
+
+                this.socket.on('profile-updated', (data) => {
+                    this.updateUserProfile(data);
                 });
 
                 this.socket.on('disconnect', () => {
@@ -458,6 +869,7 @@
                     text: text,
                     time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
                     userName: this.userName,
+                    userPhoto: this.userPhoto,
                     userColor: this.userColor,
                     room: this.currentRoom
                 };
@@ -478,9 +890,16 @@
                 messageElement.className = `message ${message.userName === this.userName ? 'own' : 'other'}`;
                 messageElement.dataset.messageId = message.id;
 
-                const avatar = this.createAvatar(message.userName, message.userColor);
+                const avatar = document.createElement('img');
+                avatar.className = 'user-avatar';
+                avatar.src = message.userPhoto || this.createDefaultAvatar(message.userName);
+                avatar.alt = message.userName;
+                avatar.style.backgroundColor = message.userColor;
+
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
                 
-                messageElement.innerHTML = `
+                messageContent.innerHTML = `
                     <div class="message-header">
                         <div class="message-sender">${this.escapeHtml(message.userName)}</div>
                         <div class="message-time">${message.time}</div>
@@ -492,24 +911,14 @@
                     </div>
                 `;
 
-                if (message.userName !== this.userName) {
-                    messageElement.prepend(avatar);
-                }
-
+                messageElement.appendChild(avatar);
+                messageElement.appendChild(messageContent);
                 this.messagesContainer.appendChild(messageElement);
                 this.scrollToBottom();
 
                 if (message.userName !== this.userName) {
                     this.markMessageAsSeen(message.id);
                 }
-            }
-
-            createAvatar(userName, color) {
-                const avatar = document.createElement('div');
-                avatar.className = 'user-avatar';
-                avatar.style.backgroundColor = color;
-                avatar.textContent = userName.charAt(0).toUpperCase();
-                return avatar;
             }
 
             addSystemMessage(text) {
@@ -520,6 +929,8 @@
                 systemMessage.style.color = '#666';
                 systemMessage.style.fontSize = '14px';
                 systemMessage.style.fontStyle = 'italic';
+                systemMessage.style.padding = '8px 16px';
+                systemMessage.style.borderRadius = '15px';
                 systemMessage.innerHTML = this.escapeHtml(text);
                 
                 this.messagesContainer.appendChild(systemMessage);
@@ -559,10 +970,11 @@
                     const userItem = document.createElement('li');
                     userItem.className = 'user-item';
                     
-                    const avatar = this.createAvatar(user.userName, user.userColor);
-                    avatar.style.width = '35px';
-                    avatar.style.height = '35px';
-                    avatar.style.fontSize = '14px';
+                    const avatar = document.createElement('img');
+                    avatar.className = 'user-avatar';
+                    avatar.src = user.userPhoto || this.createDefaultAvatar(user.userName);
+                    avatar.alt = user.userName;
+                    avatar.style.backgroundColor = user.userColor;
 
                     userItem.innerHTML = `
                         <div class="user-info">
@@ -572,6 +984,21 @@
                     `;
                     userItem.prepend(avatar);
                     this.userList.appendChild(userItem);
+                });
+            }
+
+            updateUserProfile(userData) {
+                // Update user in user list if needed
+                const userItems = this.userList.querySelectorAll('.user-item');
+                userItems.forEach(item => {
+                    const userNameElement = item.querySelector('.user-name');
+                    if (userNameElement && userNameElement.textContent === userData.oldUserName) {
+                        userNameElement.textContent = userData.userName;
+                        const avatar = item.querySelector('.user-avatar');
+                        if (avatar && userData.userPhoto) {
+                            avatar.src = userData.userPhoto;
+                        }
+                    }
                 });
             }
 
