@@ -7,7 +7,7 @@
     <!-- Socket.io CDN -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        /* CSS kodları aynı kalacak, sadece socket.io CDN eklendi */
+        /* Önceki CSS kodları aynen kalacak */
         * {
             margin: 0;
             padding: 0;
@@ -786,9 +786,9 @@
                 this.showConnectionStatus('Sunucuya bağlanılıyor...', false);
                 
                 try {
-                    // Socket.io bağlantısı - CDN kullanıldığı için path belirtmeye gerek yok
+                    // Socket.io bağlantısı - SADECE POLLING
                     this.socket = io({
-                        transports: ['websocket', 'polling'],
+                        transports: ['polling'], // Sadece polling kullan
                         timeout: 10000,
                         reconnectionAttempts: 5,
                         reconnectionDelay: 1000
