@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Şehir Sohbet Odası</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* Önceki CSS kodları aynen kalacak, sadece socket bağlantı kısmı değişti */
+        /* Önceki CSS kodları aynen kalacak */
         * {
             margin: 0;
             padding: 0;
@@ -785,7 +785,7 @@
                 this.showConnectionStatus('Sunucuya bağlanılıyor...', false);
                 
                 try {
-                    // Socket.io bağlantısını oluştur
+                    // Vercel için socket.io bağlantısı
                     this.socket = io({
                         transports: ['websocket', 'polling'],
                         timeout: 10000,
