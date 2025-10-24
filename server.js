@@ -10,13 +10,15 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Render için Socket.io - WebSocket DESTEKLİ
+// Socket.io yapılandırması
 const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
   },
-  transports: ['websocket', 'polling'] // WebSocket aktif
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
 // Middleware
@@ -27,18 +29,42 @@ app.use(express.static('public'));
 
 // MongoDB bağlantısı
 const MONGODB_URI = process.env.MONGODB_URI;
-
 if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB bağlantısı başarılı'))
-  .catch(err => {
-    console.error('❌ MongoDB bağlantı hatası:', err);
-    console.log('⚠️  MongoDB olmadan devam ediliyor...');
-  });
+  .catch(err => console.log('⚠️  MongoDB bağlantı hatası:', err));
 }
+
+// Kullanıcı Şehir Kaydı Şeması
+const userLocationSchema = new mongoose.Schema({
+  deviceId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  ipAddress: {
+    type: String,
+    required: true
+  },
+  city: {
+    type: String,
+    required: true
+  },
+  country: {
+    type: String,
+    default: 'Turkey'
+  },
+  lastSeen: {
+    type: Date,
+    default: Date.now
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+const UserLocation = mongoose.model('UserLocation', userLocationSchema);
 
 // Kullanıcı Profil Şeması
 const userProfileSchema = new mongoose.Schema({
@@ -57,9 +83,9 @@ const userProfileSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  city: {
+  deviceId: {
     type: String,
-    default: 'Genel'
+    required: true
   },
   lastSeen: {
     type: Date,
@@ -86,10 +112,9 @@ const TURKISH_CITIES = [
   'Bartın', 'Ardahan', 'Iğdır', 'Yalova', 'Karabük', 'Kilis', 'Osmaniye', 'Düzce'
 ];
 
-// Bellekte saklanan veriler
+// Bellek deposu
 const rooms = new Map();
-const socketToUser = new Map();
-const connectedUsers = new Map();
+const activeUsers = new Map();
 
 // IP'den şehir bulma
 async function getCityFromIP(ip) {
@@ -99,18 +124,21 @@ async function getCityFromIP(ip) {
       realIP = ip.split(':').pop();
     }
     
-    // Localhost ve test için
+    // Localhost ve test IP'leri için
     if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1') {
       return 'İstanbul';
     }
 
-    const response = await axios.get(`http://ip-api.com/json/${realIP}?fields=status,message,city,country`, {
-      timeout: 5000
+    console.log('🔍 IP sorgulanıyor:', realIP);
+    const response = await axios.get(`http://ip-api.com/json/${realIP}?fields=status,message,city,country,query`, {
+      timeout: 10000
     });
     
     if (response.data.status === 'success' && response.data.city) {
       const city = response.data.city;
+      console.log('📍 API şehir döndü:', city);
       
+      // Türkçe şehir isimleriyle eşleştirme
       const turkishCity = TURKISH_CITIES.find(turkishCity => 
         city.toLowerCase().includes(turkishCity.toLowerCase()) ||
         turkishCity.toLowerCase().includes(city.toLowerCase())
@@ -125,31 +153,45 @@ async function getCityFromIP(ip) {
   return 'Genel';
 }
 
-// Kullanıcı rengi oluşturma
-function generateColor(username) {
-  const colors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-    '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
-  ];
-  const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return colors[index % colors.length];
+// Device ID ile şehir bul veya oluştur
+async function getOrCreateUserCity(deviceId, ipAddress) {
+  try {
+    // Önce MongoDB'de deviceId'yi ara
+    let userLocation = await UserLocation.findOne({ deviceId: deviceId });
+    
+    if (userLocation) {
+      console.log(`✅ Device ID bulundu: ${deviceId} -> ${userLocation.city}`);
+      // Son görülme zamanını güncelle
+      userLocation.lastSeen = new Date();
+      userLocation.ipAddress = ipAddress; // IP güncelle (VPN değişmiş olabilir)
+      await userLocation.save();
+      return userLocation.city;
+    }
+    
+    // Device ID yoksa, IP'den şehir bul
+    console.log(`🆕 Yeni Device ID: ${deviceId}, IP: ${ipAddress}`);
+    const city = await getCityFromIP(ipAddress);
+    
+    // Yeni kayıt oluştur
+    userLocation = new UserLocation({
+      deviceId: deviceId,
+      ipAddress: ipAddress,
+      city: city
+    });
+    await userLocation.save();
+    
+    console.log(`✅ Yeni şehir kaydı: ${deviceId} -> ${city}`);
+    return city;
+    
+  } catch (error) {
+    console.error('❌ Şehir bulma hatası:', error);
+    return 'Genel';
+  }
 }
 
 // Kullanıcı profilini getir veya oluştur
 async function getOrCreateUserProfile(userData) {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return {
-        userId: userData.userId,
-        userName: userData.userName,
-        userPhoto: userData.userPhoto || '',
-        city: userData.city || 'Genel',
-        lastSeen: new Date(),
-        createdAt: new Date()
-      };
-    }
-
     let userProfile = await UserProfile.findOne({ userId: userData.userId });
     
     if (!userProfile) {
@@ -157,7 +199,7 @@ async function getOrCreateUserProfile(userData) {
         userId: userData.userId,
         userName: userData.userName,
         userPhoto: userData.userPhoto || '',
-        city: userData.city || 'Genel'
+        deviceId: userData.deviceId
       });
       await userProfile.save();
       console.log('✅ Yeni kullanıcı profili oluşturuldu:', userData.userName);
@@ -176,287 +218,217 @@ async function getOrCreateUserProfile(userData) {
       userId: userData.userId,
       userName: userData.userName,
       userPhoto: userData.userPhoto || '',
-      city: userData.city || 'Genel',
-      lastSeen: new Date(),
-      createdAt: new Date()
+      deviceId: userData.deviceId
     };
   }
 }
 
-// Oda işlemleri
-function getRoomUsers(room) {
-  if (!rooms.has(room)) {
-    rooms.set(room, new Set());
-  }
-  return Array.from(rooms.get(room)).map(userId => connectedUsers.get(userId)).filter(Boolean);
+// Kullanıcı rengi oluşturma
+function generateColor(username) {
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+  ];
+  const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[index % colors.length];
 }
 
-function addUserToRoom(userId, room, userInfo) {
-  if (!rooms.has(room)) {
-    rooms.set(room, new Set());
-  }
-  rooms.get(room).add(userId);
-  connectedUsers.set(userId, userInfo);
-  socketToUser.set(userInfo.socketId, userId);
-}
+// Oda kullanıcılarını güncelle
+function updateRoomUsers(city) {
+  if (!rooms.has(city)) return;
+  
+  const roomUsers = Array.from(rooms.get(city))
+    .map(socketId => activeUsers.get(socketId))
+    .filter(user => user !== undefined)
+    .map(user => ({
+      userId: user.id,
+      userName: user.userName,
+      userPhoto: user.userPhoto,
+      city: user.city,
+      userColor: user.userColor
+    }));
 
-function removeUserFromRoom(socketId, room) {
-  const userId = socketToUser.get(socketId);
-  if (userId && rooms.has(room)) {
-    rooms.get(room).delete(userId);
-    if (rooms.get(room).size === 0) {
-      rooms.delete(room);
-    }
-  }
-  if (userId) {
-    connectedUsers.delete(userId);
-  }
-  socketToUser.delete(socketId);
+  io.to(city).emit('user-list-update', roomUsers);
 }
 
 // Socket.io bağlantı yönetimi
 io.on('connection', async (socket) => {
   console.log('🔗 Yeni kullanıcı bağlandı:', socket.id);
 
-  try {
-    // IP'den şehir belirleme
-    const clientIP = socket.handshake.headers['x-forwarded-for'] || 
-                    socket.handshake.address || 
-                    socket.conn.remoteAddress;
+  // Heartbeat mekanizması
+  let heartbeatInterval = setInterval(() => {
+    socket.emit('ping');
+  }, 20000);
+
+  socket.on('pong', () => {
+    // Heartbeat alındı
+  });
+
+  socket.on('user-join', async (userData) => {
+    try {
+      const clientIP = socket.handshake.headers['x-forwarded-for'] || 
+                      socket.handshake.address || 
+                      socket.conn.remoteAddress;
+
+      console.log('👤 Kullanıcı katılıyor:', userData.userName);
+      console.log('📱 Device ID:', userData.deviceId);
+      console.log('🌐 IP:', clientIP);
+
+      // Kullanıcıya şehir ataması yap (Device ID + IP)
+      const city = await getOrCreateUserCity(userData.deviceId, clientIP);
+      
+      // Kullanıcı profilini kaydet
+      const userProfile = await getOrCreateUserProfile({
+        ...userData,
+        deviceId: userData.deviceId
+      });
+
+      const user = {
+        id: userProfile.userId,
+        socketId: socket.id,
+        userName: userProfile.userName,
+        userPhoto: userProfile.userPhoto,
+        city: city,
+        userColor: generateColor(userProfile.userName),
+        deviceId: userData.deviceId,
+        joinedAt: new Date()
+      };
+
+      // Kullanıcıyı kaydet
+      activeUsers.set(socket.id, user);
+      
+      // Odaya ekle
+      if (!rooms.has(city)) {
+        rooms.set(city, new Set());
+      }
+      rooms.get(city).add(socket.id);
+
+      socket.join(city);
+
+      // Kullanıcıya şehir bilgisini gönder
+      socket.emit('user-assigned', {
+        userId: user.id,
+        userName: user.userName,
+        city: city,
+        userPhoto: user.userPhoto,
+        userColor: user.userColor
+      });
+
+      // Oda kullanıcılarını güncelle
+      updateRoomUsers(city);
+
+      socket.to(city).emit('user-joined', {
+        userName: user.userName
+      });
+
+      console.log(`✅ ${user.userName} ${city} odasına katıldı`);
+
+    } catch (error) {
+      console.error('❌ Kullanıcı katılma hatası:', error);
+      socket.emit('error', { message: 'Şehir belirleme hatası' });
+    }
+  });
+
+  socket.on('message', (messageData) => {
+    try {
+      const user = activeUsers.get(socket.id);
+      if (!user) return;
+
+      const message = {
+        id: Date.now().toString(),
+        time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+        userName: user.userName,
+        userPhoto: user.userPhoto,
+        userColor: user.userColor,
+        room: user.city
+      };
+
+      if (messageData.text) {
+        message.text = messageData.text;
+        message.type = 'text';
+        console.log(`💬 ${user.userName} (${user.city}): ${message.text}`);
+      }
+      else if (messageData.audio) {
+        message.audio = messageData.audio;
+        message.duration = messageData.duration || 0;
+        message.type = 'audio';
+        console.log(`🎤 ${user.userName} (${user.city}): Ses mesajı`);
+      }
+
+      io.to(user.city).emit('message', message);
+
+    } catch (error) {
+      console.error('❌ Mesaj hatası:', error);
+    }
+  });
+
+  socket.on('typing', (isTyping) => {
+    const user = activeUsers.get(socket.id);
+    if (user) {
+      socket.to(user.city).emit('typing', {
+        userName: user.userName,
+        isTyping: isTyping
+      });
+    }
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.log('🔌 Kullanıcı ayrıldı:', socket.id, reason);
     
-    console.log('🌐 Client IP:', clientIP);
-    const city = await getCityFromIP(clientIP);
-    console.log(`📍 Kullanıcı ${socket.id} şehri: ${city}`);
-
-    // İlk bağlantıda kullanıcı bilgilerini bekle
-    socket.on('user-join', async (userData) => {
-      try {
-        console.log('👤 Kullanıcı katılım verisi:', userData);
-
-        const userProfile = await getOrCreateUserProfile({
-          ...userData,
-          city: city
-        });
-
-        const user = {
-          id: userProfile.userId,
-          socketId: socket.id,
-          userName: userProfile.userName,
-          userPhoto: userProfile.userPhoto,
-          city: city,
-          userColor: generateColor(userProfile.userName),
-          room: city,
-          joinedAt: new Date()
-        };
-
-        addUserToRoom(user.id, city, user);
-
-        // Kullanıcıya bilgilerini gönder
-        socket.emit('user-assigned', {
-          userId: user.id,
-          userName: user.userName,
-          city: city,
-          userPhoto: user.userPhoto,
-          userColor: user.userColor
-        });
-
-        // Kullanıcıyı odaya ekle
-        socket.join(city);
-
-        // Odadaki kullanıcı listesini güncelle
-        const roomUsers = getRoomUsers(city);
-        io.to(city).emit('user-list-update', roomUsers);
-
-        // Kullanıcı katıldı bildirimi
-        socket.to(city).emit('user-joined', {
-          userName: user.userName,
-          users: roomUsers
-        });
-
-        console.log(`✅ Kullanıcı ${user.userName} ${city} odasına katıldı`);
-        console.log(`👥 Odadaki kullanıcı sayısı: ${roomUsers.length}`);
-
-      } catch (error) {
-        console.error('❌ Kullanıcı katılma hatası:', error);
-        socket.emit('error', { message: 'Kullanıcı kaydı hatası' });
+    clearInterval(heartbeatInterval);
+    
+    const user = activeUsers.get(socket.id);
+    if (user) {
+      activeUsers.delete(socket.id);
+      
+      if (rooms.has(user.city)) {
+        rooms.get(user.city).delete(socket.id);
       }
-    });
 
-    // Profil güncelleme
-    socket.on('update-profile', async (profileData) => {
-      try {
-        console.log('🔄 Profil güncelleniyor:', profileData);
-
-        const userProfile = await getOrCreateUserProfile(profileData);
-
-        if (userProfile) {
-          // Kullanıcı bilgisini güncelle
-          const userId = socketToUser.get(socket.id);
-          if (userId && connectedUsers.has(userId)) {
-            const userInfo = connectedUsers.get(userId);
-            userInfo.userName = userProfile.userName;
-            userInfo.userPhoto = userProfile.userPhoto;
-            connectedUsers.set(userId, userInfo);
-          }
-
-          // Tüm odalara profil güncelleme bildirimi gönder
-          const roomUsers = getRoomUsers(userProfile.city);
-          io.to(userProfile.city).emit('profile-updated', {
-            userId: userProfile.userId,
-            userName: userProfile.userName,
-            userPhoto: userProfile.userPhoto
-          });
-
-          // Kullanıcı listesini yenile
-          io.to(userProfile.city).emit('user-list-update', roomUsers);
-
-          console.log(`✅ Profil güncellendi: ${userProfile.userName}`);
-        }
-      } catch (error) {
-        console.error('❌ Profil güncelleme hatası:', error);
-      }
-    });
-
-    // Mesaj alma (hem text hem audio)
-    socket.on('message', async (messageData) => {
-      try {
-        const userId = socketToUser.get(socket.id);
-        if (!userId) {
-          console.error('❌ Mesaj gönderen kullanıcı bulunamadı');
-          return;
-        }
-
-        const userInfo = connectedUsers.get(userId);
-        if (!userInfo) {
-          console.error('❌ Kullanıcı bilgisi bulunamadı');
-          return;
-        }
-
-        const message = {
-          id: messageData.id || Date.now().toString(),
-          time: messageData.time || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-          userName: userInfo.userName,
-          userPhoto: userInfo.userPhoto,
-          userColor: userInfo.userColor,
-          room: userInfo.city,
-          seen: false
-        };
-
-        // Text mesajı
-        if (messageData.text) {
-          message.text = messageData.text;
-          message.type = 'text';
-          console.log(`💬 Mesaj ${userInfo.city} odasında yayınlandı:`, message.text.substring(0, 50) + '...');
-        }
-        // Ses mesajı
-        else if (messageData.audio) {
-          message.audio = messageData.audio;
-          message.duration = messageData.duration || 0;
-          message.type = 'audio';
-          console.log(`🎤 Ses mesajı ${userInfo.city} odasında yayınlandı:`, message.duration + 's');
-        }
-
-        // Odaya mesajı yayınla
-        io.to(userInfo.city).emit('message', message);
-
-      } catch (error) {
-        console.error('❌ Mesaj gönderme hatası:', error);
-        socket.emit('error', { message: 'Mesaj gönderilemedi' });
-      }
-    });
-
-    // Yazıyor indikatörü
-    socket.on('typing', async (isTyping) => {
-      try {
-        const userId = socketToUser.get(socket.id);
-        if (!userId) return;
-
-        const userInfo = connectedUsers.get(userId);
-        if (!userInfo) return;
-
-        socket.to(userInfo.city).emit('typing', {
-          userName: userInfo.userName,
-          isTyping: isTyping
-        });
-
-      } catch (error) {
-        console.error('❌ Typing indicator hatası:', error);
-      }
-    });
-
-    // Mesaj okundu
-    socket.on('message-seen', (data) => {
-      try {
-        const userId = socketToUser.get(socket.id);
-        if (!userId) return;
-
-        const userInfo = connectedUsers.get(userId);
-        if (!userInfo) return;
-
-        // Mesajın okunduğunu odadaki herkese bildir
-        io.to(data.room).emit('message-seen', {
-          messageId: data.messageId,
-          seenBy: userInfo.userName
-        });
-
-      } catch (error) {
-        console.error('❌ Mesaj okundu hatası:', error);
-      }
-    });
-
-    // Bağlantı kesilme
-    socket.on('disconnect', async (reason) => {
-      console.log('🔌 Kullanıcı ayrıldı:', socket.id, 'Neden:', reason);
-
-      try {
-        const userId = socketToUser.get(socket.id);
-        if (!userId) return;
-
-        const userInfo = connectedUsers.get(userId);
-        if (!userInfo) return;
-
-        // Kullanıcıyı odadan çıkar
-        removeUserFromRoom(socket.id, userInfo.city);
-
-        // Odadaki kullanıcı listesini güncelle
-        const roomUsers = getRoomUsers(userInfo.city);
-        
-        // Kullanıcı ayrıldı bildirimi gönder
-        socket.to(userInfo.city).emit('user-left', {
-          userName: userInfo.userName,
-          users: roomUsers
-        });
-
-        // Kullanıcı listesini güncelle
-        io.to(userInfo.city).emit('user-list-update', roomUsers);
-
-        console.log(`👋 Kullanıcı ${userInfo.userName} ${userInfo.city} odasından ayrıldı`);
-        console.log(`👥 Kalan kullanıcı sayısı: ${roomUsers.length}`);
-
-      } catch (error) {
-        console.error('❌ Kullanıcı ayrılma hatası:', error);
-      }
-    });
-
-    // Hata yönetimi
-    socket.on('error', (error) => {
-      console.error('❌ Socket hatası:', error);
-    });
-
-  } catch (error) {
-    console.error('❌ Kullanıcı bağlantı hatası:', error);
-    socket.emit('error', { message: 'Bağlantı hatası' });
-  }
+      updateRoomUsers(user.city);
+      
+      socket.to(user.city).emit('user-left', {
+        userName: user.userName
+      });
+    }
+  });
 });
 
 // API Routes
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    rooms: Array.from(rooms.keys()),
-    connectedUsers: connectedUsers.size
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    
+    res.json({ 
+      status: 'OK', 
+      timestamp: new Date().toISOString(),
+      database: dbStatus,
+      activeUsers: activeUsers.size,
+      rooms: Array.from(rooms.keys())
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'ERROR', error: error.message });
+  }
+});
+
+// Kullanıcı istatistikleri
+app.get('/api/stats', async (req, res) => {
+  try {
+    const totalUsers = await UserProfile.countDocuments();
+    const totalLocations = await UserLocation.countDocuments();
+    const cities = await UserLocation.aggregate([
+      { $group: { _id: '$city', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    res.json({
+      totalUsers,
+      totalLocations,
+      cities
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get('/', (req, res) => {
@@ -464,9 +436,8 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
-// Render için normal server başlatma
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 Health: http://localhost:${PORT}/health`);
+  console.log(`📊 Stats: http://localhost:${PORT}/api/stats`);
 });
