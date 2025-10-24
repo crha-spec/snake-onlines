@@ -3,1194 +3,628 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Chat</title>
+    <title>Şehir Sohbet Odası</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-        }
-        
-        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
         }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        
-        .screen {
-            display: none;
-            padding: 30px;
-            min-height: 500px;
-        }
-        
-        .screen.active {
-            display: block;
-        }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        h2 {
-            color: #555;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #666;
-            font-weight: 500;
-        }
-        
-        input, select, button {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e1e5e9;
-            border-radius: 12px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-        }
-        
-        input:focus, select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            margin-top: 10px;
-        }
-        
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-        
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .chat-container {
+
+        body {
+            background: #e5ddd5;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            height: 70vh;
-            border: 2px solid #e1e5e9;
-            border-radius: 12px;
-            overflow: hidden;
         }
-        
-        .chat-header {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+
+        .header {
+            background: #075e54;
             color: white;
             padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        
-        .messages {
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .online-count {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        .container {
+            display: flex;
             flex: 1;
-            overflow-y: auto;
+            overflow: hidden;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #e5ddd5;
+        }
+
+        .users-sidebar {
+            width: 300px;
+            background: white;
+            border-left: 1px solid #e0e0e0;
             padding: 20px;
-            background: #f8f9fa;
+            overflow-y: auto;
+            transition: transform 0.3s ease;
         }
-        
-        .message {
+
+        .users-sidebar h3 {
+            color: #075e54;
             margin-bottom: 15px;
-            padding: 12px 16px;
-            border-radius: 18px;
-            max-width: 70%;
-            position: relative;
-            animation: fadeIn 0.3s ease;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
+            font-size: 16px;
         }
-        
-        .message:hover {
-            background-color: rgba(102, 126, 234, 0.05);
+
+        .user-list {
+            list-style: none;
         }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .message.own {
-            margin-left: auto;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border-bottom-right-radius: 6px;
-        }
-        
-        .message.other {
-            background: white;
-            border: 2px solid #e1e5e9;
-            border-bottom-left-radius: 6px;
-        }
-        
-        .message-header {
+
+        .user-item {
             display: flex;
             align-items: center;
-            margin-bottom: 5px;
-            font-size: 14px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
         }
-        
-        .profile-photo {
-            width: 24px;
-            height: 24px;
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            margin-right: 8px;
-            object-fit: cover;
-        }
-        
-        .username {
-            font-weight: 600;
-        }
-        
-        .message-content {
-            word-wrap: break-word;
-            line-height: 1.4;
-        }
-        
-        .message-time {
-            font-size: 11px;
-            opacity: 0.7;
-            margin-top: 5px;
-            text-align: right;
-        }
-        
-        .message-seen {
-            font-size: 11px;
-            margin-top: 3px;
-            opacity: 0.7;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .message-edited {
-            font-size: 10px;
-            opacity: 0.6;
-            font-style: italic;
-        }
-        
-        .input-area {
-            display: flex;
-            padding: 15px;
-            background: white;
-            border-top: 2px solid #e1e5e9;
-            gap: 10px;
-        }
-        
-        .message-input {
-            flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e1e5e9;
-            border-radius: 25px;
-            font-size: 14px;
-            resize: none;
-            min-height: 44px;
-            max-height: 120px;
-        }
-        
-        .message-input:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        .send-btn {
-            width: 50px;
-            height: 44px;
-            border-radius: 50%;
-            padding: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+            font-size: 16px;
         }
-        
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .user-city {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message.own {
+            align-self: flex-end;
+            background: #dcf8c6;
+            border-bottom-right-radius: 2px;
+        }
+
+        .message.other {
+            align-self: flex-start;
+            background: white;
+            border-bottom-left-radius: 2px;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            font-size: 14px;
+            color: #075e54;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+
+        .message-text {
+            font-size: 15px;
+            line-height: 1.4;
+            color: #333;
+        }
+
+        .message-status {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 4px;
+        }
+
         .typing-indicator {
             padding: 10px 20px;
             font-style: italic;
             color: #666;
             font-size: 14px;
         }
-        
-        .profile-photo-upload {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .profile-preview {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid #667eea;
-        }
-        
-        .upload-btn {
-            flex: 1;
-            background: #f8f9fa;
-            border: 2px dashed #667eea;
-            color: #667eea;
-        }
-        
-        .color-preview {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-left: 10px;
-            border: 2px solid #e1e5e9;
-        }
-        
-        .error {
-            color: #e74c3c;
-            text-align: center;
-            margin-top: 10px;
-            padding: 10px;
-            background: #ffeaea;
-            border-radius: 8px;
-            border: 1px solid #e74c3c;
-        }
-        
-        .success {
-            color: #27ae60;
-            text-align: center;
-            margin-top: 10px;
-            padding: 10px;
-            background: #eaffea;
-            border-radius: 8px;
-            border: 1px solid #27ae60;
-        }
-        
-        .country-info {
-            background: #e3f2fd;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            text-align: center;
-            border: 1px solid #bbdefb;
-        }
-        
-        .logout-btn {
-            background: #e74c3c;
-            width: auto;
-            padding: 8px 15px;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-        
-        .logout-btn:hover {
-            background: #c0392b;
-        }
-        
-        .admin-panel {
-            background: #2ecc71;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            text-align: center;
-            border: 1px solid #27ae60;
-        }
-        
-        .admin-btn {
-            background: #e74c3c;
-            margin: 5px;
-        }
-        
-        .admin-btn:hover {
-            background: #c0392b;
-        }
-        
-        /* Context Menu */
-        .context-menu {
-            position: fixed;
+
+        .input-container {
+            padding: 15px 20px;
             background: white;
-            border: 1px solid #e1e5e9;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            z-index: 1000;
-            min-width: 150px;
-            display: none;
+            display: flex;
+            gap: 10px;
+            border-top: 1px solid #e0e0e0;
         }
-        
-        .context-menu-item {
-            padding: 10px 15px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            transition: background-color 0.2s;
+
+        .message-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 25px;
+            outline: none;
+            font-size: 15px;
+            resize: none;
+            height: 45px;
+            max-height: 100px;
         }
-        
-        .context-menu-item:hover {
-            background-color: #f8f9fa;
-        }
-        
-        .context-menu-item:last-child {
-            border-bottom: none;
-        }
-        
-        .edit-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
+
+        .send-button {
+            background: #075e54;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1001;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .send-button:hover {
+            background: #054d44;
+        }
+
+        .send-button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .mobile-users-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .users-sidebar {
+                position: fixed;
+                top: 60px;
+                right: 0;
+                bottom: 0;
+                width: 280px;
+                transform: translateX(100%);
+                z-index: 1000;
+            }
+
+            .users-sidebar.active {
+                transform: translateX(0);
+            }
+
+            .mobile-users-toggle {
+                display: block;
+            }
+
+            .message {
+                max-width: 85%;
+            }
+        }
+
+        .connection-status {
+            padding: 10px 20px;
+            text-align: center;
+            background: #ffeb3b;
+            color: #333;
+            font-size: 14px;
             display: none;
         }
-        
-        .edit-modal-content {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-        }
-        
-        .edit-modal-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .edit-modal-buttons button {
-            flex: 1;
-            margin: 0;
-        }
-        
-        .cancel-btn {
-            background: #95a5a6 !important;
+
+        .connection-status.error {
+            background: #ff5252;
+            color: white;
         }
     </style>
 </head>
 <body>
+    <div class="connection-status" id="connectionStatus"></div>
+    
+    <div class="header">
+        <button class="mobile-users-toggle" id="mobileUsersToggle">👥</button>
+        <h1 id="roomTitle">Şehir Sohbet Odası</h1>
+        <div class="online-count" id="onlineCount">0 online</div>
+    </div>
+
     <div class="container">
-        <!-- Giriş Ekranı -->
-        <div id="loginScreen" class="screen active">
-            <h1>Global Chat</h1>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" placeholder="Email adresinizi girin">
-            </div>
-            <button onclick="sendCode()">Kodu Gönder</button>
+        <div class="chat-container">
+            <div class="messages" id="messagesContainer"></div>
             
-            <div class="form-group" id="codeSection" style="display: none;">
-                <label for="code">Doğrulama Kodu</label>
-                <input type="text" id="code" placeholder="6 haneli kodu girin">
-                <button onclick="verifyCode()">Doğrula</button>
-            </div>
+            <div class="typing-indicator" id="typingIndicator" style="display: none;"></div>
             
-            <div id="loginError" class="error" style="display: none;"></div>
-        </div>
-
-        <!-- Profil Ekranı -->
-        <div id="profileScreen" class="screen">
-            <h1>Profil Ayarları</h1>
-            <div id="countryInfo" class="country-info" style="display: none;">
-                Ülkeniz: <span id="countryName">TR</span> - Sadece aynı ülkedeki kullanıcılarla mesajlaşabilirsiniz
-            </div>
-            
-            <div class="profile-photo-upload">
-                <img id="profilePreview" src="" class="profile-preview" alt="Profil Önizleme">
-                <button class="upload-btn" onclick="document.getElementById('photoUpload').click()">
-                    Fotoğraf Seç
+            <div class="input-container">
+                <textarea 
+                    id="messageInput" 
+                    class="message-input" 
+                    placeholder="Mesajınızı yazın..."
+                    rows="1"
+                ></textarea>
+                <button id="sendButton" class="send-button" disabled>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
                 </button>
-                <input type="file" id="photoUpload" accept="image/*" style="display: none;" onchange="handlePhotoUpload(event)">
             </div>
-            
-            <div class="form-group">
-                <label for="username">Kullanıcı Adı</label>
-                <input type="text" id="username" placeholder="Kullanıcı adınızı girin">
-            </div>
-            
-            <div class="form-group">
-                <label for="nameColor">
-                    Renk Seçin 
-                    <span id="colorPreview" class="color-preview"></span>
-                </label>
-                <input type="color" id="nameColor" value="#4285F4" onchange="updateColorPreview()">
-            </div>
-            
-            <button onclick="saveProfile()">Kaydet ve Sohbete Gir</button>
-            <button class="logout-btn" onclick="logout()">Çıkış Yap</button>
-            <div id="profileError" class="error" style="display: none;"></div>
         </div>
 
-        <!-- Sohbet Ekranı -->
-        <div id="chatScreen" class="screen">
-            <h1>🌍 Global Chat <span id="onlineCount">Online: 0</span></h1>
-            
-            <!-- Admin Panel -->
-            <div id="adminPanel" class="admin-panel" style="display: none;">
-                <strong>👑 ADMIN PANEL</strong>
-                <button class="admin-btn" onclick="clearAllMessages()">Tüm Mesajları Temizle</button>
-            </div>
-            
-            <div class="chat-container">
-                <div class="chat-header">
-                    <div id="serverInfo">Ülke: TR</div>
-                    <div id="userCount">Online: 0</div>
-                </div>
-                
-                <div class="messages" id="messages">
-                    <!-- Mesajlar buraya gelecek -->
-                </div>
-                
-                <div id="typingIndicator" class="typing-indicator" style="display: none;"></div>
-                
-                <div class="input-area">
-                    <textarea 
-                        id="messageInput" 
-                        class="message-input" 
-                        placeholder="Mesajınızı yazın..."
-                        rows="1"
-                        oninput="autoResize(this); handleTyping()"
-                        onkeypress="handleKeyPress(event)"
-                    ></textarea>
-                    <button class="send-btn" onclick="sendMessage()">
-                        📨
-                    </button>
-                </div>
-            </div>
-            <button class="logout-btn" onclick="logout()" style="margin-top: 15px;">Çıkış Yap</button>
+        <div class="users-sidebar" id="usersSidebar">
+            <h3>Aktif Kullanıcılar</h3>
+            <ul class="user-list" id="userList"></ul>
         </div>
     </div>
 
-    <!-- Context Menu -->
-    <div class="context-menu" id="contextMenu">
-        <div class="context-menu-item" onclick="editMessage()">Düzenle</div>
-        <div class="context-menu-item" onclick="deleteMessage()">Sil</div>
-        <div class="context-menu-item" onclick="hideContextMenu()">İptal</div>
-    </div>
-
-    <!-- Edit Modal -->
-    <div class="edit-modal" id="editModal">
-        <div class="edit-modal-content">
-            <h3>Mesajı Düzenle</h3>
-            <textarea id="editMessageInput" class="message-input" rows="3" style="width: 100%; margin: 10px 0;"></textarea>
-            <div class="edit-modal-buttons">
-                <button class="cancel-btn" onclick="hideEditModal()">İptal</button>
-                <button onclick="saveEditedMessage()">Kaydet</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        let socket = null;
-        let currentUser = null;
-        let currentServer = null;
-        let typingTimer = null;
-        let isTyping = false;
-        let selectedMessage = null;
-        let isAdmin = false;
-
-        // Sayfa yüklendiğinde oturum kontrolü
-        document.addEventListener('DOMContentLoaded', async function() {
-            console.log('🔍 Page loaded, checking session...');
-            await checkSession();
-            updateColorPreview();
-        });
-
-        // Oturum kontrolü
-        async function checkSession() {
-            try {
-                const response = await fetch('/api/check-session');
-                const data = await response.json();
+        class ChatApp {
+            constructor() {
+                this.socket = null;
+                this.userId = this.generateUserId();
+                this.userName = `Kullanıcı-${this.userId.slice(-4)}`;
+                this.userCity = 'Genel';
+                this.userColor = this.generateColor(this.userName);
+                this.currentRoom = null;
+                this.isTyping = false;
+                this.typingTimeout = null;
                 
-                console.log('📋 Session check result:', data);
+                this.initializeElements();
+                this.initializeEventListeners();
+                this.connectToServer();
+                this.loadMessagesFromStorage();
+            }
+
+            initializeElements() {
+                this.roomTitle = document.getElementById('roomTitle');
+                this.onlineCount = document.getElementById('onlineCount');
+                this.messagesContainer = document.getElementById('messagesContainer');
+                this.messageInput = document.getElementById('messageInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.typingIndicator = document.getElementById('typingIndicator');
+                this.userList = document.getElementById('userList');
+                this.usersSidebar = document.getElementById('usersSidebar');
+                this.mobileUsersToggle = document.getElementById('mobileUsersToggle');
+                this.connectionStatus = document.getElementById('connectionStatus');
+            }
+
+            initializeEventListeners() {
+                this.messageInput.addEventListener('input', this.handleInput.bind(this));
+                this.messageInput.addEventListener('keypress', this.handleKeyPress.bind(this));
+                this.sendButton.addEventListener('click', this.sendMessage.bind(this));
+                this.mobileUsersToggle.addEventListener('click', this.toggleUsersSidebar.bind(this));
+
+                // Auto-resize textarea
+                this.messageInput.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+                });
+            }
+
+            generateUserId() {
+                return Math.random().toString(36).substr(2, 9);
+            }
+
+            generateColor(username) {
+                const colors = [
+                    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+                    '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
+                ];
+                const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                return colors[index % colors.length];
+            }
+
+            connectToServer() {
+                this.socket = io();
+
+                this.socket.on('connect', () => {
+                    this.showConnectionStatus('Bağlandı', false);
+                    console.log('Sunucuya bağlandı');
+                });
+
+                this.socket.on('user-assigned', (data) => {
+                    this.userCity = data.city;
+                    this.currentRoom = data.city;
+                    this.roomTitle.textContent = `${this.userCity} Sohbet Odası`;
+                    this.loadMessagesFromStorage();
+                });
+
+                this.socket.on('user-joined', (data) => {
+                    this.addSystemMessage(`${data.userName} odaya katıldı`);
+                    this.updateUserList(data.users);
+                });
+
+                this.socket.on('user-left', (data) => {
+                    this.addSystemMessage(`${data.userName} odadan ayrıldı`);
+                    this.updateUserList(data.users);
+                });
+
+                this.socket.on('message', (message) => {
+                    this.displayMessage(message);
+                    this.saveMessageToStorage(message);
+                    this.markMessageAsSeen(message.id);
+                });
+
+                this.socket.on('typing', (data) => {
+                    this.showTypingIndicator(data);
+                });
+
+                this.socket.on('message-seen', (data) => {
+                    this.updateMessageStatus(data.messageId, true);
+                });
+
+                this.socket.on('user-list-update', (users) => {
+                    this.updateUserList(users);
+                });
+
+                this.socket.on('disconnect', () => {
+                    this.showConnectionStatus('Bağlantı kesildi - Yeniden bağlanılıyor...', true);
+                });
+
+                this.socket.on('connect_error', () => {
+                    this.showConnectionStatus('Bağlantı hatası', true);
+                });
+            }
+
+            showConnectionStatus(message, isError) {
+                this.connectionStatus.textContent = message;
+                this.connectionStatus.className = `connection-status ${isError ? 'error' : ''}`;
+                this.connectionStatus.style.display = 'block';
                 
-                if (data.authenticated && data.user) {
-                    console.log('✅ User already logged in:', data.user.email);
-                    currentUser = data.user;
-                    currentServer = data.user.country || 'TR';
-                    isAdmin = data.isAdmin || false;
-                    
-                    // Admin panelini göster
-                    if (isAdmin) {
-                        document.getElementById('adminPanel').style.display = 'block';
-                        console.log('👑 Admin privileges activated');
+                if (!isError) {
+                    setTimeout(() => {
+                        this.connectionStatus.style.display = 'none';
+                    }, 3000);
+                }
+            }
+
+            handleInput() {
+                const hasText = this.messageInput.value.trim().length > 0;
+                this.sendButton.disabled = !hasText;
+
+                if (hasText && !this.isTyping) {
+                    this.isTyping = true;
+                    this.socket.emit('typing', true);
+                }
+
+                if (this.typingTimeout) clearTimeout(this.typingTimeout);
+                this.typingTimeout = setTimeout(() => {
+                    if (this.isTyping) {
+                        this.isTyping = false;
+                        this.socket.emit('typing', false);
                     }
-                    
-                    // Doğrudan sohbete yönlendir
-                    showScreen('chatScreen');
-                    initializeChat();
-                } else {
-                    console.log('❌ No active session, showing login screen');
-                    showScreen('loginScreen');
-                }
-            } catch (error) {
-                console.error('Session check error:', error);
-                showScreen('loginScreen');
-            }
-        }
-
-        // Çıkış işlemi
-        async function logout() {
-            try {
-                await fetch('/api/logout', { method: 'POST' });
-                currentUser = null;
-                currentServer = null;
-                isAdmin = false;
-                if (socket) {
-                    socket.disconnect();
-                    socket = null;
-                }
-                showScreen('loginScreen');
-                // Formları temizle
-                document.getElementById('email').value = '';
-                document.getElementById('code').value = '';
-                document.getElementById('codeSection').style.display = 'none';
-            } catch (error) {
-                console.error('Logout error:', error);
-            }
-        }
-
-        // Tüm mesajları temizle (Admin only)
-        async function clearAllMessages() {
-            if (!confirm('Tüm mesajları silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!')) {
-                return;
+                }, 1000);
             }
 
-            try {
-                const response = await fetch('/api/messages', {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ serverId: currentServer })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    showSuccess('loginError', `Tüm mesajlar silindi! (${data.deletedCount} mesaj)`);
-                } else {
-                    showError('loginError', data.error || 'Silme işlemi başarısız');
-                }
-            } catch (error) {
-                console.error('Clear messages error:', error);
-                showError('loginError', 'Bağlantı hatası');
-            }
-        }
-
-        // Renk önizleme güncelleme
-        function updateColorPreview() {
-            const color = document.getElementById('nameColor').value;
-            document.getElementById('colorPreview').style.backgroundColor = color;
-        }
-
-        // Fotoğraf yükleme
-        function handlePhotoUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    document.getElementById('profilePreview').src = e.target.result;
-                }
-                reader.readAsDataURL(file);
-            }
-        }
-
-        // Kod gönderme
-        async function sendCode() {
-            const email = document.getElementById('email').value;
-            if (!email) {
-                showError('loginError', 'Lütfen email adresinizi girin');
-                return;
-            }
-
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = 'Gönderiliyor...';
-
-            try {
-                const response = await fetch('/api/send-code', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    document.getElementById('codeSection').style.display = 'block';
-                    showSuccess('loginError', data.devCode ? `[TEST] Kodunuz: ${data.devCode}` : 'Kod emailinize gönderildi!');
-                } else {
-                    showError('loginError', data.error || 'Bir hata oluştu');
-                }
-            } catch (error) {
-                showError('loginError', 'Bağlantı hatası');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Kodu Gönder';
-            }
-        }
-
-        // Kod doğrulama
-        async function verifyCode() {
-            const email = document.getElementById('email').value;
-            const code = document.getElementById('code').value;
-
-            if (!email || !code) {
-                showError('loginError', 'Lütfen email ve kodu girin');
-                return;
-            }
-
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = 'Doğrulanıyor...';
-
-            try {
-                const response = await fetch('/api/verify-code', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, code })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentUser = data.user;
-                    currentServer = data.user.country || 'TR';
-                    isAdmin = data.isAdmin || false;
-                    
-                    // Admin panelini göster
-                    if (isAdmin) {
-                        document.getElementById('adminPanel').style.display = 'block';
-                        console.log('👑 Admin privileges activated');
-                    }
-                    
-                    // Ülke bilgisini göster
-                    document.getElementById('countryName').textContent = currentServer;
-                    document.getElementById('countryInfo').style.display = 'block';
-                    
-                    showScreen('profileScreen');
-                    loadUserProfile();
-                } else {
-                    showError('loginError', data.error || 'Geçersiz kod');
-                }
-            } catch (error) {
-                showError('loginError', 'Bağlantı hatası');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Doğrula';
-            }
-        }
-
-        // Profil yükleme
-        async function loadUserProfile() {
-            try {
-                const response = await fetch('/api/user');
-                const data = await response.json();
-                
-                if (data.user) {
-                    document.getElementById('username').value = data.user.username || '';
-                    document.getElementById('nameColor').value = data.user.nameColor || '#4285F4';
-                    document.getElementById('profilePreview').src = data.user.profilePhoto || '';
-                    updateColorPreview();
-                }
-            } catch (error) {
-                console.error('Profil yükleme hatası:', error);
-            }
-        }
-
-        // Profil kaydetme
-        async function saveProfile() {
-            const username = document.getElementById('username').value;
-            const nameColor = document.getElementById('nameColor').value;
-            const profilePhoto = document.getElementById('profilePreview').src;
-
-            if (!username) {
-                showError('profileError', 'Lütfen kullanıcı adınızı girin');
-                return;
-            }
-
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = 'Kaydediliyor...';
-
-            try {
-                const response = await fetch('/api/profile-setup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, nameColor, profilePhoto })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentUser = { ...currentUser, ...data.user };
-                    initializeChat();
-                } else {
-                    showError('profileError', data.error || 'Kayıt hatası');
-                }
-            } catch (error) {
-                showError('profileError', 'Bağlantı hatası');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Kaydet ve Sohbete Gir';
-            }
-        }
-
-        // Sohbeti başlat
-        function initializeChat() {
-            showScreen('chatScreen');
-            
-            // Socket bağlantısı
-            socket = io();
-            
-            // Sunucu bilgilerini güncelle
-            document.getElementById('serverInfo').textContent = `Ülke: ${currentServer}`;
-            
-            // Sunucuya katıl
-            socket.emit('join-server', {
-                serverId: currentServer,
-                userId: currentUser._id
-            });
-
-            // Online kullanıcı sayısı
-            socket.on('update-users', (count) => {
-                document.getElementById('userCount').textContent = `Online: ${count}`;
-                document.getElementById('onlineCount').textContent = `Online: ${count}`;
-            });
-
-            // Yeni mesaj
-            socket.on('new-message', (message) => {
-                console.log('📨 New message received:', message);
-                addMessageToChat(message);
-                
-                // Kendi mesajım değilse görüldü olarak işaretle
-                if (message.userId !== currentUser._id) {
-                    socket.emit('message-seen', {
-                        messageId: message._id,
-                        userId: currentUser._id
-                    });
-                }
-            });
-
-            // Temp mesaj gerçek mesajla değiştirildi
-            socket.on('message-replaced', (data) => {
-                const tempMessage = document.querySelector(`[data-message-id="${data.tempId}"]`);
-                if (tempMessage) {
-                    tempMessage.remove();
-                    addMessageToChat(data.realMessage);
-                }
-            });
-
-            // Mesaj gönderme başarısız
-            socket.on('message-failed', (data) => {
-                const tempMessage = document.querySelector(`[data-message-id="${data.tempId}"]`);
-                if (tempMessage) {
-                    tempMessage.remove();
-                    showError('loginError', 'Mesaj gönderilemedi');
-                }
-            });
-
-            // Görülme güncellemesi
-            socket.on('message-seen-update', (data) => {
-                updateMessageSeen(data.messageId, data.seenCount, data.seenBy);
-            });
-
-            // Mesaj düzenlendi
-            socket.on('message-edited', (data) => {
-                updateMessageContent(data.messageId, data.newMessage, data.editedAt);
-            });
-
-            // Mesaj silindi
-            socket.on('message-deleted', (data) => {
-                removeMessage(data.messageId);
-            });
-
-            // Tüm mesajlar temizlendi
-            socket.on('all-messages-cleared', () => {
-                document.getElementById('messages').innerHTML = '';
-                showSuccess('loginError', 'Tüm mesajlar temizlendi!');
-            });
-
-            // Yazıyor indikatörü
-            socket.on('user-typing', (data) => {
-                showTyping(data.username);
-            });
-
-            socket.on('user-stop-typing', () => {
-                hideTyping();
-            });
-
-            // Mesaj geçmişini yükle
-            loadMessageHistory();
-        }
-
-        // Mesaj geçmişi yükleme
-        async function loadMessageHistory() {
-            try {
-                const response = await fetch(`/api/messages/${currentServer}`);
-                const messages = await response.json();
-                
-                messages.forEach(message => {
-                    addMessageToChat(message);
-                    // Kendi mesajım değilse görüldü olarak işaretle
-                    if (message.userId !== currentUser._id) {
-                        socket.emit('message-seen', {
-                            messageId: message._id,
-                            userId: currentUser._id
-                        });
-                    }
-                });
-                
-                scrollToBottom();
-            } catch (error) {
-                console.error('Mesaj geçmişi yükleme hatası:', error);
-            }
-        }
-
-        // Mesaj gönderme
-        function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            
-            if (!message || !socket) return;
-
-            // Yazmayı durdur
-            stopTyping();
-
-            const messageData = {
-                serverId: currentServer,
-                userId: currentUser._id,
-                username: currentUser.username,
-                nameColor: currentUser.nameColor,
-                profilePhoto: currentUser.profilePhoto,
-                message: message
-            };
-
-            console.log('🚀 Sending message:', messageData);
-            socket.emit('send-message', messageData);
-            
-            // Input'u temizle
-            input.value = '';
-            autoResize(input);
-        }
-
-        // Mesajı chat'e ekle
-        function addMessageToChat(message) {
-            const messagesDiv = document.getElementById('messages');
-            const isOwn = message.userId === currentUser._id;
-            
-            // Aynı mesaj zaten ekli mi kontrol et
-            const existingMessage = document.querySelector(`[data-message-id="${message._id}"]`);
-            if (existingMessage && !message.isTemp) {
-                console.log('⚠️ Message already exists:', message._id);
-                return;
-            }
-            
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isOwn ? 'own' : 'other'}`;
-            messageDiv.dataset.messageId = message._id;
-            messageDiv.dataset.userId = message.userId;
-            
-            // Context menu için event listener (sadece kendi mesajlarında veya admin'de)
-            if (isOwn || isAdmin) {
-                messageDiv.addEventListener('contextmenu', function(e) {
+            handleKeyPress(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    showContextMenu(e, message);
-                });
+                    this.sendMessage();
+                }
             }
-            
-            const time = new Date(message.timestamp).toLocaleTimeString('tr-TR', {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            
-            const seenCount = message.seenBy ? message.seenBy.length : 0;
-            const seenText = isOwn ? 
-                `<div class="message-seen">👁️ ${seenCount} kişi gördü</div>` : 
-                '';
 
-            const editedText = message.edited ? 
-                `<div class="message-edited">(düzenlendi)</div>` : 
-                '';
+            sendMessage() {
+                const text = this.messageInput.value.trim();
+                if (!text) return;
 
-            messageDiv.innerHTML = `
-                <div class="message-header">
-                    <img src="${message.profilePhoto}" class="profile-photo" alt="${message.username}">
-                    <span class="username" style="color: ${message.nameColor}">${message.username}</span>
-                </div>
-                <div class="message-content">${escapeHtml(message.message)}</div>
-                ${editedText}
-                <div class="message-time">${time}</div>
-                ${seenText}
-            `;
-            
-            messagesDiv.appendChild(messageDiv);
-            scrollToBottom();
-            
-            console.log('✅ Message added to chat:', message._id);
-        }
+                const message = {
+                    id: Date.now().toString(),
+                    text: text,
+                    time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                    userName: this.userName,
+                    userColor: this.userColor,
+                    room: this.currentRoom
+                };
 
-        // Mesaj içeriğini güncelle (düzenleme için)
-        function updateMessageContent(messageId, newMessage, editedAt) {
-            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (messageDiv) {
-                const contentDiv = messageDiv.querySelector('.message-content');
-                const timeDiv = messageDiv.querySelector('.message-time');
+                this.socket.emit('message', message);
+                this.messageInput.value = '';
+                this.messageInput.style.height = 'auto';
+                this.sendButton.disabled = true;
+
+                if (this.isTyping) {
+                    this.isTyping = false;
+                    this.socket.emit('typing', false);
+                }
+            }
+
+            displayMessage(message) {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${message.userName === this.userName ? 'own' : 'other'}`;
+                messageElement.dataset.messageId = message.id;
+
+                const avatar = this.createAvatar(message.userName, message.userColor);
                 
-                contentDiv.innerHTML = escapeHtml(newMessage);
+                messageElement.innerHTML = `
+                    <div class="message-header">
+                        <div class="message-sender">${this.escapeHtml(message.userName)}</div>
+                        <div class="message-time">${message.time}</div>
+                    </div>
+                    <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    <div class="message-status">
+                        ${message.userName === this.userName ? 
+                            `<span class="seen-status">${message.seen ? '✓✓' : '✓'}</span>` : ''}
+                    </div>
+                `;
+
+                if (message.userName !== this.userName) {
+                    messageElement.prepend(avatar);
+                }
+
+                this.messagesContainer.appendChild(messageElement);
+                this.scrollToBottom();
+
+                if (message.userName !== this.userName) {
+                    this.markMessageAsSeen(message.id);
+                }
+            }
+
+            createAvatar(userName, color) {
+                const avatar = document.createElement('div');
+                avatar.className = 'user-avatar';
+                avatar.style.backgroundColor = color;
+                avatar.textContent = userName.charAt(0).toUpperCase();
+                return avatar;
+            }
+
+            addSystemMessage(text) {
+                const systemMessage = document.createElement('div');
+                systemMessage.className = 'message system';
+                systemMessage.style.alignSelf = 'center';
+                systemMessage.style.background = 'rgba(0,0,0,0.1)';
+                systemMessage.style.color = '#666';
+                systemMessage.style.fontSize = '14px';
+                systemMessage.style.fontStyle = 'italic';
+                systemMessage.innerHTML = this.escapeHtml(text);
                 
-                // Düzenlenme zamanını ekle
-                if (editedAt) {
-                    const editedTime = new Date(editedAt).toLocaleTimeString('tr-TR', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    });
-                    const editedText = messageDiv.querySelector('.message-edited') || document.createElement('div');
-                    editedText.className = 'message-edited';
-                    editedText.textContent = `(düzenlendi ${editedTime})`;
-                    
-                    if (!messageDiv.querySelector('.message-edited')) {
-                        timeDiv.parentNode.insertBefore(editedText, timeDiv.nextSibling);
+                this.messagesContainer.appendChild(systemMessage);
+                this.scrollToBottom();
+            }
+
+            showTypingIndicator(data) {
+                if (data.isTyping && data.userName !== this.userName) {
+                    this.typingIndicator.textContent = `${data.userName} yazıyor...`;
+                    this.typingIndicator.style.display = 'block';
+                } else {
+                    this.typingIndicator.style.display = 'none';
+                }
+                this.scrollToBottom();
+            }
+
+            updateMessageStatus(messageId, seen) {
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    const statusElement = messageElement.querySelector('.seen-status');
+                    if (statusElement) {
+                        statusElement.textContent = seen ? '✓✓' : '✓';
+                        statusElement.style.color = seen ? '#34B7F1' : '#666';
                     }
                 }
             }
-        }
 
-        // Mesajı kaldır (silme için)
-        function removeMessage(messageId) {
-            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (messageDiv) {
-                messageDiv.remove();
+            markMessageAsSeen(messageId) {
+                this.socket.emit('message-seen', { messageId, room: this.currentRoom });
             }
-        }
 
-        // Görülme bilgisini güncelle
-        function updateMessageSeen(messageId, seenCount, seenBy) {
-            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (messageDiv) {
-                const seenDiv = messageDiv.querySelector('.message-seen');
-                if (seenDiv) {
-                    seenDiv.innerHTML = `👁️ ${seenCount} kişi gördü`;
+            updateUserList(users) {
+                this.userList.innerHTML = '';
+                this.onlineCount.textContent = `${users.length} online`;
+
+                users.forEach(user => {
+                    const userItem = document.createElement('li');
+                    userItem.className = 'user-item';
+                    
+                    const avatar = this.createAvatar(user.userName, user.userColor);
+                    avatar.style.width = '35px';
+                    avatar.style.height = '35px';
+                    avatar.style.fontSize = '14px';
+
+                    userItem.innerHTML = `
+                        <div class="user-info">
+                            <div class="user-name">${this.escapeHtml(user.userName)}</div>
+                            <div class="user-city">${this.escapeHtml(user.city)}</div>
+                        </div>
+                    `;
+                    userItem.prepend(avatar);
+                    this.userList.appendChild(userItem);
+                });
+            }
+
+            scrollToBottom() {
+                setTimeout(() => {
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                }, 100);
+            }
+
+            saveMessageToStorage(message) {
+                const key = `city_${this.currentRoom}_messages`;
+                let messages = JSON.parse(localStorage.getItem(key) || '[]');
+                
+                messages.push({
+                    ...message,
+                    stored: true
+                });
+
+                // Son 100 mesajı sakla
+                if (messages.length > 100) {
+                    messages = messages.slice(-100);
                 }
-            }
-        }
 
-        // Context Menu
-        function showContextMenu(e, message) {
-            selectedMessage = message;
-            const contextMenu = document.getElementById('contextMenu');
-            const isOwnMessage = message.userId === currentUser._id;
-            
-            // Menü öğelerini güncelle
-            const menuItems = contextMenu.querySelectorAll('.context-menu-item');
-            menuItems[0].style.display = isOwnMessage ? 'block' : 'none'; // Düzenle sadece kendi mesajında
-            menuItems[1].style.display = 'block'; // Sil her zaman göster (admin veya kendi mesajı)
-            
-            contextMenu.style.display = 'block';
-            contextMenu.style.left = e.pageX + 'px';
-            contextMenu.style.top = e.pageY + 'px';
-        }
-
-        function hideContextMenu() {
-            const contextMenu = document.getElementById('contextMenu');
-            contextMenu.style.display = 'none';
-            selectedMessage = null;
-        }
-
-        function editMessage() {
-            if (!selectedMessage || selectedMessage.userId !== currentUser._id) return;
-            
-            const editModal = document.getElementById('editModal');
-            const editInput = document.getElementById('editMessageInput');
-            
-            editInput.value = selectedMessage.message;
-            editModal.style.display = 'flex';
-            
-            hideContextMenu();
-        }
-
-        function hideEditModal() {
-            const editModal = document.getElementById('editModal');
-            editModal.style.display = 'none';
-            selectedMessage = null;
-        }
-
-        async function saveEditedMessage() {
-            if (!selectedMessage) return;
-            
-            const editInput = document.getElementById('editMessageInput');
-            const newMessage = editInput.value.trim();
-            
-            if (!newMessage || newMessage === selectedMessage.message) {
-                hideEditModal();
-                return;
+                localStorage.setItem(key, JSON.stringify(messages));
             }
 
-            try {
-                // Socket üzerinden düzenleme
-                socket.emit('edit-message', {
-                    messageId: selectedMessage._id,
-                    newMessage: newMessage,
-                    userId: currentUser._id
-                });
+            loadMessagesFromStorage() {
+                if (!this.currentRoom) return;
+
+                const key = `city_${this.currentRoom}_messages`;
+                const messages = JSON.parse(localStorage.getItem(key) || '[]');
                 
-                hideEditModal();
-                
-            } catch (error) {
-                console.error('Edit message error:', error);
-                showError('loginError', 'Mesaj düzenlenemedi');
-            }
-        }
-
-        async function deleteMessage() {
-            if (!selectedMessage) return;
-            
-            if (!confirm('Bu mesajı silmek istediğinizden emin misiniz?')) {
-                hideContextMenu();
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/messages/${selectedMessage._id}`, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: currentUser._id })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Mesaj başarıyla silindi, socket event'i ile kaldırılacak
-                    console.log('✅ Message deleted successfully');
-                } else {
-                    showError('loginError', data.error || 'Mesaj silinemedi');
-                }
-            } catch (error) {
-                console.error('Delete message error:', error);
-                showError('loginError', 'Bağlantı hatası');
-            }
-            
-            hideContextMenu();
-        }
-
-        // Context menu'yu sayfa tıklamalarında gizle
-        document.addEventListener('click', hideContextMenu);
-
-        // Yazıyor indikatörü
-        function handleTyping() {
-            if (!isTyping) {
-                isTyping = true;
-                socket.emit('typing-start', {
-                    serverId: currentServer,
-                    userId: currentUser._id,
-                    username: currentUser.username
+                this.messagesContainer.innerHTML = '';
+                messages.forEach(message => {
+                    this.displayMessage(message);
                 });
             }
-            
-            clearTimeout(typingTimer);
-            typingTimer = setTimeout(stopTyping, 3000);
-        }
 
-        function stopTyping() {
-            isTyping = false;
-            clearTimeout(typingTimer);
-            socket.emit('typing-stop', {
-                serverId: currentServer,
-                userId: currentUser._id
-            });
-        }
+            toggleUsersSidebar() {
+                this.usersSidebar.classList.toggle('active');
+            }
 
-        function showTyping(username) {
-            const indicator = document.getElementById('typingIndicator');
-            indicator.textContent = `${username} yazıyor...`;
-            indicator.style.display = 'block';
-            scrollToBottom();
-        }
-
-        function hideTyping() {
-            const indicator = document.getElementById('typingIndicator');
-            indicator.style.display = 'none';
-        }
-
-        // Yardımcı fonksiyonlar
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('active');
-            });
-            document.getElementById(screenId).classList.add('active');
-        }
-
-        function showError(containerId, message) {
-            const container = document.getElementById(containerId);
-            container.textContent = message;
-            container.style.display = 'block';
-            container.className = 'error';
-        }
-
-        function showSuccess(containerId, message) {
-            const container = document.getElementById(containerId);
-            container.textContent = message;
-            container.style.display = 'block';
-            container.className = 'success';
-        }
-
-        function autoResize(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-        }
-
-        function handleKeyPress(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                sendMessage();
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
             }
         }
 
-        function scrollToBottom() {
-            const messagesDiv = document.getElementById('messages');
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        function escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
+        // Uygulamayı başlat
+        document.addEventListener('DOMContentLoaded', () => {
+            new ChatApp();
+        });
     </script>
 </body>
 </html>
