@@ -10,15 +10,14 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Vercel için Socket.io yapılandırması
+// Vercel için özel Socket.io yapılandırması
 const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['websocket', 'polling'],
-  path: '/socket.io/'
+  transports: ['websocket', 'polling']
 });
 
 // Middleware
@@ -29,8 +28,8 @@ app.use(cors({
   credentials: true
 }));
 
-// Static files - Vercel için path düzeltmesi
-app.use(express.static(path.join(__dirname, 'public')));
+// Static files serving - Vercel için
+app.use(express.static('public'));
 
 // MongoDB bağlantısı
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -484,19 +483,23 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Ana sayfa - Vercel için path düzeltmesi
+// Socket.io test endpoint
+app.get('/socket-test', (req, res) => {
+  res.json({
+    message: 'Socket.io endpoint test',
+    socketConnections: socketToUser.size,
+    activeRooms: Array.from(rooms.keys())
+  });
+});
+
+// Ana sayfa
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 // Tüm route'ları index.html'e yönlendir (SPA için)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route bulunamadı' });
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 // Hata yönetimi
@@ -510,11 +513,17 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Sunucuyu başlat
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`🔗 Test: http://localhost:${PORT}/test`);
-  console.log(`🗄️  MongoDB durumu: ${mongoose.connection.readyState === 1 ? '✅ Bağlı' : '❌ Bağlı değil'}`);
-});
 
-module.exports = app;
+// Vercel için server.listen'i düzelt
+if (process.env.VERCEL) {
+  // Vercel environment
+  module.exports = app;
+} else {
+  // Local development
+  server.listen(PORT, () => {
+    console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
+    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+    console.log(`🔗 Test: http://localhost:${PORT}/test`);
+    console.log(`🗄️  MongoDB durumu: ${mongoose.connection.readyState === 1 ? '✅ Bağlı' : '❌ Bağlı değil'}`);
+  });
+}
