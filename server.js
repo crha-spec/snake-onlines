@@ -10,19 +10,21 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Vercel için Socket.io yapılandırması - SADECE POLLING
+// Socket.io yapılandırması
 const io = socketIo(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
-  transports: ['polling'] // Sadece polling kullan
+  transports: ['polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 // Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' })); // Ses mesajları için limit artırıldı
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cors({
   origin: "*",
   credentials: true
@@ -109,12 +111,6 @@ async function getCityFromIP(ip) {
     
     // Vercel ve localhost için fallback
     if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1') {
-      return 'İstanbul';
-    }
-
-    // Vercel'in header'larından IP'yi al
-    const forwardedFor = ip;
-    if (!forwardedFor || forwardedFor === '::1') {
       return 'İstanbul';
     }
 
@@ -232,8 +228,16 @@ function removeUserFromRoom(socketId, room) {
 io.on('connection', async (socket) => {
   console.log('🔗 Yeni kullanıcı bağlandı:', socket.id);
 
+  // Connection timeout
+  const connectionTimeout = setTimeout(() => {
+    if (!socketToUser.get(socket.id)) {
+      console.log('⏰ Bağlantı zaman aşımı:', socket.id);
+      socket.disconnect();
+    }
+  }, 30000);
+
   try {
-    // Vercel'de IP adresini doğru şekilde al
+    // IP'den şehir belirleme
     const clientIP = socket.handshake.headers['x-forwarded-for'] || 
                     socket.handshake.address || 
                     socket.conn.remoteAddress;
@@ -245,6 +249,7 @@ io.on('connection', async (socket) => {
     // İlk bağlantıda kullanıcı bilgilerini bekle
     socket.on('user-join', async (userData) => {
       try {
+        clearTimeout(connectionTimeout);
         console.log('👤 Kullanıcı katılım verisi:', userData);
 
         const userProfile = await getOrCreateUserProfile({
@@ -331,7 +336,7 @@ io.on('connection', async (socket) => {
       }
     });
 
-    // Mesaj alma
+    // Mesaj alma (hem text hem audio)
     socket.on('message', async (messageData) => {
       try {
         const userId = socketToUser.get(socket.id);
@@ -348,7 +353,6 @@ io.on('connection', async (socket) => {
 
         const message = {
           id: messageData.id || Date.now().toString(),
-          text: messageData.text,
           time: messageData.time || new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
           userName: userInfo.userName,
           userPhoto: userInfo.userPhoto,
@@ -357,9 +361,22 @@ io.on('connection', async (socket) => {
           seen: false
         };
 
+        // Text mesajı
+        if (messageData.text) {
+          message.text = messageData.text;
+          message.type = 'text';
+          console.log(`💬 Mesaj ${userInfo.city} odasında yayınlandı:`, message.text.substring(0, 50) + '...');
+        }
+        // Ses mesajı
+        else if (messageData.audio) {
+          message.audio = messageData.audio;
+          message.duration = messageData.duration || 0;
+          message.type = 'audio';
+          console.log(`🎤 Ses mesajı ${userInfo.city} odasında yayınlandı:`, message.duration + 's');
+        }
+
         // Odaya mesajı yayınla
         io.to(userInfo.city).emit('message', message);
-        console.log(`💬 Mesaj ${userInfo.city} odasında yayınlandı:`, message.text.substring(0, 50) + '...');
 
       } catch (error) {
         console.error('❌ Mesaj gönderme hatası:', error);
@@ -381,7 +398,6 @@ io.on('connection', async (socket) => {
           isTyping: isTyping
         });
 
-        console.log(`⌨️  ${userInfo.userName} ${isTyping ? 'yazıyor...' : 'yazmayı bıraktı'}`);
       } catch (error) {
         console.error('❌ Typing indicator hatası:', error);
       }
@@ -402,15 +418,22 @@ io.on('connection', async (socket) => {
           seenBy: userInfo.userName
         });
 
-        console.log(`👀 Mesaj okundu: ${data.messageId} by ${userInfo.userName}`);
       } catch (error) {
         console.error('❌ Mesaj okundu hatası:', error);
+      }
+    });
+
+    // Ping-pong for connection health
+    socket.on('ping', (cb) => {
+      if (typeof cb === 'function') {
+        cb();
       }
     });
 
     // Bağlantı kesilme
     socket.on('disconnect', async (reason) => {
       console.log('🔌 Kullanıcı ayrıldı:', socket.id, 'Neden:', reason);
+      clearTimeout(connectionTimeout);
 
       try {
         const userId = socketToUser.get(socket.id);
@@ -511,15 +534,6 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Socket.io test endpoint
-app.get('/socket-test', (req, res) => {
-  res.json({
-    message: 'Socket.io endpoint test',
-    socketConnections: socketToUser.size,
-    activeRooms: Array.from(rooms.keys())
-  });
-});
-
 // Ana sayfa
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
@@ -543,19 +557,9 @@ process.on('unhandledRejection', (reason, promise) => {
 const PORT = process.env.PORT || 3000;
 
 // Vercel için
-module.exports = (req, res) => {
-  // Vercel serverless fonksiyonu
-  if (req.url.startsWith('/socket.io/')) {
-    // Socket.io isteklerini server'a yönlendir
-    server.emit('request', req, res);
-  } else {
-    // Diğer istekleri Express'e yönlendir
-    app(req, res);
-  }
-};
-
-// Local development için
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
   server.listen(PORT, () => {
     console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
