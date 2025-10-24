@@ -6,6 +6,7 @@
     <title>Şehir Sohbet Odası</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
+        /* Önceki CSS kodları aynen kalacak, sadece socket bağlantı kısmı değişti */
         * {
             margin: 0;
             padding: 0;
@@ -303,6 +304,11 @@
             color: white;
         }
 
+        .connection-status.connected {
+            background: #4caf50;
+            color: white;
+        }
+
         /* Modal Stilleri */
         .modal {
             display: none;
@@ -448,10 +454,24 @@
             font-weight: bold;
             margin: 0 auto 20px;
         }
+
+        .retry-button {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .retry-button:hover {
+            background: #f57c00;
+        }
     </style>
 </head>
 <body>
-    <div class="connection-status" id="connectionStatus"></div>
+    <div class="connection-status" id="connectionStatus">Bağlanıyor...</div>
     
     <div class="header">
         <div class="header-left">
@@ -476,6 +496,7 @@
                     class="message-input" 
                     placeholder="Mesajınızı yazın..."
                     rows="1"
+                    disabled
                 ></textarea>
                 <button id="sendButton" class="send-button" disabled>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -545,6 +566,8 @@
                 this.currentRoom = null;
                 this.isTyping = false;
                 this.typingTimeout = null;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
                 
                 this.initializeElements();
                 this.initializeEventListeners();
@@ -702,19 +725,8 @@
                     localStorage.setItem('userPhoto', this.userPhoto);
                     this.updateProfileDisplay();
                     
-                    // Send to server
-                    if (this.socket) {
-                        this.socket.emit('update-profile', {
-                            userId: this.userId,
-                            userName: this.userName,
-                            userPhoto: this.userPhoto
-                        });
-                    }
-                    
                     this.hideWelcomeModal();
-                    if (!this.socket) {
-                        this.connectToServer();
-                    }
+                    this.connectToServer();
                 };
                 reader.readAsDataURL(file);
             }
@@ -731,14 +743,25 @@
 
                 const file = this.editPhotoInput.files[0];
                 if (file) {
-                    this.uploadProfilePhoto(file);
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.userPhoto = e.target.result;
+                        localStorage.setItem('userPhoto', this.userPhoto);
+                        this.updateProfileDisplay();
+                        this.sendProfileUpdate();
+                    };
+                    reader.readAsDataURL(file);
                 } else {
                     this.userPhoto = this.editPhotoPreview.src;
                     localStorage.setItem('userPhoto', this.userPhoto);
                     this.updateProfileDisplay();
+                    this.sendProfileUpdate();
                 }
 
-                // Send update to server
+                this.hideProfileModal();
+            }
+
+            sendProfileUpdate() {
                 if (this.socket) {
                     this.socket.emit('update-profile', {
                         userId: this.userId,
@@ -746,8 +769,6 @@
                         userPhoto: this.userPhoto
                     });
                 }
-
-                this.hideProfileModal();
             }
 
             updateProfileDisplay() {
@@ -760,11 +781,33 @@
             }
 
             connectToServer() {
-                this.socket = io();
+                console.log('🔗 Sunucuya bağlanılıyor...');
+                this.showConnectionStatus('Sunucuya bağlanılıyor...', false);
+                
+                try {
+                    // Socket.io bağlantısını oluştur
+                    this.socket = io({
+                        transports: ['websocket', 'polling'],
+                        timeout: 10000,
+                        reconnectionAttempts: 5,
+                        reconnectionDelay: 1000
+                    });
 
+                    this.setupSocketEvents();
+                    
+                } catch (error) {
+                    console.error('❌ Socket bağlantı hatası:', error);
+                    this.showConnectionStatus('Bağlantı hatası: ' + error.message, true);
+                    this.attemptReconnect();
+                }
+            }
+
+            setupSocketEvents() {
                 this.socket.on('connect', () => {
+                    console.log('✅ Sunucuya bağlandı');
+                    this.reconnectAttempts = 0;
                     this.showConnectionStatus('Bağlandı', false);
-                    console.log('Sunucuya bağlandı');
+                    this.messageInput.disabled = false;
                     
                     // Send user profile to server
                     this.socket.emit('user-join', {
@@ -814,18 +857,58 @@
                     this.updateUserProfile(data);
                 });
 
-                this.socket.on('disconnect', () => {
+                this.socket.on('disconnect', (reason) => {
+                    console.log('🔌 Bağlantı kesildi:', reason);
                     this.showConnectionStatus('Bağlantı kesildi - Yeniden bağlanılıyor...', true);
+                    this.messageInput.disabled = true;
+                    this.attemptReconnect();
                 });
 
-                this.socket.on('connect_error', () => {
-                    this.showConnectionStatus('Bağlantı hatası', true);
+                this.socket.on('connect_error', (error) => {
+                    console.error('❌ Bağlantı hatası:', error);
+                    this.showConnectionStatus('Bağlantı hatası: ' + (error.message || 'Bilinmeyen hata'), true);
+                    this.messageInput.disabled = true;
                 });
+
+                this.socket.on('error', (error) => {
+                    console.error('❌ Socket hatası:', error);
+                    this.showConnectionStatus('Hata: ' + (error.message || 'Bilinmeyen hata'), true);
+                });
+            }
+
+            attemptReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    const delay = Math.min(1000 * this.reconnectAttempts, 10000);
+                    this.showConnectionStatus(`Yeniden bağlanılıyor... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`, true);
+                    
+                    console.log(`🔄 ${delay}ms sonra yeniden bağlanılıyor...`);
+                    setTimeout(() => {
+                        if (this.socket) {
+                            this.socket.connect();
+                        } else {
+                            this.connectToServer();
+                        }
+                    }, delay);
+                } else {
+                    this.showConnectionStatus('Bağlantı sağlanamadı. Lütfen sayfayı yenileyin.', true);
+                    this.addRetryButton();
+                }
+            }
+
+            addRetryButton() {
+                const retryButton = document.createElement('button');
+                retryButton.className = 'retry-button';
+                retryButton.textContent = 'Tekrar Dene';
+                retryButton.onclick = () => {
+                    window.location.reload();
+                };
+                this.connectionStatus.appendChild(retryButton);
             }
 
             showConnectionStatus(message, isError) {
                 this.connectionStatus.textContent = message;
-                this.connectionStatus.className = `connection-status ${isError ? 'error' : ''}`;
+                this.connectionStatus.className = `connection-status ${isError ? 'error' : 'connected'}`;
                 this.connectionStatus.style.display = 'block';
                 
                 if (!isError) {
@@ -841,14 +924,18 @@
 
                 if (hasText && !this.isTyping) {
                     this.isTyping = true;
-                    this.socket.emit('typing', true);
+                    if (this.socket) {
+                        this.socket.emit('typing', true);
+                    }
                 }
 
                 if (this.typingTimeout) clearTimeout(this.typingTimeout);
                 this.typingTimeout = setTimeout(() => {
                     if (this.isTyping) {
                         this.isTyping = false;
-                        this.socket.emit('typing', false);
+                        if (this.socket) {
+                            this.socket.emit('typing', false);
+                        }
                     }
                 }, 1000);
             }
@@ -862,7 +949,7 @@
 
             sendMessage() {
                 const text = this.messageInput.value.trim();
-                if (!text) return;
+                if (!text || !this.socket) return;
 
                 const message = {
                     id: Date.now().toString(),
@@ -959,7 +1046,9 @@
             }
 
             markMessageAsSeen(messageId) {
-                this.socket.emit('message-seen', { messageId, room: this.currentRoom });
+                if (this.socket && this.currentRoom) {
+                    this.socket.emit('message-seen', { messageId, room: this.currentRoom });
+                }
             }
 
             updateUserList(users) {
@@ -1009,6 +1098,8 @@
             }
 
             saveMessageToStorage(message) {
+                if (!this.currentRoom) return;
+                
                 const key = `city_${this.currentRoom}_messages`;
                 let messages = JSON.parse(localStorage.getItem(key) || '[]');
                 
