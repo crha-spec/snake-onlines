@@ -10,27 +10,19 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io yapılandırması
+// Render için Socket.io - WebSocket DESTEKLİ
 const io = socketIo(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"],
-    credentials: true
+    methods: ["GET", "POST"]
   },
-  transports: ['polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000
+  transports: ['websocket', 'polling'] // WebSocket aktif
 });
 
 // Middleware
-app.use(express.json({ limit: '50mb' })); // Ses mesajları için limit artırıldı
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(cors({
-  origin: "*",
-  credentials: true
-}));
-
-// Static files serving
+app.use(cors());
 app.use(express.static('public'));
 
 // MongoDB bağlantısı
@@ -46,8 +38,6 @@ if (MONGODB_URI) {
     console.error('❌ MongoDB bağlantı hatası:', err);
     console.log('⚠️  MongoDB olmadan devam ediliyor...');
   });
-} else {
-  console.log('⚠️  MONGODB_URI bulunamadı, memory modunda çalışılıyor...');
 }
 
 // Kullanıcı Profil Şeması
@@ -109,7 +99,7 @@ async function getCityFromIP(ip) {
       realIP = ip.split(':').pop();
     }
     
-    // Vercel ve localhost için fallback
+    // Localhost ve test için
     if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1') {
       return 'İstanbul';
     }
@@ -228,14 +218,6 @@ function removeUserFromRoom(socketId, room) {
 io.on('connection', async (socket) => {
   console.log('🔗 Yeni kullanıcı bağlandı:', socket.id);
 
-  // Connection timeout
-  const connectionTimeout = setTimeout(() => {
-    if (!socketToUser.get(socket.id)) {
-      console.log('⏰ Bağlantı zaman aşımı:', socket.id);
-      socket.disconnect();
-    }
-  }, 30000);
-
   try {
     // IP'den şehir belirleme
     const clientIP = socket.handshake.headers['x-forwarded-for'] || 
@@ -249,7 +231,6 @@ io.on('connection', async (socket) => {
     // İlk bağlantıda kullanıcı bilgilerini bekle
     socket.on('user-join', async (userData) => {
       try {
-        clearTimeout(connectionTimeout);
         console.log('👤 Kullanıcı katılım verisi:', userData);
 
         const userProfile = await getOrCreateUserProfile({
@@ -423,17 +404,9 @@ io.on('connection', async (socket) => {
       }
     });
 
-    // Ping-pong for connection health
-    socket.on('ping', (cb) => {
-      if (typeof cb === 'function') {
-        cb();
-      }
-    });
-
     // Bağlantı kesilme
     socket.on('disconnect', async (reason) => {
       console.log('🔌 Kullanıcı ayrıldı:', socket.id, 'Neden:', reason);
-      clearTimeout(connectionTimeout);
 
       try {
         const userId = socketToUser.get(socket.id);
@@ -477,93 +450,23 @@ io.on('connection', async (socket) => {
 });
 
 // API Routes
-app.get('/api/users/:userId', async (req, res) => {
-  try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: 'Database bağlantısı yok' });
-    }
-
-    const userProfile = await UserProfile.findOne({ userId: req.params.userId });
-    if (!userProfile) {
-      return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
-    }
-    res.json(userProfile);
-  } catch (error) {
-    res.status(500).json({ error: 'Sunucu hatası' });
-  }
-});
-
-app.get('/api/users/city/:city', async (req, res) => {
-  try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.json([]);
-    }
-
-    const users = await UserProfile.find({ city: req.params.city });
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ error: 'Sunucu hatası' });
-  }
-});
-
-// Health check endpoint
-app.get('/health', async (req, res) => {
-  try {
-    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-    
-    res.json({ 
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      database: dbStatus,
-      rooms: Array.from(rooms.keys()),
-      connectedUsers: connectedUsers.size,
-      totalSockets: socketToUser.size
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'ERROR', error: error.message });
-  }
-});
-
-// Test endpoint
-app.get('/test', (req, res) => {
-  res.json({
-    message: 'Sunucu çalışıyor!',
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
     timestamp: new Date().toISOString(),
-    nodeVersion: process.version,
-    environment: process.env.NODE_ENV
+    rooms: Array.from(rooms.keys()),
+    connectedUsers: connectedUsers.size
   });
 });
 
-// Ana sayfa
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
 });
 
-// Tüm route'ları index.html'e yönlendir (SPA için)
-app.get('*', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
-});
-
-// Hata yönetimi
-process.on('uncaughtException', (error) => {
-  console.error('💥 Beklenmeyen hata:', error);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 İşlenmemiş promise reddi:', reason);
-});
-
-// Sunucuyu başlat
 const PORT = process.env.PORT || 3000;
 
-// Vercel için
-if (process.env.VERCEL) {
-  module.exports = app;
-} else {
-  server.listen(PORT, () => {
-    console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
-    console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-    console.log(`🔗 Test: http://localhost:${PORT}/test`);
-    console.log(`🗄️  MongoDB durumu: ${mongoose.connection.readyState === 1 ? '✅ Bağlı' : '❌ Bağlı değil'}`);
-  });
-}
+// Render için normal server başlatma
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+});
