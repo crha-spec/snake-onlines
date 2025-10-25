@@ -163,6 +163,8 @@
             position: relative;
             word-wrap: break-word;
             max-width: 100%;
+            cursor: pointer;
+            transition: background-color 0.1s;
         }
 
         .message.own .message-content {
@@ -236,11 +238,12 @@
         }
 
         .input-container {
-            padding: 15px 20px;
+            padding: 12px 15px;
             background: white;
             display: flex;
-            gap: 10px;
+            gap: 8px;
             border-top: 1px solid #e0e0e0;
+            align-items: flex-end;
         }
 
         .message-input {
@@ -251,17 +254,18 @@
             outline: none;
             font-size: 15px;
             resize: none;
-            height: 45px;
+            min-height: 45px;
             max-height: 100px;
+            line-height: 1.4;
         }
 
         .input-buttons {
             display: flex;
-            gap: 5px;
+            gap: 8px;
             align-items: center;
         }
 
-        .voice-button, .send-button {
+        .media-button, .voice-button, .send-button {
             background: #075e54;
             color: white;
             border: none;
@@ -275,7 +279,7 @@
             transition: background 0.2s;
         }
 
-        .voice-button:hover, .send-button:hover {
+        .media-button:hover, .voice-button:hover, .send-button:hover {
             background: #054d44;
         }
 
@@ -401,6 +405,10 @@
             .voice-recorder {
                 width: 90%;
                 min-width: unset;
+            }
+            
+            .input-buttons {
+                gap: 5px;
             }
         }
 
@@ -637,6 +645,184 @@
             color: #075e54;
             margin-top: 20px;
         }
+
+        /* YENİ EKLENEN STİLLER */
+        
+        /* Medya Seçenekleri */
+        .media-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .media-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .media-option:hover {
+            border-color: #075e54;
+            background: #f9f9f9;
+        }
+
+        .media-icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        /* Mesaj İşlemleri */
+        .message-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .action-button {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: left;
+            transition: background 0.2s;
+        }
+
+        .action-button:hover {
+            background: #f5f5f5;
+        }
+
+        /* Düzenlenmiş Mesaj İşareti */
+        .message-edited {
+            font-size: 11px;
+            color: #999;
+            font-style: italic;
+            margin-left: 5px;
+        }
+
+        /* Medya Mesajları */
+        .media-message {
+            max-width: 300px;
+            margin-top: 5px;
+        }
+
+        .media-image, .media-video, .media-gif, .media-sticker {
+            max-width: 100%;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .media-sticker {
+            max-width: 150px;
+        }
+
+        .media-caption {
+            margin-top: 8px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        /* Upload Progress */
+        .upload-progress {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #075e54;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Bölge Kısıtlama */
+        .restricted-icon {
+            font-size: 64px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* Uzun Basma Efekti */
+        .message-content:active {
+            background-color: rgba(0,0,0,0.05) !important;
+        }
+
+        .message.own .message-content:active {
+            background-color: rgba(220, 248, 198, 0.8) !important;
+        }
+
+        /* Düzenleme Modu */
+        .edit-mode {
+            background-color: #fff9c4 !important;
+            border: 2px solid #ffd600;
+        }
+
+        /* Medya Mesajı İçin Özel Stil */
+        .media-container {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+        }
+
+        .media-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            border-radius: 8px;
+        }
+
+        .media-container:hover .media-overlay {
+            opacity: 1;
+        }
+
+        .media-play-button {
+            color: white;
+            font-size: 48px;
+            cursor: pointer;
+        }
+
+        /* Responsive Medya Seçenekleri */
+        @media (max-width: 480px) {
+            .media-options {
+                grid-template-columns: 1fr;
+            }
+            
+            .media-option {
+                padding: 15px 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -678,6 +864,11 @@
                         disabled
                     ></textarea>
                     <div class="input-buttons">
+                        <button id="mediaButton" class="media-button" title="Medya Gönder" disabled>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                            </svg>
+                        </button>
                         <button id="voiceButton" class="voice-button" title="Sesli Mesaj" disabled>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
@@ -767,6 +958,86 @@
         </div>
     </div>
 
+    <!-- YENİ EKLENEN MODALLAR -->
+
+    <!-- Medya Seçim Modalı -->
+    <div class="modal" id="mediaModal">
+        <div class="modal-content">
+            <h2>Medya Gönder</h2>
+            <div class="media-options">
+                <button class="media-option" id="galleryOption">
+                    <span class="media-icon">🖼️</span>
+                    <span>Galeriden Seç</span>
+                </button>
+                <button class="media-option" id="cameraOption">
+                    <span class="media-icon">📷</span>
+                    <span>Kamera ile Çek</span>
+                </button>
+                <button class="media-option" id="gifOption">
+                    <span class="media-icon">🎬</span>
+                    <span>GIF Seç</span>
+                </button>
+                <button class="media-option" id="stickerOption">
+                    <span class="media-icon">😊</span>
+                    <span>Sticker Seç</span>
+                </button>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="closeMediaModal">İptal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mesaj İşlemleri Modalı -->
+    <div class="modal" id="messageActionsModal">
+        <div class="modal-content">
+            <h2>Mesaj İşlemleri</h2>
+            <div class="message-actions">
+                <button class="action-button" id="editMessageBtn">✏️ Düzenle</button>
+                <button class="action-button" id="deleteMessageBtn">🗑️ Sil</button>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="closeActionsModal">İptal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Silme Onay Modalı -->
+    <div class="modal" id="deleteConfirmModal">
+        <div class="modal-content">
+            <h2>Mesajı Sil</h2>
+            <p>Sadece kendi mesajınızı silebilirsiniz. Mesajı silmek istediğinizden emin misiniz?</p>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="cancelDelete">İptal</button>
+                <button class="btn btn-primary" id="confirmDelete">Sil</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bölge Kısıtlama Modalı -->
+    <div class="modal" id="regionRestrictedModal">
+        <div class="modal-content">
+            <div class="restricted-icon">🚫</div>
+            <h2>Erişim Kısıtlı</h2>
+            <p>Bu uygulama bölgenizde kullanılmıyor.</p>
+            <button class="btn btn-primary" id="closeRestrictedModal">Tamam</button>
+        </div>
+    </div>
+
+    <!-- Medya Yükleme İlerleme -->
+    <div class="modal" id="uploadProgressModal">
+        <div class="modal-content">
+            <h2>Dosya Yükleniyor</h2>
+            <div class="upload-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">%0</div>
+            </div>
+            <button class="btn btn-secondary" id="cancelUpload" style="display: none;">İptal</button>
+        </div>
+    </div>
+
     <script>
         class ChatApp {
             constructor() {
@@ -793,6 +1064,13 @@
                 this.audioContext = null;
                 this.analyser = null;
                 this.visualizerInterval = null;
+                
+                // Yeni eklenen değişkenler
+                this.selectedMessageId = null;
+                this.isEditing = false;
+                this.originalMessageText = '';
+                this.mediaStream = null;
+                this.uploadCancelToken = null;
                 
                 this.checkAndFixProfilePhoto();
                 this.initializeElements();
@@ -855,7 +1133,7 @@
                         console.error('Şehir tarama hatası:', error);
                         this.showCityResult('Hata', 'Şehir belirlenemedi. Genel odaya yönlendiriliyorsunuz.');
                         setTimeout(() => {
-                            this.userCity = 'Kaan•🇹🇷';
+                            this.userCity = 'Genel';
                             this.showChatInterface();
                         }, 3000);
                     }
@@ -922,6 +1200,32 @@
                 this.editPhotoPreview = document.getElementById('editPhotoPreview');
                 this.cancelProfileButton = document.getElementById('cancelProfileButton');
                 this.saveProfileButton = document.getElementById('saveProfileButton');
+                
+                // Yeni eklenen elementler
+                this.mediaButton = document.getElementById('mediaButton');
+                this.mediaModal = document.getElementById('mediaModal');
+                this.galleryOption = document.getElementById('galleryOption');
+                this.cameraOption = document.getElementById('cameraOption');
+                this.gifOption = document.getElementById('gifOption');
+                this.stickerOption = document.getElementById('stickerOption');
+                this.closeMediaModal = document.getElementById('closeMediaModal');
+                
+                this.messageActionsModal = document.getElementById('messageActionsModal');
+                this.editMessageBtn = document.getElementById('editMessageBtn');
+                this.deleteMessageBtn = document.getElementById('deleteMessageBtn');
+                this.closeActionsModal = document.getElementById('closeActionsModal');
+                
+                this.deleteConfirmModal = document.getElementById('deleteConfirmModal');
+                this.cancelDelete = document.getElementById('cancelDelete');
+                this.confirmDelete = document.getElementById('confirmDelete');
+                
+                this.regionRestrictedModal = document.getElementById('regionRestrictedModal');
+                this.closeRestrictedModal = document.getElementById('closeRestrictedModal');
+                
+                this.uploadProgressModal = document.getElementById('uploadProgressModal');
+                this.progressFill = document.getElementById('progressFill');
+                this.progressText = document.getElementById('progressText');
+                this.cancelUpload = document.getElementById('cancelUpload');
             }
 
             initializeEventListeners() {
@@ -960,6 +1264,38 @@
                         this.sendMessage();
                     }
                 });
+
+                // YENİ EKLENEN EVENT LISTENERS
+                
+                // Medya butonu
+                this.mediaButton.addEventListener('click', this.showMediaModal.bind(this));
+                
+                // Medya modal eventleri
+                this.galleryOption.addEventListener('click', this.selectFromGallery.bind(this));
+                this.cameraOption.addEventListener('click', this.takePhoto.bind(this));
+                this.gifOption.addEventListener('click', this.selectGIF.bind(this));
+                this.stickerOption.addEventListener('click', this.selectSticker.bind(this));
+                this.closeMediaModal.addEventListener('click', this.hideMediaModal.bind(this));
+                
+                // Mesaj işlemleri modal eventleri
+                this.editMessageBtn.addEventListener('click', this.startEditMessage.bind(this));
+                this.deleteMessageBtn.addEventListener('click', this.confirmDeleteMessage.bind(this));
+                this.closeActionsModal.addEventListener('click', this.hideMessageActionsModal.bind(this));
+                
+                // Silme onay modal eventleri
+                this.cancelDelete.addEventListener('click', this.hideDeleteConfirmModal.bind(this));
+                this.confirmDelete.addEventListener('click', this.deleteMessage.bind(this));
+                
+                // Bölge kısıtlama modal eventi
+                this.closeRestrictedModal.addEventListener('click', this.hideRegionRestrictedModal.bind(this));
+                
+                // Yükleme iptal eventi
+                this.cancelUpload.addEventListener('click', this.cancelUpload.bind(this));
+                
+                // Mesajlara uzun basma eventi
+                this.messagesContainer.addEventListener('contextmenu', this.handleMessageLongPress.bind(this));
+                this.messagesContainer.addEventListener('touchstart', this.handleTouchStart.bind(this));
+                this.messagesContainer.addEventListener('touchend', this.handleTouchEnd.bind(this));
             }
 
             connectToServer() {
@@ -990,6 +1326,12 @@
                 });
 
                 this.socket.on('user-assigned', (data) => {
+                    // YENİ: IP tabanlı oda atama kontrolü
+                    if (data.restricted) {
+                        this.showRegionRestrictedModal();
+                        return;
+                    }
+                    
                     this.userCity = data.city;
                     this.currentRoom = data.city;
                     
@@ -999,6 +1341,7 @@
                         this.showChatInterface();
                         this.messageInput.disabled = false;
                         this.voiceButton.disabled = false;
+                        this.mediaButton.disabled = false;
                     }, 2000);
                     
                     this.updateProfileDisplay();
@@ -1007,6 +1350,14 @@
                 this.socket.on('message', (message) => {
                     this.displayMessage(message);
                     this.saveMessageToStorage(message);
+                });
+
+                this.socket.on('message-edited', (data) => {
+                    this.updateMessageDisplay(data);
+                });
+
+                this.socket.on('message-deleted', (data) => {
+                    this.removeMessageDisplay(data.messageId);
                 });
 
                 this.socket.on('user-list-update', (users) => {
@@ -1026,10 +1377,11 @@
                 });
 
                 this.socket.on('disconnect', (reason) => {
-                    console.log('🔌 Bağlantı kesildi:', reason);
+                    console.log('🔌 Kullanıcı ayrıldı:', socket.id, reason);
                     this.showConnectionStatus('Bağlantı kesildi', true);
                     this.messageInput.disabled = true;
                     this.voiceButton.disabled = true;
+                    this.mediaButton.disabled = true;
                 });
 
                 this.socket.on('connect_error', (error) => {
@@ -1050,7 +1402,275 @@
                 }
             }
 
-            // SES KAYIT FONKSİYONLARI
+            // YENİ EKLENEN MEDYA FONKSİYONLARI
+            showMediaModal() {
+                this.mediaModal.classList.add('active');
+            }
+
+            hideMediaModal() {
+                this.mediaModal.classList.remove('active');
+            }
+
+            async selectFromGallery() {
+                this.hideMediaModal();
+                
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*,video/*';
+                input.multiple = false;
+                
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        this.uploadMedia(file);
+                    }
+                };
+                
+                input.click();
+            }
+
+            async takePhoto() {
+                this.hideMediaModal();
+                
+                try {
+                    this.mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    
+                    // Basit bir kamera arayüzü oluştur
+                    this.showCameraInterface();
+                } catch (error) {
+                    console.error('Kamera erişim hatası:', error);
+                    this.showConnectionStatus('Kamera erişimi reddedildi', true);
+                }
+            }
+
+            showCameraInterface() {
+                // Basit bir kamera arayüzü göster
+                alert('Kamera özelliği geliştirme aşamasındadır. Lütfen galeriden fotoğraf seçin.');
+                
+                // Medya akışını durdur
+                if (this.mediaStream) {
+                    this.mediaStream.getTracks().forEach(track => track.stop());
+                    this.mediaStream = null;
+                }
+            }
+
+            async selectGIF() {
+                this.hideMediaModal();
+                
+                // Basit bir GIF seçim arayüzü
+                const gifUrl = prompt('Lütfen GIF URL\'sini girin:');
+                if (gifUrl) {
+                    this.sendMediaMessage(gifUrl, 'gif');
+                }
+            }
+
+            async selectSticker() {
+                this.hideMediaModal();
+                
+                // Basit bir sticker seçim arayüzü
+                const stickers = [
+                    '😀', '😂', '🥰', '😎', '🤩', '😍', '🙂', '🤗', '👍', '❤️',
+                    '🎉', '🔥', '⭐', '🌈', '🎈', '🎂', '🎁', '🏆', '⚽', '🎮'
+                ];
+                
+                const selectedSticker = prompt(`Bir sticker seçin:\n${stickers.join(' ')}`);
+                if (selectedSticker && stickers.includes(selectedSticker)) {
+                    this.sendMediaMessage(selectedSticker, 'sticker');
+                } else if (selectedSticker) {
+                    alert('Geçersiz sticker seçtiniz.');
+                }
+            }
+
+            async uploadMedia(file) {
+                this.showUploadProgressModal();
+                
+                try {
+                    // Simüle edilmiş yükleme süreci
+                    let progress = 0;
+                    const interval = setInterval(() => {
+                        progress += 5;
+                        this.updateUploadProgress(progress);
+                        
+                        if (progress >= 100) {
+                            clearInterval(interval);
+                            
+                            // Dosyayı oku ve base64'e çevir
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                const mediaData = e.target.result;
+                                this.hideUploadProgressModal();
+                                
+                                // Medya türünü belirle
+                                let mediaType = 'image';
+                                if (file.type.startsWith('video/')) {
+                                    mediaType = 'video';
+                                } else if (file.type === 'image/gif') {
+                                    mediaType = 'gif';
+                                }
+                                
+                                this.sendMediaMessage(mediaData, mediaType, file.name);
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('Medya yükleme hatası:', error);
+                    this.hideUploadProgressModal();
+                    this.showConnectionStatus('Medya yüklenemedi', true);
+                }
+            }
+
+            sendMediaMessage(mediaData, mediaType, caption = '') {
+                if (!this.socket) return;
+
+                const message = {
+                    id: Date.now().toString(),
+                    media: mediaData,
+                    mediaType: mediaType,
+                    caption: caption,
+                    time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                    userName: this.userName,
+                    userPhoto: this.userPhoto,
+                    userColor: this.userColor,
+                    room: this.currentRoom,
+                    type: 'media'
+                };
+
+                this.socket.emit('message', message);
+            }
+
+            showUploadProgressModal() {
+                this.uploadProgressModal.classList.add('active');
+                this.updateUploadProgress(0);
+            }
+
+            hideUploadProgressModal() {
+                this.uploadProgressModal.classList.remove('active');
+            }
+
+            updateUploadProgress(progress) {
+                this.progressFill.style.width = `${progress}%`;
+                this.progressText.textContent = `%${progress}`;
+                
+                if (progress >= 100) {
+                    this.cancelUpload.style.display = 'none';
+                } else {
+                    this.cancelUpload.style.display = 'block';
+                }
+            }
+
+            cancelUpload() {
+                // Yükleme iptal işlemi
+                if (this.uploadCancelToken) {
+                    this.uploadCancelToken.cancel('Yükleme iptal edildi');
+                }
+                this.hideUploadProgressModal();
+            }
+
+            // YENİ EKLENEN MESAJ DÜZENLEME/SİLME FONKSİYONLARI
+            handleMessageLongPress(e) {
+                e.preventDefault();
+                
+                const messageElement = e.target.closest('.message-content');
+                if (messageElement) {
+                    const messageId = messageElement.closest('.message').dataset.messageId;
+                    this.showMessageActionsModal(messageId);
+                }
+            }
+
+            handleTouchStart(e) {
+                const messageElement = e.target.closest('.message-content');
+                if (messageElement) {
+                    this.touchStartTime = Date.now();
+                    this.longPressTimer = setTimeout(() => {
+                        const messageId = messageElement.closest('.message').dataset.messageId;
+                        this.showMessageActionsModal(messageId);
+                    }, 500); // 500ms uzun basma süresi
+                }
+            }
+
+            handleTouchEnd(e) {
+                if (this.longPressTimer) {
+                    clearTimeout(this.longPressTimer);
+                }
+            }
+
+            showMessageActionsModal(messageId) {
+                this.selectedMessageId = messageId;
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                
+                // Sadece kendi mesajlarını düzenleyebilir/silebilir
+                if (messageElement.classList.contains('own')) {
+                    this.messageActionsModal.classList.add('active');
+                }
+            }
+
+            hideMessageActionsModal() {
+                this.messageActionsModal.classList.remove('active');
+                this.selectedMessageId = null;
+            }
+
+            startEditMessage() {
+                this.hideMessageActionsModal();
+                
+                const messageElement = document.querySelector(`[data-message-id="${this.selectedMessageId}"]`);
+                const messageTextElement = messageElement.querySelector('.message-text');
+                
+                if (messageTextElement) {
+                    this.isEditing = true;
+                    this.originalMessageText = messageTextElement.textContent;
+                    
+                    // Mesajı düzenleme moduna al
+                    messageElement.classList.add('edit-mode');
+                    this.messageInput.value = this.originalMessageText;
+                    this.messageInput.focus();
+                    
+                    // Gönder butonunu kaydet olarak değiştir
+                    this.sendButton.innerHTML = `
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                        </svg>
+                    `;
+                    this.sendButton.title = "Kaydet";
+                }
+            }
+
+            confirmDeleteMessage() {
+                this.hideMessageActionsModal();
+                this.deleteConfirmModal.classList.add('active');
+            }
+
+            hideDeleteConfirmModal() {
+                this.deleteConfirmModal.classList.remove('active');
+                this.selectedMessageId = null;
+            }
+
+            async deleteMessage() {
+                this.hideDeleteConfirmModal();
+                
+                if (this.socket && this.selectedMessageId) {
+                    this.socket.emit('delete-message', {
+                        messageId: this.selectedMessageId,
+                        userId: this.userId
+                    });
+                }
+                
+                this.selectedMessageId = null;
+            }
+
+            // YENİ EKLENEN BÖLGE KISITLAMA FONKSİYONLARI
+            showRegionRestrictedModal() {
+                this.regionRestrictedModal.classList.add('active');
+            }
+
+            hideRegionRestrictedModal() {
+                this.regionRestrictedModal.classList.remove('active');
+                // Kullanıcıyı ana sayfaya yönlendir veya uygulamadan çık
+                window.location.href = '/';
+            }
+
+            // SES KAYIT FONKSİYONLARI (Mevcut - Değişmedi)
             async startVoiceRecording() {
                 if (this.isRecording) {
                     this.stopVoiceRecording();
@@ -1225,12 +1845,12 @@
                 }
             }
 
-            // MESAJ FONKSİYONLARI
+            // MESAJ FONKSİYONLARI (Güncellendi)
             handleInput() {
                 const hasText = this.messageInput.value.trim().length > 0;
                 this.sendButton.disabled = !hasText;
 
-                if (hasText && !this.isTyping) {
+                if (hasText && !this.isTyping && !this.isEditing) {
                     this.isTyping = true;
                     if (this.socket) {
                         this.socket.emit('typing', true);
@@ -1251,7 +1871,11 @@
             handleKeyPress(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    this.sendMessage();
+                    if (this.isEditing) {
+                        this.saveEditedMessage();
+                    } else {
+                        this.sendMessage();
+                    }
                 }
             }
 
@@ -1270,6 +1894,45 @@
                 };
 
                 this.socket.emit('message', message);
+                this.resetMessageInput();
+            }
+
+            saveEditedMessage() {
+                const newText = this.messageInput.value.trim();
+                if (!newText || !this.socket || !this.selectedMessageId) return;
+
+                const editData = {
+                    messageId: this.selectedMessageId,
+                    newText: newText,
+                    userId: this.userId,
+                    editedAt: new Date().toISOString()
+                };
+
+                this.socket.emit('edit-message', editData);
+                this.cancelEdit();
+            }
+
+            cancelEdit() {
+                this.isEditing = false;
+                this.selectedMessageId = null;
+                this.resetMessageInput();
+                
+                // Düzenleme modundaki mesajı normale döndür
+                const editingMessage = document.querySelector('.message.edit-mode');
+                if (editingMessage) {
+                    editingMessage.classList.remove('edit-mode');
+                }
+                
+                // Gönder butonunu eski haline getir
+                this.sendButton.innerHTML = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                `;
+                this.sendButton.title = "Gönder";
+            }
+
+            resetMessageInput() {
                 this.messageInput.value = '';
                 this.messageInput.style.height = 'auto';
                 this.sendButton.disabled = true;
@@ -1281,6 +1944,13 @@
             }
 
             displayMessage(message) {
+                // Eğer mesaj zaten varsa güncelle
+                const existingMessage = document.querySelector(`[data-message-id="${message.id}"]`);
+                if (existingMessage) {
+                    this.updateMessageDisplay(message);
+                    return;
+                }
+
                 const messageElement = document.createElement('div');
                 messageElement.className = `message ${message.userName === this.userName ? 'own' : 'other'}`;
                 messageElement.dataset.messageId = message.id;
@@ -1308,11 +1978,47 @@
                             <div class="audio-duration">${this.formatDuration(message.duration)}</div>
                         </div>
                     `;
-                } else {
+                } else if (message.type === 'media') {
+                    let mediaHtml = '';
+                    
+                    if (message.mediaType === 'image') {
+                        mediaHtml = `<img src="${message.media}" class="media-image" alt="${message.caption}">`;
+                    } else if (message.mediaType === 'video') {
+                        mediaHtml = `
+                            <div class="media-container">
+                                <video controls class="media-video">
+                                    <source src="${message.media}" type="video/mp4">
+                                    Tarayıcınız video öğesini desteklemiyor.
+                                </video>
+                                <div class="media-overlay">
+                                    <div class="media-play-button">▶️</div>
+                                </div>
+                            </div>
+                        `;
+                    } else if (message.mediaType === 'gif') {
+                        mediaHtml = `<img src="${message.media}" class="media-gif" alt="GIF">`;
+                    } else if (message.mediaType === 'sticker') {
+                        mediaHtml = `<div class="media-sticker">${message.media}</div>`;
+                    }
+                    
                     messageContent.innerHTML = `
                         <div class="message-header">
                             <div class="message-sender">${this.escapeHtml(message.userName)}</div>
                             <div class="message-time">${message.time}</div>
+                        </div>
+                        <div class="media-message">
+                            ${mediaHtml}
+                            ${message.caption ? `<div class="media-caption">${this.escapeHtml(message.caption)}</div>` : ''}
+                        </div>
+                    `;
+                } else {
+                    // Metin mesajı
+                    const editedIndicator = message.edited ? `<span class="message-edited">(düzenlendi)</span>` : '';
+                    
+                    messageContent.innerHTML = `
+                        <div class="message-header">
+                            <div class="message-sender">${this.escapeHtml(message.userName)}</div>
+                            <div class="message-time">${message.time} ${editedIndicator}</div>
                         </div>
                         <div class="message-text">${this.escapeHtml(message.text)}</div>
                     `;
@@ -1322,6 +2028,31 @@
                 messageElement.appendChild(messageContent);
                 this.messagesContainer.appendChild(messageElement);
                 this.scrollToBottom();
+            }
+
+            updateMessageDisplay(message) {
+                const messageElement = document.querySelector(`[data-message-id="${message.id}"]`);
+                if (!messageElement) return;
+
+                const messageContent = messageElement.querySelector('.message-content');
+                const editedIndicator = message.edited ? `<span class="message-edited">(düzenlendi)</span>` : '';
+                
+                if (message.type === 'text' || !message.type) {
+                    messageContent.innerHTML = `
+                        <div class="message-header">
+                            <div class="message-sender">${this.escapeHtml(message.userName)}</div>
+                            <div class="message-time">${message.time} ${editedIndicator}</div>
+                        </div>
+                        <div class="message-text">${this.escapeHtml(message.text)}</div>
+                    `;
+                }
+            }
+
+            removeMessageDisplay(messageId) {
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    messageElement.remove();
+                }
             }
 
             formatDuration(seconds) {
@@ -1387,7 +2118,7 @@
                 }, 100);
             }
 
-            // PROFİL FONKSİYONLARI
+            // PROFİL FONKSİYONLARI (Mevcut - Değişmedi)
             showWelcomeModal() {
                 this.welcomeModal.classList.add('active');
                 this.usernameInput.focus();
@@ -1518,7 +2249,7 @@
                 return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="${this.userColor}"/><text x="50" y="60" font-family="Arial" font-size="40" text-anchor="middle" fill="white">${firstLetter}</text></svg>`;
             }
 
-            // DİĞER FONKSİYONLAR
+            // DİĞER FONKSİYONLAR (Mevcut - Değişmedi)
             saveMessageToStorage(message) {
                 if (!this.currentRoom) return;
                 
