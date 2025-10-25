@@ -1,21 +1,29 @@
 {
   "name": "socket-chat-render",
-  "version": "1.0.0",
-  "description": "Render için sohbet uygulaması",
+  "version": "2.0.0",
+  "description": "Geliştirilmiş şehir tabanlı sohbet uygulaması",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "build": "echo 'No build required'"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.2",
-    "axios": "^1.4.0",
-    "mongoose": "^7.4.0",
+    "socket.io": "^4.7.5",
+    "axios": "^1.6.0",
+    "mongoose": "^8.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "multer": "^1.4.5-lts.1"
   },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["chat", "socket.io", "realtime", "turkey"],
+  "author": "Chat App",
+  "license": "MIT",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.0.0"
   }
 }
