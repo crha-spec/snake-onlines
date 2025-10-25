@@ -35,6 +35,55 @@ if (MONGODB_URI) {
   .catch(err => console.log('⚠️  MongoDB bağlantı hatası:', err));
 }
 
+// Mesaj Şeması (Güncellendi)
+const messageSchema = new mongoose.Schema({
+  messageId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  userId: {
+    type: String,
+    required: true
+  },
+  userName: {
+    type: String,
+    required: true
+  },
+  userPhoto: String,
+  userColor: String,
+  room: {
+    type: String,
+    required: true
+  },
+  text: String,
+  media: String,
+  mediaType: String,
+  caption: String,
+  audio: String,
+  duration: Number,
+  type: {
+    type: String,
+    default: 'text',
+    enum: ['text', 'audio', 'media']
+  },
+  edited: {
+    type: Boolean,
+    default: false
+  },
+  editedAt: Date,
+  deleted: {
+    type: Boolean,
+    default: false
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+const Message = mongoose.model('Message', messageSchema);
+
 // Kullanıcı Şehir Kaydı Şeması
 const userLocationSchema = new mongoose.Schema({
   deviceId: {
@@ -112,6 +161,9 @@ const TURKISH_CITIES = [
   'Bartın', 'Ardahan', 'Iğdır', 'Yalova', 'Karabük', 'Kilis', 'Osmaniye', 'Düzce'
 ];
 
+// Desteklenen ülkeler (Türkiye)
+const SUPPORTED_COUNTRIES = ['Turkey', 'Türkiye'];
+
 // Bellek deposu
 const rooms = new Map();
 const activeUsers = new Map();
@@ -126,7 +178,7 @@ async function getCityFromIP(ip) {
     
     // Localhost ve test IP'leri için
     if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1') {
-      return 'İstanbul';
+      return { city: 'İstanbul', country: 'Turkey', restricted: false };
     }
 
     console.log('🔍 IP sorgulanıyor:', realIP);
@@ -136,7 +188,17 @@ async function getCityFromIP(ip) {
     
     if (response.data.status === 'success' && response.data.city) {
       const city = response.data.city;
-      console.log('📍 API şehir döndü:', city);
+      const country = response.data.country;
+      console.log('📍 API şehir döndü:', city, country);
+      
+      // Ülke kontrolü - YENİ EKLENDİ
+      const isSupported = SUPPORTED_COUNTRIES.some(supported => 
+        country.toLowerCase().includes(supported.toLowerCase())
+      );
+      
+      if (!isSupported) {
+        return { city: null, country, restricted: true };
+      }
       
       // Türkçe şehir isimleriyle eşleştirme
       const turkishCity = TURKISH_CITIES.find(turkishCity => 
@@ -144,13 +206,17 @@ async function getCityFromIP(ip) {
         turkishCity.toLowerCase().includes(city.toLowerCase())
       );
       
-      return turkishCity || 'Genel';
+      return { 
+        city: turkishCity || 'Genel', 
+        country, 
+        restricted: false 
+      };
     }
   } catch (error) {
     console.error('❌ IP lookup error:', error.message);
   }
   
-  return 'Genel';
+  return { city: 'Genel', country: 'Unknown', restricted: false };
 }
 
 // Device ID ile şehir bul veya oluştur
@@ -165,27 +231,40 @@ async function getOrCreateUserCity(deviceId, ipAddress) {
       userLocation.lastSeen = new Date();
       userLocation.ipAddress = ipAddress; // IP güncelle (VPN değişmiş olabilir)
       await userLocation.save();
-      return userLocation.city;
+      
+      // YENİ: IP kontrolü yap
+      const ipInfo = await getCityFromIP(ipAddress);
+      if (ipInfo.restricted) {
+        return { city: null, restricted: true };
+      }
+      
+      // IP tabanlı şehir atama - YENİ EKLENDİ
+      return { city: ipInfo.city, restricted: false };
     }
     
     // Device ID yoksa, IP'den şehir bul
     console.log(`🆕 Yeni Device ID: ${deviceId}, IP: ${ipAddress}`);
-    const city = await getCityFromIP(ipAddress);
+    const ipInfo = await getCityFromIP(ipAddress);
+    
+    if (ipInfo.restricted) {
+      return { city: null, restricted: true };
+    }
     
     // Yeni kayıt oluştur
     userLocation = new UserLocation({
       deviceId: deviceId,
       ipAddress: ipAddress,
-      city: city
+      city: ipInfo.city,
+      country: ipInfo.country
     });
     await userLocation.save();
     
-    console.log(`✅ Yeni şehir kaydı: ${deviceId} -> ${city}`);
-    return city;
+    console.log(`✅ Yeni şehir kaydı: ${deviceId} -> ${ipInfo.city}`);
+    return { city: ipInfo.city, restricted: false };
     
   } catch (error) {
     console.error('❌ Şehir bulma hatası:', error);
-    return 'Genel';
+    return { city: 'Genel', restricted: false };
   }
 }
 
@@ -274,8 +353,14 @@ io.on('connection', async (socket) => {
       console.log('📱 Device ID:', userData.deviceId);
       console.log('🌐 IP:', clientIP);
 
-      // Kullanıcıya şehir ataması yap (Device ID + IP)
-      const city = await getOrCreateUserCity(userData.deviceId, clientIP);
+      // Kullanıcıya şehir ataması yap (IP tabanlı) - YENİ
+      const locationInfo = await getOrCreateUserCity(userData.deviceId, clientIP);
+      
+      // Bölge kısıtlaması kontrolü - YENİ
+      if (locationInfo.restricted) {
+        socket.emit('user-assigned', { restricted: true });
+        return;
+      }
       
       // Kullanıcı profilini kaydet
       const userProfile = await getOrCreateUserProfile({
@@ -288,7 +373,7 @@ io.on('connection', async (socket) => {
         socketId: socket.id,
         userName: userProfile.userName,
         userPhoto: userProfile.userPhoto,
-        city: city,
+        city: locationInfo.city,
         userColor: generateColor(userProfile.userName),
         deviceId: userData.deviceId,
         joinedAt: new Date()
@@ -298,30 +383,31 @@ io.on('connection', async (socket) => {
       activeUsers.set(socket.id, user);
       
       // Odaya ekle
-      if (!rooms.has(city)) {
-        rooms.set(city, new Set());
+      if (!rooms.has(locationInfo.city)) {
+        rooms.set(locationInfo.city, new Set());
       }
-      rooms.get(city).add(socket.id);
+      rooms.get(locationInfo.city).add(socket.id);
 
-      socket.join(city);
+      socket.join(locationInfo.city);
 
       // Kullanıcıya şehir bilgisini gönder
       socket.emit('user-assigned', {
         userId: user.id,
         userName: user.userName,
-        city: city,
+        city: locationInfo.city,
         userPhoto: user.userPhoto,
-        userColor: user.userColor
+        userColor: user.userColor,
+        restricted: false
       });
 
       // Oda kullanıcılarını güncelle
-      updateRoomUsers(city);
+      updateRoomUsers(locationInfo.city);
 
-      socket.to(city).emit('user-joined', {
+      socket.to(locationInfo.city).emit('user-joined', {
         userName: user.userName
       });
 
-      console.log(`✅ ${user.userName} ${city} odasına katıldı`);
+      console.log(`✅ ${user.userName} ${locationInfo.city} odasına katıldı`);
 
     } catch (error) {
       console.error('❌ Kullanıcı katılma hatası:', error);
@@ -329,13 +415,13 @@ io.on('connection', async (socket) => {
     }
   });
 
-  socket.on('message', (messageData) => {
+  socket.on('message', async (messageData) => {
     try {
       const user = activeUsers.get(socket.id);
       if (!user) return;
 
       const message = {
-        id: Date.now().toString(),
+        id: messageData.id,
         time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
         userName: user.userName,
         userPhoto: user.userPhoto,
@@ -354,11 +440,112 @@ io.on('connection', async (socket) => {
         message.type = 'audio';
         console.log(`🎤 ${user.userName} (${user.city}): Ses mesajı`);
       }
+      else if (messageData.media) {
+        message.media = messageData.media;
+        message.mediaType = messageData.mediaType;
+        message.caption = messageData.caption;
+        message.type = 'media';
+        console.log(`📷 ${user.userName} (${user.city}): ${messageData.mediaType} gönderdi`);
+      }
+
+      // Mesajı veritabanına kaydet
+      try {
+        const dbMessage = new Message({
+          messageId: message.id,
+          userId: user.id,
+          userName: user.userName,
+          userPhoto: user.userPhoto,
+          userColor: user.userColor,
+          room: user.city,
+          text: message.text,
+          media: message.media,
+          mediaType: message.mediaType,
+          caption: message.caption,
+          audio: message.audio,
+          duration: message.duration,
+          type: message.type
+        });
+        await dbMessage.save();
+      } catch (dbError) {
+        console.error('❌ Mesaj veritabanı kayıt hatası:', dbError);
+      }
 
       io.to(user.city).emit('message', message);
 
     } catch (error) {
       console.error('❌ Mesaj hatası:', error);
+    }
+  });
+
+  // YENİ: Mesaj düzenleme event'i
+  socket.on('edit-message', async (editData) => {
+    try {
+      const user = activeUsers.get(socket.id);
+      if (!user) return;
+
+      // Mesajı veritabanında bul ve sahiplik kontrolü yap
+      const message = await Message.findOne({ 
+        messageId: editData.messageId,
+        userId: user.id // Sadece kendi mesajını düzenleyebilir
+      });
+
+      if (!message) {
+        socket.emit('error', { message: 'Mesaj bulunamadı veya düzenleme yetkiniz yok' });
+        return;
+      }
+
+      // Mesajı güncelle
+      message.text = editData.newText;
+      message.edited = true;
+      message.editedAt = new Date();
+      await message.save();
+
+      // Güncellenen mesajı odaya yayınla
+      io.to(user.city).emit('message-edited', {
+        messageId: editData.messageId,
+        newText: editData.newText,
+        editedAt: message.editedAt,
+        userName: user.userName
+      });
+
+      console.log(`✏️ ${user.userName} mesajını düzenledi: ${editData.messageId}`);
+
+    } catch (error) {
+      console.error('❌ Mesaj düzenleme hatası:', error);
+      socket.emit('error', { message: 'Mesaj düzenlenemedi' });
+    }
+  });
+
+  // YENİ: Mesaj silme event'i
+  socket.on('delete-message', async (deleteData) => {
+    try {
+      const user = activeUsers.get(socket.id);
+      if (!user) return;
+
+      // Mesajı veritabanında bul ve sahiplik kontrolü yap
+      const message = await Message.findOne({ 
+        messageId: deleteData.messageId,
+        userId: user.id // Sadece kendi mesajını silebilir
+      });
+
+      if (!message) {
+        socket.emit('error', { message: 'Mesaj bulunamadı veya silme yetkiniz yok' });
+        return;
+      }
+
+      // Mesajı veritabanından tamamen sil
+      await Message.deleteOne({ messageId: deleteData.messageId });
+
+      // Silinen mesajı odaya yayınla
+      io.to(user.city).emit('message-deleted', {
+        messageId: deleteData.messageId
+      });
+
+      console.log(`🗑️ ${user.userName} mesajını sildi: ${deleteData.messageId}`);
+
+    } catch (error) {
+      console.error('❌ Mesaj silme hatası:', error);
+      socket.emit('error', { message: 'Mesaj silinemedi' });
     }
   });
 
