@@ -177,149 +177,155 @@ io.on('connection', async (socket) => {
 
   let heartbeatInterval = setInterval(() => socket.emit('ping'), 20000);
   socket.on('pong', () => {});
-
-  socket.on('create-room', async (data) => {
+// Oda oluşturma event'ini güncelle:
+socket.on('create-room', async (data) => {
     try {
-      const { userName, userPhoto, deviceId, roomName, password } = data;
-      const userProfile = await getOrCreateUserProfile({ 
-        userId: socket.id, userName, userPhoto, deviceId 
-      }, clientIP);
-      
-      let roomCode;
-      let attempts = 0;
-      do { 
-        roomCode = generateRoomCode(); 
-        attempts++;
-        if (attempts > 10) throw new Error('Oda kodu oluşturulamadı');
-      } while (await Room.findOne({ roomCode }));
-      
-      const room = new Room({
-        roomCode,
-        roomName: roomName || `${userName}'in Odası`,
-        ownerId: userProfile.userId,
-        ownerName: userName,
-        password: password || null
-      });
-      await room.save();
+        const { userName, userPhoto, deviceId, roomName, password } = data;
+        const userProfile = await getOrCreateUserProfile({ 
+            userId: socket.id, userName, userPhoto, deviceId 
+        }, clientIP);
+        
+        let roomCode;
+        let attempts = 0;
+        do { 
+            roomCode = generateRoomCode(); 
+            attempts++;
+            if (attempts > 10) throw new Error('Oda kodu oluşturulamadı');
+        } while (await Room.findOne({ roomCode }));
+        
+        const room = new Room({
+            roomCode,
+            roomName: roomName || `${userName}'in Odası`,
+            ownerId: userProfile.userId,
+            ownerName: userName,
+            password: password || null
+        });
+        await room.save();
 
-      console.log('✅ Oda oluşturuldu:', roomCode);
-      
-      const user = {
-        id: userProfile.userId,
-        socketId: socket.id,
-        userName: userProfile.userName,
-        userPhoto: userProfile.userPhoto,
-        userColor: generateColor(userProfile.userName),
-        country: userProfile.country,
-        deviceId: deviceId,
-        roomCode: room.roomCode,
-        isOwner: true,
-        joinedAt: new Date()
-      };
+        console.log('✅ Oda oluşturuldu:', roomCode);
+        
+        // HEMEN kullanıcıyı odaya ekle
+        const user = {
+            id: userProfile.userId,
+            socketId: socket.id,
+            userName: userProfile.userName,
+            userPhoto: userProfile.userPhoto,
+            userColor: generateColor(userProfile.userName),
+            country: userProfile.country,
+            deviceId: deviceId,
+            roomCode: room.roomCode,
+            isOwner: true,
+            joinedAt: new Date()
+        };
 
-      activeUsers.set(socket.id, user);
-      if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
-      rooms.get(room.roomCode).add(socket.id);
-      socket.join(room.roomCode);
+        activeUsers.set(socket.id, user);
+        if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
+        rooms.get(room.roomCode).add(socket.id);
+        socket.join(room.roomCode);
 
-      room.participants.push({
-        userId: user.id,
-        userName: user.userName,
-        userPhoto: user.userPhoto,
-        userColor: user.userColor,
-        country: user.country,
-        joinedAt: new Date()
-      });
-      await room.save();
+        room.participants.push({
+            userId: user.id,
+            userName: user.userName,
+            userPhoto: user.userPhoto,
+            userColor: user.userColor,
+            country: user.country,
+            joinedAt: new Date()
+        });
+        await room.save();
 
-      socket.emit('room-created', { 
-        roomCode, 
-        roomName: room.roomName,
-        isOwner: true 
-      });
+        // HEMEN room-joined event'ini gönder, room-created DEĞİL
+        socket.emit('room-joined', {
+            roomCode: room.roomCode,
+            roomName: room.roomName,
+            isOwner: true,
+            activeVideo: room.activeVideo,
+            playbackState: room.playbackState,
+            userColor: user.userColor
+        });
 
-      updateRoomUsers(room.roomCode);
-      console.log(`✅ ${user.userName} odayı oluşturdu: ${room.roomCode}`);
+        updateRoomUsers(room.roomCode);
+        console.log(`✅ ${user.userName} odayı oluşturdu ve katıldı: ${room.roomCode}`);
 
     } catch (error) {
-      console.error('❌ Oda oluşturma hatası:', error);
-      socket.emit('error', { message: 'Oda oluşturulamadı: ' + error.message });
+        console.error('❌ Oda oluşturma hatası:', error);
+        socket.emit('error', { message: 'Oda oluşturulamadı: ' + error.message });
     }
-  });
+});
 
-  socket.on('join-room', async (data) => {
+// Odaya katılma event'ini de güncelle:
+socket.on('join-room', async (data) => {
     try {
-      const { roomCode, userName, userPhoto, deviceId, password } = data;
-      const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
-      
-      if (!room) {
-        socket.emit('error', { message: 'Oda bulunamadı!' });
-        return;
-      }
+        const { roomCode, userName, userPhoto, deviceId, password } = data;
+        const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
+        
+        if (!room) {
+            socket.emit('error', { message: 'Oda bulunamadı!' });
+            return;
+        }
 
-      if (room.password && room.password !== password) {
-        socket.emit('error', { message: 'Yanlış şifre!' });
-        return;
-      }
+        if (room.password && room.password !== password) {
+            socket.emit('error', { message: 'Yanlış şifre!' });
+            return;
+        }
 
-      if (room.participants.length >= room.maxParticipants) {
-        socket.emit('error', { message: 'Oda dolu! Max ' + room.maxParticipants + ' kişi' });
-        return;
-      }
+        if (room.participants.length >= room.maxParticipants) {
+            socket.emit('error', { message: 'Oda dolu! Max ' + room.maxParticipants + ' kişi' });
+            return;
+        }
 
-      const userProfile = await getOrCreateUserProfile({ 
-        userId: socket.id, userName, userPhoto, deviceId 
-      }, clientIP);
-      
-      const user = {
-        id: userProfile.userId,
-        socketId: socket.id,
-        userName: userProfile.userName,
-        userPhoto: userProfile.userPhoto,
-        userColor: generateColor(userProfile.userName),
-        country: userProfile.country,
-        deviceId: deviceId,
-        roomCode: room.roomCode,
-        isOwner: room.ownerId === userProfile.userId,
-        joinedAt: new Date()
-      };
+        const userProfile = await getOrCreateUserProfile({ 
+            userId: socket.id, userName, userPhoto, deviceId 
+        }, clientIP);
+        
+        const user = {
+            id: userProfile.userId,
+            socketId: socket.id,
+            userName: userProfile.userName,
+            userPhoto: userProfile.userPhoto,
+            userColor: generateColor(userProfile.userName),
+            country: userProfile.country,
+            deviceId: deviceId,
+            roomCode: room.roomCode,
+            isOwner: room.ownerId === userProfile.userId,
+            joinedAt: new Date()
+        };
 
-      activeUsers.set(socket.id, user);
-      if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
-      rooms.get(room.roomCode).add(socket.id);
-      socket.join(room.roomCode);
+        activeUsers.set(socket.id, user);
+        if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
+        rooms.get(room.roomCode).add(socket.id);
+        socket.join(room.roomCode);
 
-      room.participants.push({
-        userId: user.id,
-        userName: user.userName,
-        userPhoto: user.userPhoto,
-        userColor: user.userColor,
-        country: user.country,
-        joinedAt: new Date()
-      });
-      await room.save();
+        room.participants.push({
+            userId: user.id,
+            userName: user.userName,
+            userPhoto: user.userPhoto,
+            userColor: user.userColor,
+            country: user.country,
+            joinedAt: new Date()
+        });
+        await room.save();
 
-      socket.emit('room-joined', {
-        roomCode: room.roomCode,
-        roomName: room.roomName,
-        isOwner: user.isOwner,
-        activeVideo: room.activeVideo,
-        playbackState: room.playbackState,
-        userColor: user.userColor
-      });
+        socket.emit('room-joined', {
+            roomCode: room.roomCode,
+            roomName: room.roomName,
+            isOwner: user.isOwner,
+            activeVideo: room.activeVideo,
+            playbackState: room.playbackState,
+            userColor: user.userColor
+        });
 
-      updateRoomUsers(room.roomCode);
-      socket.to(room.roomCode).emit('user-joined', { 
-        userName: user.userName,
-        country: user.country 
-      });
-      
-      console.log(`✅ ${user.userName} → ${room.roomCode}`);
+        updateRoomUsers(room.roomCode);
+        socket.to(room.roomCode).emit('user-joined', { 
+            userName: user.userName,
+            country: user.country 
+        });
+        
+        console.log(`✅ ${user.userName} → ${room.roomCode}`);
     } catch (error) {
-      console.error('❌ Katılma hatası:', error);
-      socket.emit('error', { message: 'Odaya katılınamadı' });
+        console.error('❌ Katılma hatası:', error);
+        socket.emit('error', { message: 'Odaya katılınamadı' });
     }
-  });
+});
 
   socket.on('upload-video', async (videoData) => {
     try {
