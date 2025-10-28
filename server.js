@@ -25,9 +25,9 @@ app.use(cors());
 app.use(express.static('public'));
 
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dxpi8bapd',
+  api_key: process.env.CLOUDINARY_API_KEY || '976283781598975',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'Orqu1ukmjx76NZIsDHH_TsDnDJ0'
 });
 
 const MONGODB_URI = process.env.MONGODB_URI;
