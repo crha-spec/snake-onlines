@@ -4,66 +4,49 @@ const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
-const multer = require('multer');
+const axios = require('axios');
 const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io yapılandırması
 const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  },
+  cors: { origin: "*", methods: ["GET", "POST"] },
   pingTimeout: 60000,
   pingInterval: 25000,
   transports: ['websocket', 'polling'],
-  maxHttpBufferSize: 1e8 // 100 MB
+  maxHttpBufferSize: 1e8
 });
 
-// Middleware
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cors());
 app.use(express.static('public'));
 
-// Multer yapılandırması
-const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 100 * 1024 * 1024 } // 100 MB
-});
-
-// Cloudinary yapılandırması
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dxpi8bapd',
-  api_key: process.env.CLOUDINARY_API_KEY || '976283781598975',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'Orqu1ukmjx76NZIsDHH_TsDnDJ0'
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// MongoDB bağlantısı
 const MONGODB_URI = process.env.MONGODB_URI;
 if (MONGODB_URI) {
   mongoose.connect(MONGODB_URI)
     .then(() => console.log('✅ MongoDB bağlantısı başarılı'))
-    .catch(err => console.log('⚠️  MongoDB bağlantı hatası:', err));
+    .catch(err => console.log('❌ MongoDB bağlantı hatası:', err));
 }
 
-// Kullanıcı Profil Şeması
 const userProfileSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
   userName: { type: String, required: true, trim: true, maxlength: 20 },
   userPhoto: { type: String, default: '' },
   deviceId: { type: String, required: true },
+  country: { type: String, default: 'Türkiye' },
   lastSeen: { type: Date, default: Date.now },
   createdAt: { type: Date, default: Date.now }
 });
 
-const UserProfile = mongoose.model('UserProfile', userProfileSchema);
-
-// Oda Şeması
 const roomSchema = new mongoose.Schema({
   roomCode: { type: String, required: true, unique: true, uppercase: true },
   roomName: { type: String, required: true },
@@ -74,53 +57,47 @@ const roomSchema = new mongoose.Schema({
     url: String,
     cloudinaryId: String,
     title: String,
+    duration: Number,
     uploadedAt: Date
   },
   playbackState: {
     playing: { type: Boolean, default: false },
     currentTime: { type: Number, default: 0 },
+    playbackRate: { type: Number, default: 1 },
     timestamp: { type: Date, default: Date.now }
   },
   participants: [{
     userId: String,
     userName: String,
     userPhoto: String,
+    userColor: String,
+    country: String,
     joinedAt: Date
   }],
   maxParticipants: { type: Number, default: 50 },
-  isPublic: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 });
 
-const Room = mongoose.model('Room', roomSchema);
-
-// Mesaj Şeması
 const messageSchema = new mongoose.Schema({
-  messageId: { type: String, required: true, unique: true },
+  messageId: { type: String, required: true },
   userId: { type: String, required: true },
   userName: { type: String, required: true },
   userPhoto: String,
   userColor: String,
+  country: String,
   roomCode: { type: String, required: true },
   text: String,
-  media: String,
-  mediaType: String,
-  caption: String,
-  audio: String,
-  duration: Number,
-  type: { type: String, default: 'text', enum: ['text', 'audio', 'media'] },
-  edited: { type: Boolean, default: false },
-  editedAt: Date,
+  type: { type: String, default: 'text' },
   timestamp: { type: Date, default: Date.now }
 });
 
+const UserProfile = mongoose.model('UserProfile', userProfileSchema);
+const Room = mongoose.model('Room', roomSchema);
 const Message = mongoose.model('Message', messageSchema);
 
-// Bellek deposu
 const rooms = new Map();
 const activeUsers = new Map();
 
-// Yardımcı Fonksiyonlar
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -136,28 +113,45 @@ function generateColor(username) {
   return colors[index % colors.length];
 }
 
-async function getOrCreateUserProfile(userData) {
+async function getCountryFromIP(ip) {
+  try {
+    if (ip === '127.0.0.1' || ip === '::1') return 'Türkiye';
+    
+    const response = await axios.get(`http://ip-api.com/json/${ip}?fields=status,country`);
+    if (response.data.status === 'success') {
+      return response.data.country || 'Türkiye';
+    }
+  } catch (error) {
+    console.log('🌍 IP sorgulama hatası, varsayılan ülke kullanılıyor');
+  }
+  return 'Türkiye';
+}
+
+async function getOrCreateUserProfile(userData, ip) {
   try {
     let userProfile = await UserProfile.findOne({ userId: userData.userId });
+    const country = await getCountryFromIP(ip);
+    
     if (!userProfile) {
       userProfile = new UserProfile({
         userId: userData.userId,
         userName: userData.userName,
         userPhoto: userData.userPhoto || '',
-        deviceId: userData.deviceId
+        deviceId: userData.deviceId,
+        country: country
       });
       await userProfile.save();
-      console.log('✅ Yeni kullanıcı:', userData.userName);
     } else {
       userProfile.userName = userData.userName;
       userProfile.userPhoto = userData.userPhoto || userProfile.userPhoto;
+      userProfile.country = country;
       userProfile.lastSeen = new Date();
       await userProfile.save();
     }
     return userProfile;
   } catch (error) {
     console.error('❌ Profil hatası:', error);
-    return userData;
+    return { ...userData, country: 'Türkiye' };
   }
 }
 
@@ -171,28 +165,34 @@ function updateRoomUsers(roomCode) {
       userName: user.userName,
       userPhoto: user.userPhoto,
       userColor: user.userColor,
+      country: user.country,
       isOwner: user.isOwner
     }));
   io.to(roomCode).emit('user-list-update', roomUsers);
 }
 
-// Socket.io
 io.on('connection', async (socket) => {
-  console.log('🔗 Bağlandı:', socket.id);
+  console.log('🔗 Yeni bağlantı:', socket.id);
+  const clientIP = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
 
   let heartbeatInterval = setInterval(() => socket.emit('ping'), 20000);
   socket.on('pong', () => {});
 
-  // Oda oluştur
   socket.on('create-room', async (data) => {
     try {
       const { userName, userPhoto, deviceId, roomName, password } = data;
-      const userProfile = await getOrCreateUserProfile({ userId: socket.id, userName, userPhoto, deviceId });
+      const userProfile = await getOrCreateUserProfile({ 
+        userId: socket.id, userName, userPhoto, deviceId 
+      }, clientIP);
       
       let roomCode;
-      do { roomCode = generateRoomCode(); } 
-      while (await Room.findOne({ roomCode }));
-
+      let attempts = 0;
+      do { 
+        roomCode = generateRoomCode(); 
+        attempts++;
+        if (attempts > 10) throw new Error('Oda kodu oluşturulamadı');
+      } while (await Room.findOne({ roomCode }));
+      
       const room = new Room({
         roomCode,
         roomName: roomName || `${userName}'in Odası`,
@@ -202,15 +202,51 @@ io.on('connection', async (socket) => {
       });
       await room.save();
 
-      socket.emit('room-created', { roomCode, roomName: room.roomName });
       console.log('✅ Oda oluşturuldu:', roomCode);
+      
+      const user = {
+        id: userProfile.userId,
+        socketId: socket.id,
+        userName: userProfile.userName,
+        userPhoto: userProfile.userPhoto,
+        userColor: generateColor(userProfile.userName),
+        country: userProfile.country,
+        deviceId: deviceId,
+        roomCode: room.roomCode,
+        isOwner: true,
+        joinedAt: new Date()
+      };
+
+      activeUsers.set(socket.id, user);
+      if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
+      rooms.get(room.roomCode).add(socket.id);
+      socket.join(room.roomCode);
+
+      room.participants.push({
+        userId: user.id,
+        userName: user.userName,
+        userPhoto: user.userPhoto,
+        userColor: user.userColor,
+        country: user.country,
+        joinedAt: new Date()
+      });
+      await room.save();
+
+      socket.emit('room-created', { 
+        roomCode, 
+        roomName: room.roomName,
+        isOwner: true 
+      });
+
+      updateRoomUsers(room.roomCode);
+      console.log(`✅ ${user.userName} odayı oluşturdu: ${room.roomCode}`);
+
     } catch (error) {
       console.error('❌ Oda oluşturma hatası:', error);
-      socket.emit('error', { message: 'Oda oluşturulamadı' });
+      socket.emit('error', { message: 'Oda oluşturulamadı: ' + error.message });
     }
   });
 
-  // Odaya katıl
   socket.on('join-room', async (data) => {
     try {
       const { roomCode, userName, userPhoto, deviceId, password } = data;
@@ -227,11 +263,13 @@ io.on('connection', async (socket) => {
       }
 
       if (room.participants.length >= room.maxParticipants) {
-        socket.emit('error', { message: 'Oda dolu!' });
+        socket.emit('error', { message: 'Oda dolu! Max ' + room.maxParticipants + ' kişi' });
         return;
       }
 
-      const userProfile = await getOrCreateUserProfile({ userId: socket.id, userName, userPhoto, deviceId });
+      const userProfile = await getOrCreateUserProfile({ 
+        userId: socket.id, userName, userPhoto, deviceId 
+      }, clientIP);
       
       const user = {
         id: userProfile.userId,
@@ -239,6 +277,7 @@ io.on('connection', async (socket) => {
         userName: userProfile.userName,
         userPhoto: userProfile.userPhoto,
         userColor: generateColor(userProfile.userName),
+        country: userProfile.country,
         deviceId: deviceId,
         roomCode: room.roomCode,
         isOwner: room.ownerId === userProfile.userId,
@@ -246,36 +285,34 @@ io.on('connection', async (socket) => {
       };
 
       activeUsers.set(socket.id, user);
-      
-      if (!rooms.has(room.roomCode)) {
-        rooms.set(room.roomCode, new Set());
-      }
+      if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
       rooms.get(room.roomCode).add(socket.id);
       socket.join(room.roomCode);
 
-      // Katılımcıyı kaydet
       room.participants.push({
         userId: user.id,
         userName: user.userName,
         userPhoto: user.userPhoto,
+        userColor: user.userColor,
+        country: user.country,
         joinedAt: new Date()
       });
       await room.save();
 
       socket.emit('room-joined', {
-        userId: user.id,
-        userName: user.userName,
         roomCode: room.roomCode,
         roomName: room.roomName,
-        userPhoto: user.userPhoto,
-        userColor: user.userColor,
         isOwner: user.isOwner,
         activeVideo: room.activeVideo,
-        playbackState: room.playbackState
+        playbackState: room.playbackState,
+        userColor: user.userColor
       });
 
       updateRoomUsers(room.roomCode);
-      socket.to(room.roomCode).emit('user-joined', { userName: user.userName });
+      socket.to(room.roomCode).emit('user-joined', { 
+        userName: user.userName,
+        country: user.country 
+      });
       
       console.log(`✅ ${user.userName} → ${room.roomCode}`);
     } catch (error) {
@@ -284,7 +321,6 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Video yükle
   socket.on('upload-video', async (videoData) => {
     try {
       const user = activeUsers.get(socket.id);
@@ -295,16 +331,14 @@ io.on('connection', async (socket) => {
 
       console.log('📹 Video yükleniyor...');
       
-      // Eski videoyu sil
       const room = await Room.findOne({ roomCode: user.roomCode });
       if (room.activeVideo?.cloudinaryId) {
         await cloudinary.uploader.destroy(room.activeVideo.cloudinaryId, { resource_type: 'video' });
       }
 
-      // Yeni videoyu yükle
       const uploadResult = await cloudinary.uploader.upload(videoData.videoBase64, {
         resource_type: 'video',
-        folder: 'oyun-odalari',
+        folder: 'video-odalari',
         chunk_size: 6000000
       });
 
@@ -315,51 +349,52 @@ io.on('connection', async (socket) => {
             url: uploadResult.secure_url,
             cloudinaryId: uploadResult.public_id,
             title: videoData.title || 'Video',
+            duration: uploadResult.duration,
             uploadedAt: new Date()
           },
           'playbackState.playing': false,
-          'playbackState.currentTime': 0
+          'playbackState.currentTime': 0,
+          'playbackState.playbackRate': 1
         }
       );
 
       io.to(user.roomCode).emit('video-uploaded', {
         videoUrl: uploadResult.secure_url,
-        title: videoData.title || 'Video'
+        title: videoData.title || 'Video',
+        duration: uploadResult.duration
       });
 
-      console.log('✅ Video yüklendi');
+      console.log('✅ Video yüklendi:', uploadResult.duration + 's');
     } catch (error) {
       console.error('❌ Video yükleme hatası:', error);
-      socket.emit('error', { message: 'Video yüklenemedi' });
+      socket.emit('error', { message: 'Video yüklenemedi: ' + error.message });
     }
   });
 
-  // Video sync
-  socket.on('video-sync', async (syncData) => {
+  socket.on('video-control', async (controlData) => {
     try {
       const user = activeUsers.get(socket.id);
       if (!user || !user.isOwner) return;
 
+      const updateData = {
+        'playbackState.timestamp': new Date()
+      };
+
+      if (controlData.playing !== undefined) updateData['playbackState.playing'] = controlData.playing;
+      if (controlData.currentTime !== undefined) updateData['playbackState.currentTime'] = controlData.currentTime;
+      if (controlData.playbackRate !== undefined) updateData['playbackState.playbackRate'] = controlData.playbackRate;
+
       await Room.findOneAndUpdate(
         { roomCode: user.roomCode },
-        {
-          'playbackState.playing': syncData.playing,
-          'playbackState.currentTime': syncData.currentTime,
-          'playbackState.timestamp': new Date()
-        }
+        updateData
       );
 
-      socket.to(user.roomCode).emit('video-update', {
-        playing: syncData.playing,
-        currentTime: syncData.currentTime,
-        timestamp: Date.now()
-      });
+      socket.to(user.roomCode).emit('video-control', controlData);
     } catch (error) {
-      console.error('❌ Sync hatası:', error);
+      console.error('❌ Video kontrol hatası:', error);
     }
   });
 
-  // Video sil
   socket.on('delete-video', async () => {
     try {
       const user = activeUsers.get(socket.id);
@@ -372,7 +407,14 @@ io.on('connection', async (socket) => {
 
       await Room.findOneAndUpdate(
         { roomCode: user.roomCode },
-        { activeVideo: null, playbackState: { playing: false, currentTime: 0 } }
+        { 
+          activeVideo: null, 
+          playbackState: { 
+            playing: false, 
+            currentTime: 0, 
+            playbackRate: 1 
+          } 
+        }
       );
 
       io.to(user.roomCode).emit('video-deleted');
@@ -382,18 +424,18 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Mesaj
   socket.on('message', async (messageData) => {
     try {
       const user = activeUsers.get(socket.id);
       if (!user) return;
 
       const message = {
-        id: messageData.id,
+        id: Date.now().toString(),
         time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
         userName: user.userName,
         userPhoto: user.userPhoto,
         userColor: user.userColor,
+        country: user.country,
         roomCode: user.roomCode,
         ...messageData
       };
@@ -404,13 +446,9 @@ io.on('connection', async (socket) => {
         userName: user.userName,
         userPhoto: user.userPhoto,
         userColor: user.userColor,
+        country: user.country,
         roomCode: user.roomCode,
         text: message.text,
-        media: message.media,
-        mediaType: message.mediaType,
-        caption: message.caption,
-        audio: message.audio,
-        duration: message.duration,
         type: message.type
       });
       await dbMessage.save();
@@ -421,52 +459,6 @@ io.on('connection', async (socket) => {
     }
   });
 
-  // Mesaj düzenle
-  socket.on('edit-message', async (editData) => {
-    try {
-      const user = activeUsers.get(socket.id);
-      if (!user) return;
-
-      const message = await Message.findOne({ messageId: editData.messageId, userId: user.id });
-      if (!message) return;
-
-      message.text = editData.newText;
-      message.edited = true;
-      message.editedAt = new Date();
-      await message.save();
-
-      io.to(user.roomCode).emit('message-edited', {
-        messageId: editData.messageId,
-        newText: editData.newText,
-        editedAt: message.editedAt
-      });
-    } catch (error) {
-      console.error('❌ Düzenleme hatası:', error);
-    }
-  });
-
-  // Mesaj sil
-  socket.on('delete-message', async (deleteData) => {
-    try {
-      const user = activeUsers.get(socket.id);
-      if (!user) return;
-
-      await Message.deleteOne({ messageId: deleteData.messageId, userId: user.id });
-      io.to(user.roomCode).emit('message-deleted', { messageId: deleteData.messageId });
-    } catch (error) {
-      console.error('❌ Silme hatası:', error);
-    }
-  });
-
-  // Yazıyor
-  socket.on('typing', (isTyping) => {
-    const user = activeUsers.get(socket.id);
-    if (user) {
-      socket.to(user.roomCode).emit('typing', { userName: user.userName, isTyping });
-    }
-  });
-
-  // Disconnect
   socket.on('disconnect', async () => {
     clearInterval(heartbeatInterval);
     const user = activeUsers.get(socket.id);
@@ -476,7 +468,6 @@ io.on('connection', async (socket) => {
         rooms.get(user.roomCode).delete(socket.id);
       }
 
-      // Katılımcıyı çıkar
       await Room.findOneAndUpdate(
         { roomCode: user.roomCode },
         { $pull: { participants: { userId: user.id } } }
@@ -489,32 +480,19 @@ io.on('connection', async (socket) => {
   });
 });
 
-// API Routes
 app.get('/health', async (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.json({ 
     status: 'OK', 
-    timestamp: new Date().toISOString(),
     database: dbStatus,
     activeUsers: activeUsers.size,
     rooms: rooms.size
   });
 });
 
-app.get('/api/stats', async (req, res) => {
-  try {
-    const totalUsers = await UserProfile.countDocuments();
-    const totalRooms = await Room.countDocuments();
-    const totalMessages = await Message.countDocuments();
-    res.json({ totalUsers, totalRooms, totalMessages, activeUsers: activeUsers.size });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 app.get('/api/rooms', async (req, res) => {
   try {
-    const roomsList = await Room.find({ isPublic: true }).select('roomCode roomName ownerName participants createdAt');
+    const roomsList = await Room.find().select('roomCode roomName ownerName participants createdAt');
     res.json(roomsList);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -529,5 +507,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server: http://localhost:${PORT}`);
   console.log(`🔗 Health: http://localhost:${PORT}/health`);
-  console.log(`🎬 Cloudinary: ${cloudinary.config().cloud_name}`);
 });
