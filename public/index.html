@@ -1051,37 +1051,29 @@
                     this.hideLoading();
                 });
 
-                this.socket.on('room-created', (data) => {
-                    console.log('✅ Oda oluşturuldu:', data.roomCode);
-                    this.roomCode = data.roomCode;
-                    this.isOwner = data.isOwner;
-                    
-                    // Odaya otomatik katıl
-                    this.socket.emit('join-room', {
-                        roomCode: this.roomCode,
-                        userName: this.userName,
-                        userPhoto: this.userPhoto,
-                        deviceId: this.deviceId
-                    });
-                });
 
-                this.socket.on('room-joined', (data) => {
-                    console.log('✅ Odaya katıldı:', data.roomCode);
-                    this.roomCode = data.roomCode;
-                    this.roomName = data.roomName;
-                    this.isOwner = data.isOwner;
-                    this.userColor = data.userColor || this.userColor;
-                    
-                    this.showChatInterface();
-                    
-                    if (data.activeVideo) {
-                        this.displayVideo(data.activeVideo.url);
-                    }
-                    
-                    if (data.playbackState) {
-                        this.syncVideoState(data.playbackState);
-                    }
-                });
+
+this.socket.on('room-joined', (data) => {
+    console.log('✅ Odaya katıldı:', data.roomCode);
+    
+    this.roomCode = data.roomCode;
+    this.roomName = data.roomName;
+    this.isOwner = data.isOwner;
+    this.userColor = data.userColor || this.userColor;
+    
+    this.showChatInterface();
+    
+    if (data.activeVideo) {
+        this.displayVideo(data.activeVideo.url);
+    }
+    
+    if (data.playbackState) {
+        this.syncVideoState(data.playbackState);
+    }
+    
+    // BU SATIRI EKLE - BAŞARI MESAJI
+    this.showSuccess(`${this.roomName} odasına katıldınız! Oda Kodu: ${this.roomCode}`);
+});
 
                 this.socket.on('user-list-update', (users) => {
                     this.updateUsersList(users);
@@ -1116,34 +1108,56 @@
                     this.addSystemMessage(`🚪 ${data.userName} odadan ayrıldı`);
                 });
 
-                this.socket.on('error', (data) => {
-                    this.hideLoading();
-                    this.showError(data.message);
-                });
+this.socket.on('error', (data) => {
+    this.hideLoading();
+    this.showError(data.message);
+    // 🚨 Hata durumunda landing page'e dön
+    this.showLanding();
+});
 
                 this.socket.on('disconnect', (reason) => {
                     console.log('🔌 Bağlantı kesildi:', reason);
                     this.showError('Bağlantı kesildi. Lütfen sayfayı yenileyin.');
                 });
 
-                this.socket.on('connect_error', (error) => {
-                    this.hideLoading();
-                    this.showError('Sunucuya bağlanılamadı: ' + error.message);
-                });
+this.socket.on('connect_error', (error) => {
+    this.hideLoading();
+    this.showError('Sunucuya bağlanılamadı: ' + error.message);
+    // 🚨 Hata durumunda landing page'e dön
+    this.showLanding();
+});
             }
 
-            createRoom() {
-                const roomName = this.roomNameInput.value.trim();
-                const password = this.roomPasswordInput.value.trim();
-                
-                if (!roomName) {
-                    this.showError('Lütfen oda adını girin!');
-                    return;
-                }
+createRoom() {
+    const roomName = this.roomNameInput.value.trim();
+    const password = this.roomPasswordInput.value.trim();
+    
+    if (!roomName) {
+        this.showError('Lütfen oda adını girin!');
+        return;
+    }
 
-                this.hideModal(this.createRoomModal);
-                this.connectSocket();
-            }
+    this.hideModal(this.createRoomModal);
+    this.showLoading('Oda oluşturuluyor...');
+    
+    this.connectSocket();
+    
+    // 🚨 EKSİK OLAN KODU EKLE:
+    setTimeout(() => {
+        if (this.socket && this.socket.connected) {
+            this.socket.emit('create-room', {
+                userName: this.userName,
+                userPhoto: this.userPhoto,
+                deviceId: this.deviceId,
+                roomName: roomName,
+                password: password || null
+            });
+        } else {
+            this.hideLoading();
+            this.showError('Sunucuya bağlanılamadı!');
+        }
+    }, 1000);
+}
 
             joinRoom() {
                 const roomCode = this.roomCodeInput.value.trim().toUpperCase();
