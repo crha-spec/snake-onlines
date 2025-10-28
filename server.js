@@ -1,9 +1,10 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const axios = require('axios');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
 
@@ -18,261 +19,126 @@ const io = socketIo(server, {
   },
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  maxHttpBufferSize: 1e8 // 100 MB
 });
 
 // Middleware
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cors());
 app.use(express.static('public'));
+
+// Multer yapılandırması
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 100 * 1024 * 1024 } // 100 MB
+});
+
+// Cloudinary yapılandırması
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dxpi8bapd',
+  api_key: process.env.CLOUDINARY_API_KEY || '976283781598975',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'Orqu1ukmjx76NZIsDHH_TsDnDJ0'
+});
 
 // MongoDB bağlantısı
 const MONGODB_URI = process.env.MONGODB_URI;
 if (MONGODB_URI) {
   mongoose.connect(MONGODB_URI)
-  .then(() => console.log('✅ MongoDB bağlantısı başarılı'))
-  .catch(err => console.log('⚠️  MongoDB bağlantı hatası:', err));
+    .then(() => console.log('✅ MongoDB bağlantısı başarılı'))
+    .catch(err => console.log('⚠️  MongoDB bağlantı hatası:', err));
 }
 
-// Mesaj Şeması (Güncellendi)
+// Kullanıcı Profil Şeması
+const userProfileSchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true },
+  userName: { type: String, required: true, trim: true, maxlength: 20 },
+  userPhoto: { type: String, default: '' },
+  deviceId: { type: String, required: true },
+  lastSeen: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const UserProfile = mongoose.model('UserProfile', userProfileSchema);
+
+// Oda Şeması
+const roomSchema = new mongoose.Schema({
+  roomCode: { type: String, required: true, unique: true, uppercase: true },
+  roomName: { type: String, required: true },
+  ownerId: { type: String, required: true },
+  ownerName: String,
+  password: String,
+  activeVideo: {
+    url: String,
+    cloudinaryId: String,
+    title: String,
+    uploadedAt: Date
+  },
+  playbackState: {
+    playing: { type: Boolean, default: false },
+    currentTime: { type: Number, default: 0 },
+    timestamp: { type: Date, default: Date.now }
+  },
+  participants: [{
+    userId: String,
+    userName: String,
+    userPhoto: String,
+    joinedAt: Date
+  }],
+  maxParticipants: { type: Number, default: 50 },
+  isPublic: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Room = mongoose.model('Room', roomSchema);
+
+// Mesaj Şeması
 const messageSchema = new mongoose.Schema({
-  messageId: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  userId: {
-    type: String,
-    required: true
-  },
-  userName: {
-    type: String,
-    required: true
-  },
+  messageId: { type: String, required: true, unique: true },
+  userId: { type: String, required: true },
+  userName: { type: String, required: true },
   userPhoto: String,
   userColor: String,
-  room: {
-    type: String,
-    required: true
-  },
+  roomCode: { type: String, required: true },
   text: String,
   media: String,
   mediaType: String,
   caption: String,
   audio: String,
   duration: Number,
-  type: {
-    type: String,
-    default: 'text',
-    enum: ['text', 'audio', 'media']
-  },
-  edited: {
-    type: Boolean,
-    default: false
-  },
+  type: { type: String, default: 'text', enum: ['text', 'audio', 'media'] },
+  edited: { type: Boolean, default: false },
   editedAt: Date,
-  deleted: {
-    type: Boolean,
-    default: false
-  },
-  timestamp: {
-    type: Date,
-    default: Date.now
-  }
+  timestamp: { type: Date, default: Date.now }
 });
 
 const Message = mongoose.model('Message', messageSchema);
-
-// Kullanıcı Şehir Kaydı Şeması
-const userLocationSchema = new mongoose.Schema({
-  deviceId: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  ipAddress: {
-    type: String,
-    required: true
-  },
-  city: {
-    type: String,
-    required: true
-  },
-  country: {
-    type: String,
-    default: 'Turkey'
-  },
-  lastSeen: {
-    type: Date,
-    default: Date.now
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-const UserLocation = mongoose.model('UserLocation', userLocationSchema);
-
-// Kullanıcı Profil Şeması
-const userProfileSchema = new mongoose.Schema({
-  userId: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  userName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 20
-  },
-  userPhoto: {
-    type: String,
-    default: ''
-  },
-  deviceId: {
-    type: String,
-    required: true
-  },
-  lastSeen: {
-    type: Date,
-    default: Date.now
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
-
-const UserProfile = mongoose.model('UserProfile', userProfileSchema);
-
-// Türkiye şehir listesi
-const TURKISH_CITIES = [
-  'Adana', 'Adıyaman', 'Afyonkarahisar', 'Ağrı', 'Amasya', 'Ankara', 'Antalya', 'Artvin',
-  'Aydın', 'Balıkesir', 'Bilecik', 'Bingöl', 'Bitlis', 'Bolu', 'Burdur', 'Bursa', 'Çanakkale',
-  'Çankırı', 'Çorum', 'Denizli', 'Diyarbakır', 'Edirne', 'Elazığ', 'Erzincan', 'Erzurum', 'Eskişehir',
-  'Gaziantep', 'Giresun', 'Gümüşhane', 'Hakkari', 'Hatay', 'Isparta', 'Mersin', 'İstanbul', 'İzmir',
-  'Kars', 'Kastamonu', 'Kayseri', 'Kırklareli', 'Kırşehir', 'Kocaeli', 'Konya', 'Kütahya', 'Malatya',
-  'Manisa', 'Kahramanmaraş', 'Mardin', 'Muğla', 'Muş', 'Nevşehir', 'Niğde', 'Ordu', 'Rize', 'Sakarya',
-  'Samsun', 'Siirt', 'Sinop', 'Sivas', 'Tekirdağ', 'Tokat', 'Trabzon', 'Tunceli', 'Şanlıurfa', 'Uşak',
-  'Van', 'Yozgat', 'Zonguldak', 'Aksaray', 'Bayburt', 'Karaman', 'Kırıkkale', 'Batman', 'Şırnak',
-  'Bartın', 'Ardahan', 'Iğdır', 'Yalova', 'Karabük', 'Kilis', 'Osmaniye', 'Düzce'
-];
-
-// Desteklenen ülkeler (Türkiye)
-const SUPPORTED_COUNTRIES = ['Turkey', 'Türkiye'];
 
 // Bellek deposu
 const rooms = new Map();
 const activeUsers = new Map();
 
-// IP'den şehir bulma
-async function getCityFromIP(ip) {
-  try {
-    let realIP = ip;
-    if (ip.includes('::ffff:')) {
-      realIP = ip.split(':').pop();
-    }
-    
-    // Localhost ve test IP'leri için
-    if (realIP === '127.0.0.1' || realIP === '::1' || realIP === '::ffff:127.0.0.1') {
-      return { city: 'İstanbul', country: 'Turkey', restricted: false };
-    }
-
-    console.log('🔍 IP sorgulanıyor:', realIP);
-    const response = await axios.get(`http://ip-api.com/json/${realIP}?fields=status,message,city,country,query`, {
-      timeout: 10000
-    });
-    
-    if (response.data.status === 'success' && response.data.city) {
-      const city = response.data.city;
-      const country = response.data.country;
-      console.log('📍 API şehir döndü:', city, country);
-      
-      // Ülke kontrolü - YENİ EKLENDİ
-      const isSupported = SUPPORTED_COUNTRIES.some(supported => 
-        country.toLowerCase().includes(supported.toLowerCase())
-      );
-      
-      if (!isSupported) {
-        return { city: null, country, restricted: true };
-      }
-      
-      // Türkçe şehir isimleriyle eşleştirme
-      const turkishCity = TURKISH_CITIES.find(turkishCity => 
-        city.toLowerCase().includes(turkishCity.toLowerCase()) ||
-        turkishCity.toLowerCase().includes(city.toLowerCase())
-      );
-      
-      return { 
-        city: turkishCity || 'Genel', 
-        country, 
-        restricted: false 
-      };
-    }
-  } catch (error) {
-    console.error('❌ IP lookup error:', error.message);
+// Yardımcı Fonksiyonlar
+function generateRoomCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  
-  return { city: 'Genel', country: 'Unknown', restricted: false };
+  return code;
 }
 
-// Device ID ile şehir bul veya oluştur
-async function getOrCreateUserCity(deviceId, ipAddress) {
-  try {
-    // Önce MongoDB'de deviceId'yi ara
-    let userLocation = await UserLocation.findOne({ deviceId: deviceId });
-    
-    if (userLocation) {
-      console.log(`✅ Device ID bulundu: ${deviceId} -> ${userLocation.city}`);
-      // Son görülme zamanını güncelle
-      userLocation.lastSeen = new Date();
-      userLocation.ipAddress = ipAddress; // IP güncelle (VPN değişmiş olabilir)
-      await userLocation.save();
-      
-      // YENİ: IP kontrolü yap
-      const ipInfo = await getCityFromIP(ipAddress);
-      if (ipInfo.restricted) {
-        return { city: null, restricted: true };
-      }
-      
-      // IP tabanlı şehir atama - YENİ EKLENDİ
-      return { city: ipInfo.city, restricted: false };
-    }
-    
-    // Device ID yoksa, IP'den şehir bul
-    console.log(`🆕 Yeni Device ID: ${deviceId}, IP: ${ipAddress}`);
-    const ipInfo = await getCityFromIP(ipAddress);
-    
-    if (ipInfo.restricted) {
-      return { city: null, restricted: true };
-    }
-    
-    // Yeni kayıt oluştur
-    userLocation = new UserLocation({
-      deviceId: deviceId,
-      ipAddress: ipAddress,
-      city: ipInfo.city,
-      country: ipInfo.country
-    });
-    await userLocation.save();
-    
-    console.log(`✅ Yeni şehir kaydı: ${deviceId} -> ${ipInfo.city}`);
-    return { city: ipInfo.city, restricted: false };
-    
-  } catch (error) {
-    console.error('❌ Şehir bulma hatası:', error);
-    return { city: 'Genel', restricted: false };
-  }
+function generateColor(username) {
+  const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+  const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[index % colors.length];
 }
 
-// Kullanıcı profilini getir veya oluştur
 async function getOrCreateUserProfile(userData) {
   try {
     let userProfile = await UserProfile.findOne({ userId: userData.userId });
-    
     if (!userProfile) {
       userProfile = new UserProfile({
         userId: userData.userId,
@@ -281,140 +147,242 @@ async function getOrCreateUserProfile(userData) {
         deviceId: userData.deviceId
       });
       await userProfile.save();
-      console.log('✅ Yeni kullanıcı profili oluşturuldu:', userData.userName);
+      console.log('✅ Yeni kullanıcı:', userData.userName);
     } else {
       userProfile.userName = userData.userName;
       userProfile.userPhoto = userData.userPhoto || userProfile.userPhoto;
       userProfile.lastSeen = new Date();
       await userProfile.save();
-      console.log('✅ Kullanıcı profili güncellendi:', userData.userName);
     }
-    
     return userProfile;
   } catch (error) {
-    console.error('❌ Kullanıcı profili hatası:', error);
-    return {
-      userId: userData.userId,
-      userName: userData.userName,
-      userPhoto: userData.userPhoto || '',
-      deviceId: userData.deviceId
-    };
+    console.error('❌ Profil hatası:', error);
+    return userData;
   }
 }
 
-// Kullanıcı rengi oluşturma
-function generateColor(username) {
-  const colors = [
-    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
-  ];
-  const index = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return colors[index % colors.length];
-}
-
-// Oda kullanıcılarını güncelle
-function updateRoomUsers(city) {
-  if (!rooms.has(city)) return;
-  
-  const roomUsers = Array.from(rooms.get(city))
+function updateRoomUsers(roomCode) {
+  if (!rooms.has(roomCode)) return;
+  const roomUsers = Array.from(rooms.get(roomCode))
     .map(socketId => activeUsers.get(socketId))
     .filter(user => user !== undefined)
     .map(user => ({
       userId: user.id,
       userName: user.userName,
       userPhoto: user.userPhoto,
-      city: user.city,
-      userColor: user.userColor
+      userColor: user.userColor,
+      isOwner: user.isOwner
     }));
-
-  io.to(city).emit('user-list-update', roomUsers);
+  io.to(roomCode).emit('user-list-update', roomUsers);
 }
 
-// Socket.io bağlantı yönetimi
+// Socket.io
 io.on('connection', async (socket) => {
-  console.log('🔗 Yeni kullanıcı bağlandı:', socket.id);
+  console.log('🔗 Bağlandı:', socket.id);
 
-  // Heartbeat mekanizması
-  let heartbeatInterval = setInterval(() => {
-    socket.emit('ping');
-  }, 20000);
+  let heartbeatInterval = setInterval(() => socket.emit('ping'), 20000);
+  socket.on('pong', () => {});
 
-  socket.on('pong', () => {
-    // Heartbeat alındı
+  // Oda oluştur
+  socket.on('create-room', async (data) => {
+    try {
+      const { userName, userPhoto, deviceId, roomName, password } = data;
+      const userProfile = await getOrCreateUserProfile({ userId: socket.id, userName, userPhoto, deviceId });
+      
+      let roomCode;
+      do { roomCode = generateRoomCode(); } 
+      while (await Room.findOne({ roomCode }));
+
+      const room = new Room({
+        roomCode,
+        roomName: roomName || `${userName}'in Odası`,
+        ownerId: userProfile.userId,
+        ownerName: userName,
+        password: password || null
+      });
+      await room.save();
+
+      socket.emit('room-created', { roomCode, roomName: room.roomName });
+      console.log('✅ Oda oluşturuldu:', roomCode);
+    } catch (error) {
+      console.error('❌ Oda oluşturma hatası:', error);
+      socket.emit('error', { message: 'Oda oluşturulamadı' });
+    }
   });
 
-  socket.on('user-join', async (userData) => {
+  // Odaya katıl
+  socket.on('join-room', async (data) => {
     try {
-      const clientIP = socket.handshake.headers['x-forwarded-for'] || 
-                      socket.handshake.address || 
-                      socket.conn.remoteAddress;
-
-      console.log('👤 Kullanıcı katılıyor:', userData.userName);
-      console.log('📱 Device ID:', userData.deviceId);
-      console.log('🌐 IP:', clientIP);
-
-      // Kullanıcıya şehir ataması yap (IP tabanlı) - YENİ
-      const locationInfo = await getOrCreateUserCity(userData.deviceId, clientIP);
+      const { roomCode, userName, userPhoto, deviceId, password } = data;
+      const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
       
-      // Bölge kısıtlaması kontrolü - YENİ
-      if (locationInfo.restricted) {
-        socket.emit('user-assigned', { restricted: true });
+      if (!room) {
+        socket.emit('error', { message: 'Oda bulunamadı!' });
         return;
       }
-      
-      // Kullanıcı profilini kaydet
-      const userProfile = await getOrCreateUserProfile({
-        ...userData,
-        deviceId: userData.deviceId
-      });
 
+      if (room.password && room.password !== password) {
+        socket.emit('error', { message: 'Yanlış şifre!' });
+        return;
+      }
+
+      if (room.participants.length >= room.maxParticipants) {
+        socket.emit('error', { message: 'Oda dolu!' });
+        return;
+      }
+
+      const userProfile = await getOrCreateUserProfile({ userId: socket.id, userName, userPhoto, deviceId });
+      
       const user = {
         id: userProfile.userId,
         socketId: socket.id,
         userName: userProfile.userName,
         userPhoto: userProfile.userPhoto,
-        city: locationInfo.city,
         userColor: generateColor(userProfile.userName),
-        deviceId: userData.deviceId,
+        deviceId: deviceId,
+        roomCode: room.roomCode,
+        isOwner: room.ownerId === userProfile.userId,
         joinedAt: new Date()
       };
 
-      // Kullanıcıyı kaydet
       activeUsers.set(socket.id, user);
       
-      // Odaya ekle
-      if (!rooms.has(locationInfo.city)) {
-        rooms.set(locationInfo.city, new Set());
+      if (!rooms.has(room.roomCode)) {
+        rooms.set(room.roomCode, new Set());
       }
-      rooms.get(locationInfo.city).add(socket.id);
+      rooms.get(room.roomCode).add(socket.id);
+      socket.join(room.roomCode);
 
-      socket.join(locationInfo.city);
-
-      // Kullanıcıya şehir bilgisini gönder
-      socket.emit('user-assigned', {
+      // Katılımcıyı kaydet
+      room.participants.push({
         userId: user.id,
         userName: user.userName,
-        city: locationInfo.city,
+        userPhoto: user.userPhoto,
+        joinedAt: new Date()
+      });
+      await room.save();
+
+      socket.emit('room-joined', {
+        userId: user.id,
+        userName: user.userName,
+        roomCode: room.roomCode,
+        roomName: room.roomName,
         userPhoto: user.userPhoto,
         userColor: user.userColor,
-        restricted: false
+        isOwner: user.isOwner,
+        activeVideo: room.activeVideo,
+        playbackState: room.playbackState
       });
 
-      // Oda kullanıcılarını güncelle
-      updateRoomUsers(locationInfo.city);
-
-      socket.to(locationInfo.city).emit('user-joined', {
-        userName: user.userName
-      });
-
-      console.log(`✅ ${user.userName} ${locationInfo.city} odasına katıldı`);
-
+      updateRoomUsers(room.roomCode);
+      socket.to(room.roomCode).emit('user-joined', { userName: user.userName });
+      
+      console.log(`✅ ${user.userName} → ${room.roomCode}`);
     } catch (error) {
-      console.error('❌ Kullanıcı katılma hatası:', error);
-      socket.emit('error', { message: 'Şehir belirleme hatası' });
+      console.error('❌ Katılma hatası:', error);
+      socket.emit('error', { message: 'Odaya katılınamadı' });
     }
   });
 
+  // Video yükle
+  socket.on('upload-video', async (videoData) => {
+    try {
+      const user = activeUsers.get(socket.id);
+      if (!user || !user.isOwner) {
+        socket.emit('error', { message: 'Sadece oda sahibi video yükleyebilir!' });
+        return;
+      }
+
+      console.log('📹 Video yükleniyor...');
+      
+      // Eski videoyu sil
+      const room = await Room.findOne({ roomCode: user.roomCode });
+      if (room.activeVideo?.cloudinaryId) {
+        await cloudinary.uploader.destroy(room.activeVideo.cloudinaryId, { resource_type: 'video' });
+      }
+
+      // Yeni videoyu yükle
+      const uploadResult = await cloudinary.uploader.upload(videoData.videoBase64, {
+        resource_type: 'video',
+        folder: 'oyun-odalari',
+        chunk_size: 6000000
+      });
+
+      await Room.findOneAndUpdate(
+        { roomCode: user.roomCode },
+        {
+          activeVideo: {
+            url: uploadResult.secure_url,
+            cloudinaryId: uploadResult.public_id,
+            title: videoData.title || 'Video',
+            uploadedAt: new Date()
+          },
+          'playbackState.playing': false,
+          'playbackState.currentTime': 0
+        }
+      );
+
+      io.to(user.roomCode).emit('video-uploaded', {
+        videoUrl: uploadResult.secure_url,
+        title: videoData.title || 'Video'
+      });
+
+      console.log('✅ Video yüklendi');
+    } catch (error) {
+      console.error('❌ Video yükleme hatası:', error);
+      socket.emit('error', { message: 'Video yüklenemedi' });
+    }
+  });
+
+  // Video sync
+  socket.on('video-sync', async (syncData) => {
+    try {
+      const user = activeUsers.get(socket.id);
+      if (!user || !user.isOwner) return;
+
+      await Room.findOneAndUpdate(
+        { roomCode: user.roomCode },
+        {
+          'playbackState.playing': syncData.playing,
+          'playbackState.currentTime': syncData.currentTime,
+          'playbackState.timestamp': new Date()
+        }
+      );
+
+      socket.to(user.roomCode).emit('video-update', {
+        playing: syncData.playing,
+        currentTime: syncData.currentTime,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('❌ Sync hatası:', error);
+    }
+  });
+
+  // Video sil
+  socket.on('delete-video', async () => {
+    try {
+      const user = activeUsers.get(socket.id);
+      if (!user || !user.isOwner) return;
+
+      const room = await Room.findOne({ roomCode: user.roomCode });
+      if (room.activeVideo?.cloudinaryId) {
+        await cloudinary.uploader.destroy(room.activeVideo.cloudinaryId, { resource_type: 'video' });
+      }
+
+      await Room.findOneAndUpdate(
+        { roomCode: user.roomCode },
+        { activeVideo: null, playbackState: { playing: false, currentTime: 0 } }
+      );
+
+      io.to(user.roomCode).emit('video-deleted');
+      console.log('✅ Video silindi');
+    } catch (error) {
+      console.error('❌ Silme hatası:', error);
+    }
+  });
+
+  // Mesaj
   socket.on('message', async (messageData) => {
     try {
       const user = activeUsers.get(socket.id);
@@ -426,205 +394,140 @@ io.on('connection', async (socket) => {
         userName: user.userName,
         userPhoto: user.userPhoto,
         userColor: user.userColor,
-        room: user.city
+        roomCode: user.roomCode,
+        ...messageData
       };
 
-      if (messageData.text) {
-        message.text = messageData.text;
-        message.type = 'text';
-        console.log(`💬 ${user.userName} (${user.city}): ${message.text}`);
-      }
-      else if (messageData.audio) {
-        message.audio = messageData.audio;
-        message.duration = messageData.duration || 0;
-        message.type = 'audio';
-        console.log(`🎤 ${user.userName} (${user.city}): Ses mesajı`);
-      }
-      else if (messageData.media) {
-        message.media = messageData.media;
-        message.mediaType = messageData.mediaType;
-        message.caption = messageData.caption;
-        message.type = 'media';
-        console.log(`📷 ${user.userName} (${user.city}): ${messageData.mediaType} gönderdi`);
-      }
+      const dbMessage = new Message({
+        messageId: message.id,
+        userId: user.id,
+        userName: user.userName,
+        userPhoto: user.userPhoto,
+        userColor: user.userColor,
+        roomCode: user.roomCode,
+        text: message.text,
+        media: message.media,
+        mediaType: message.mediaType,
+        caption: message.caption,
+        audio: message.audio,
+        duration: message.duration,
+        type: message.type
+      });
+      await dbMessage.save();
 
-      // Mesajı veritabanına kaydet
-      try {
-        const dbMessage = new Message({
-          messageId: message.id,
-          userId: user.id,
-          userName: user.userName,
-          userPhoto: user.userPhoto,
-          userColor: user.userColor,
-          room: user.city,
-          text: message.text,
-          media: message.media,
-          mediaType: message.mediaType,
-          caption: message.caption,
-          audio: message.audio,
-          duration: message.duration,
-          type: message.type
-        });
-        await dbMessage.save();
-      } catch (dbError) {
-        console.error('❌ Mesaj veritabanı kayıt hatası:', dbError);
-      }
-
-      io.to(user.city).emit('message', message);
-
+      io.to(user.roomCode).emit('message', message);
     } catch (error) {
       console.error('❌ Mesaj hatası:', error);
     }
   });
 
-  // YENİ: Mesaj düzenleme event'i
+  // Mesaj düzenle
   socket.on('edit-message', async (editData) => {
     try {
       const user = activeUsers.get(socket.id);
       if (!user) return;
 
-      // Mesajı veritabanında bul ve sahiplik kontrolü yap
-      const message = await Message.findOne({ 
-        messageId: editData.messageId,
-        userId: user.id // Sadece kendi mesajını düzenleyebilir
-      });
+      const message = await Message.findOne({ messageId: editData.messageId, userId: user.id });
+      if (!message) return;
 
-      if (!message) {
-        socket.emit('error', { message: 'Mesaj bulunamadı veya düzenleme yetkiniz yok' });
-        return;
-      }
-
-      // Mesajı güncelle
       message.text = editData.newText;
       message.edited = true;
       message.editedAt = new Date();
       await message.save();
 
-      // Güncellenen mesajı odaya yayınla
-      io.to(user.city).emit('message-edited', {
+      io.to(user.roomCode).emit('message-edited', {
         messageId: editData.messageId,
         newText: editData.newText,
-        editedAt: message.editedAt,
-        userName: user.userName
+        editedAt: message.editedAt
       });
-
-      console.log(`✏️ ${user.userName} mesajını düzenledi: ${editData.messageId}`);
-
     } catch (error) {
-      console.error('❌ Mesaj düzenleme hatası:', error);
-      socket.emit('error', { message: 'Mesaj düzenlenemedi' });
+      console.error('❌ Düzenleme hatası:', error);
     }
   });
 
-  // YENİ: Mesaj silme event'i
+  // Mesaj sil
   socket.on('delete-message', async (deleteData) => {
     try {
       const user = activeUsers.get(socket.id);
       if (!user) return;
 
-      // Mesajı veritabanında bul ve sahiplik kontrolü yap
-      const message = await Message.findOne({ 
-        messageId: deleteData.messageId,
-        userId: user.id // Sadece kendi mesajını silebilir
-      });
-
-      if (!message) {
-        socket.emit('error', { message: 'Mesaj bulunamadı veya silme yetkiniz yok' });
-        return;
-      }
-
-      // Mesajı veritabanından tamamen sil
-      await Message.deleteOne({ messageId: deleteData.messageId });
-
-      // Silinen mesajı odaya yayınla
-      io.to(user.city).emit('message-deleted', {
-        messageId: deleteData.messageId
-      });
-
-      console.log(`🗑️ ${user.userName} mesajını sildi: ${deleteData.messageId}`);
-
+      await Message.deleteOne({ messageId: deleteData.messageId, userId: user.id });
+      io.to(user.roomCode).emit('message-deleted', { messageId: deleteData.messageId });
     } catch (error) {
-      console.error('❌ Mesaj silme hatası:', error);
-      socket.emit('error', { message: 'Mesaj silinemedi' });
+      console.error('❌ Silme hatası:', error);
     }
   });
 
+  // Yazıyor
   socket.on('typing', (isTyping) => {
     const user = activeUsers.get(socket.id);
     if (user) {
-      socket.to(user.city).emit('typing', {
-        userName: user.userName,
-        isTyping: isTyping
-      });
+      socket.to(user.roomCode).emit('typing', { userName: user.userName, isTyping });
     }
   });
 
-  socket.on('disconnect', (reason) => {
-    console.log('🔌 Kullanıcı ayrıldı:', socket.id, reason);
-    
+  // Disconnect
+  socket.on('disconnect', async () => {
     clearInterval(heartbeatInterval);
-    
     const user = activeUsers.get(socket.id);
     if (user) {
       activeUsers.delete(socket.id);
-      
-      if (rooms.has(user.city)) {
-        rooms.get(user.city).delete(socket.id);
+      if (rooms.has(user.roomCode)) {
+        rooms.get(user.roomCode).delete(socket.id);
       }
 
-      updateRoomUsers(user.city);
-      
-      socket.to(user.city).emit('user-left', {
-        userName: user.userName
-      });
+      // Katılımcıyı çıkar
+      await Room.findOneAndUpdate(
+        { roomCode: user.roomCode },
+        { $pull: { participants: { userId: user.id } } }
+      );
+
+      updateRoomUsers(user.roomCode);
+      socket.to(user.roomCode).emit('user-left', { userName: user.userName });
+      console.log(`🔌 ${user.userName} ayrıldı`);
     }
   });
 });
 
 // API Routes
 app.get('/health', async (req, res) => {
-  try {
-    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-    
-    res.json({ 
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      database: dbStatus,
-      activeUsers: activeUsers.size,
-      rooms: Array.from(rooms.keys())
-    });
-  } catch (error) {
-    res.status(500).json({ status: 'ERROR', error: error.message });
-  }
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    database: dbStatus,
+    activeUsers: activeUsers.size,
+    rooms: rooms.size
+  });
 });
 
-// Kullanıcı istatistikleri
 app.get('/api/stats', async (req, res) => {
   try {
     const totalUsers = await UserProfile.countDocuments();
-    const totalLocations = await UserLocation.countDocuments();
-    const cities = await UserLocation.aggregate([
-      { $group: { _id: '$city', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
+    const totalRooms = await Room.countDocuments();
+    const totalMessages = await Message.countDocuments();
+    res.json({ totalUsers, totalRooms, totalMessages, activeUsers: activeUsers.size });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    res.json({
-      totalUsers,
-      totalLocations,
-      cities
-    });
+app.get('/api/rooms', async (req, res) => {
+  try {
+    const roomsList = await Room.find({ isPublic: true }).select('roomCode roomName ownerName participants createdAt');
+    res.json(roomsList);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
+  console.log(`🚀 Server: http://localhost:${PORT}`);
   console.log(`🔗 Health: http://localhost:${PORT}/health`);
-  console.log(`📊 Stats: http://localhost:${PORT}/api/stats`);
+  console.log(`🎬 Cloudinary: ${cloudinary.config().cloud_name}`);
 });
