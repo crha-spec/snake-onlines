@@ -3,2285 +3,561 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Şehir Sohbet Odası</title>
+    <title>Video Oyun Platformu</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            background: #e5ddd5;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            background: #075e54;
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .profile-button {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 5px;
-            border-radius: 50%;
-            transition: background 0.2s;
-        }
-
-        .profile-button:hover {
-            background: rgba(255,255,255,0.1);
-        }
-
-        .profile-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid rgba(255,255,255,0.3);
-        }
-
-        .header h1 {
-            font-size: 18px;
-            font-weight: 500;
-        }
-
-        .online-count {
-            background: rgba(255,255,255,0.2);
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 14px;
-        }
-
-        .container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .chat-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #e5ddd5;
-        }
-
-        .users-sidebar {
-            width: 300px;
-            background: white;
-            border-left: 1px solid #e0e0e0;
-            padding: 20px;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
-        }
-
-        .users-sidebar h3 {
-            color: #075e54;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-
-        .user-list {
-            list-style: none;
-        }
-
-        .user-item {
-            display: flex;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            margin-right: 10px;
-            font-size: 16px;
-            object-fit: cover;
-        }
-
-        .user-info {
-            flex: 1;
-        }
-
-        .user-name {
-            font-weight: 500;
-            color: #333;
-        }
-
-        .user-city {
-            font-size: 12px;
-            color: #666;
-        }
-
-        .messages {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .message {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            max-width: 70%;
-        }
-
-        .message.own {
-            align-self: flex-end;
-            flex-direction: row-reverse;
-        }
-
-        .message-content {
-            padding: 12px 16px;
-            border-radius: 8px;
-            position: relative;
-            word-wrap: break-word;
-            max-width: 100%;
-            cursor: pointer;
-            transition: background-color 0.1s;
-        }
-
-        .message.own .message-content {
-            background: #dcf8c6;
-            border-bottom-right-radius: 2px;
-        }
-
-        .message.other .message-content {
-            background: white;
-            border-bottom-left-radius: 2px;
-        }
-
-        .message-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-        }
-
-        .message-sender {
-            font-weight: 600;
-            font-size: 14px;
-            color: #075e54;
-        }
-
-        .message-time {
-            font-size: 12px;
-            color: #666;
-            margin-left: 10px;
-        }
-
-        .message-text {
-            font-size: 15px;
-            line-height: 1.4;
-            color: #333;
-        }
-
-        .message-status {
-            display: flex;
-            justify-content: flex-end;
-            margin-top: 4px;
-        }
-
-        .audio-message {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 12px;
-            background: rgba(0,0,0,0.05);
-            border-radius: 20px;
-            margin-top: 5px;
-        }
-
-        .audio-player {
-            flex: 1;
-            height: 30px;
-            min-width: 150px;
-        }
-
-        .audio-duration {
-            font-size: 12px;
-            color: #666;
-            min-width: 40px;
-        }
-
-        .typing-indicator {
-            padding: 10px 20px;
-            font-style: italic;
-            color: #666;
-            font-size: 14px;
-        }
-
-        .input-container {
-            padding: 12px 15px;
-            background: white;
-            display: flex;
-            gap: 8px;
-            border-top: 1px solid #e0e0e0;
-            align-items: flex-end;
-        }
-
-        .message-input {
-            flex: 1;
-            padding: 12px 15px;
-            border: 1px solid #e0e0e0;
-            border-radius: 25px;
-            outline: none;
-            font-size: 15px;
-            resize: none;
-            min-height: 45px;
-            max-height: 100px;
-            line-height: 1.4;
-        }
-
-        .input-buttons {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .media-button, .voice-button, .send-button {
-            background: #075e54;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 45px;
-            height: 45px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .media-button:hover, .voice-button:hover, .send-button:hover {
-            background: #054d44;
-        }
-
-        .voice-button:disabled, .send-button:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-        }
-
-        .voice-button.recording {
-            background: #ff4444;
-            animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-
-        .voice-recorder {
-            position: fixed;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-            z-index: 3000;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            min-width: 300px;
-        }
-
-        .voice-recorder.active {
-            display: flex;
-        }
-
-        .recording-timer {
-            font-size: 24px;
-            font-weight: bold;
-            color: #ff4444;
-        }
-
-        .recording-visualizer {
-            width: 100%;
-            height: 40px;
-            background: #f0f0f0;
-            border-radius: 20px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .recording-wave {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, #ff4444, #ff8888);
-            transform: scaleX(0);
-            transform-origin: left;
-            transition: transform 0.1s;
-        }
-
-        .recording-controls {
-            display: flex;
-            gap: 10px;
-        }
-
-        .control-button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        .cancel-button {
-            background: #e0e0e0;
-            color: #333;
-        }
-
-        .send-voice-button {
-            background: #075e54;
-            color: white;
-        }
-
-        .mobile-users-toggle {
-            display: none;
-            background: none;
-            border: none;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-        }
-
-        @media (max-width: 768px) {
-            .users-sidebar {
-                position: fixed;
-                top: 60px;
-                right: 0;
-                bottom: 0;
-                width: 280px;
-                transform: translateX(100%);
-                z-index: 1000;
-            }
-
-            .users-sidebar.active {
-                transform: translateX(0);
-            }
-
-            .mobile-users-toggle {
-                display: block;
-            }
-
-            .message {
-                max-width: 85%;
-            }
-
-            .voice-recorder {
-                width: 90%;
-                min-width: unset;
-            }
-            
-            .input-buttons {
-                gap: 5px;
-            }
-        }
-
-        .connection-status {
-            padding: 10px 20px;
-            text-align: center;
-            background: #ffeb3b;
-            color: #333;
-            font-size: 14px;
-            display: none;
-        }
-
-        .connection-status.error {
-            background: #ff5252;
-            color: white;
-        }
-
-        .connection-status.connected {
-            background: #4caf50;
-            color: white;
-        }
-
-        /* Modal Stilleri */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 400px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        .modal h2 {
-            color: #075e54;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 15px;
-            outline: none;
-            transition: border 0.2s;
-        }
-
-        .form-input:focus {
-            border-color: #075e54;
-        }
-
-        .photo-preview {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin: 15px auto;
-            display: block;
-            border: 3px solid #075e54;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-        }
-
-        .file-input {
-            position: absolute;
-            left: -9999px;
-        }
-
-        .file-input-label {
-            display: block;
-            padding: 12px 15px;
-            background: #075e54;
-            color: white;
-            text-align: center;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .file-input-label:hover {
-            background: #054d44;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 12px 15px;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .btn-primary {
-            background: #075e54;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #054d44;
-        }
-
-        .btn-secondary {
-            background: #e0e0e0;
-            color: #333;
-        }
-
-        .btn-secondary:hover {
-            background: #d0d0d0;
-        }
-
-        .welcome-modal .modal-content {
-            text-align: center;
-        }
-
-        .avatar-placeholder {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: #075e54;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            font-weight: bold;
-            margin: 0 auto 20px;
-        }
-
-        .retry-button {
-            background: #ff9800;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        .retry-button:hover {
-            background: #f57c00;
-        }
-
-        .permission-modal .modal-content {
-            text-align: center;
-        }
-
-        .permission-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-
-        /* Şehir Tarama Stili */
-        .city-scanning {
-            text-align: center;
-            padding: 40px 20px;
-            background: white;
-            border-radius: 10px;
-            margin: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-
-        .scanning-animation {
-            font-size: 48px;
-            margin-bottom: 20px;
-            animation: bounce 2s infinite;
-        }
-
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
-            40% {transform: translateY(-10px);}
-            60% {transform: translateY(-5px);}
-        }
-
-        .scanning-text {
-            font-size: 18px;
-            color: #666;
-            margin-bottom: 10px;
-        }
-
-        .scanning-dots:after {
-            content: '';
-            animation: dots 1.5s infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60%, 100% { content: '...'; }
-        }
-
-        .city-result {
-            font-size: 24px;
-            font-weight: bold;
-            color: #075e54;
-            margin-top: 20px;
-        }
-
-        /* YENİ EKLENEN STİLLER */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #1a1a2e; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Medya Seçenekleri */
-        .media-options {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin: 20px 0;
+        .landing { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; }
+        .landing h1 { font-size: 48px; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .landing-buttons { display: flex; gap: 20px; margin-top: 30px; }
+        .btn { padding: 15px 30px; font-size: 18px; border: none; border-radius: 10px; cursor: pointer; transition: transform 0.2s; font-weight: 600; }
+        .btn:hover { transform: scale(1.05); }
+        .btn-primary { background: #fff; color: #667eea; }
+        .btn-secondary { background: rgba(255,255,255,0.2); color: #fff; border: 2px solid #fff; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: #2d2d44; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .modal h2 { color: #667eea; margin-bottom: 20px; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; color: #ccc; font-weight: 500; }
+        .form-input { width: 100%; padding: 12px; border: 1px solid #444; border-radius: 8px; font-size: 15px; background: #1a1a2e; color: #fff; outline: none; }
+        .form-input:focus { border-color: #667eea; }
+        .button-group { display: flex; gap: 10px; margin-top: 20px; }
+        
+        .chat-interface { display: none; flex: 1; flex-direction: column; }
+        .header { background: #2d2d44; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .room-code { background: rgba(102, 126, 234, 0.2); padding: 8px 15px; border-radius: 8px; font-weight: 600; letter-spacing: 1px; }
+        .container { display: flex; flex: 1; overflow: hidden; }
+        
+        .video-section { flex: 2; display: flex; flex-direction: column; background: #000; }
+        .video-container { flex: 1; display: flex; align-items: center; justify-content: center; background: #000; position: relative; }
+        .video-player { width: 100%; height: 100%; max-height: 70vh; object-fit: contain; }
+        .no-video { text-align: center; padding: 60px 20px; color: #666; }
+        .no-video-icon { font-size: 64px; margin-bottom: 20px; }
+        .upload-zone { margin-top: 20px; }
+        
+        .chat-section { flex: 1; display: flex; flex-direction: column; background: #1a1a2e; border-left: 1px solid #2d2d44; min-width: 300px; max-width: 400px; }
+        .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { display: flex; gap: 10px; max-width: 80%; }
+        .message.own { align-self: flex-end; flex-direction: row-reverse; }
+        .message-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+        .message-content { padding: 10px 15px; border-radius: 10px; background: #2d2d44; }
+        .message.own .message-content { background: #667eea; }
+        .message-sender { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+        .message-text { font-size: 14px; word-wrap: break-word; }
+        .message-time { font-size: 11px; color: #999; margin-top: 4px; }
+        
+        .input-container { padding: 15px; background: #2d2d44; display: flex; gap: 10px; align-items: center; }
+        .message-input { flex: 1; padding: 12px; border: none; border-radius: 20px; background: #1a1a2e; color: #fff; outline: none; resize: none; max-height: 100px; }
+        .send-button { background: #667eea; color: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .send-button:hover { background: #5568d3; }
+        
+        .users-sidebar { width: 250px; background: #2d2d44; padding: 20px; overflow-y: auto; }
+        .users-sidebar h3 { margin-bottom: 15px; color: #667eea; }
+        .user-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; margin-bottom: 8px; background: #1a1a2e; }
+        .user-avatar { width: 35px; height: 35px; border-radius: 50%; }
+        .user-name { font-size: 14px; flex: 1; }
+        .owner-badge { background: #ffd700; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; margin-left: 5px; }
+        
+        .video-controls { padding: 15px; background: #1a1a2e; display: flex; gap: 10px; justify-content: center; }
+        .control-btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+        .upload-btn { background: #667eea; color: #fff; }
+        .delete-btn { background: #e74c3c; color: #fff; }
+        
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            .chat-section { max-width: 100%; border-left: none; border-top: 1px solid #2d2d44; }
+            .users-sidebar { display: none; }
         }
-
-        .media-option {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            background: white;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .media-option:hover {
-            border-color: #075e54;
-            background: #f9f9f9;
-        }
-
-        .media-icon {
-            font-size: 24px;
-            margin-bottom: 8px;
-        }
-
-        /* Mesaj İşlemleri */
-        .message-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin: 20px 0;
-        }
-
-        .action-button {
-            padding: 15px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            background: white;
-            cursor: pointer;
-            font-size: 16px;
-            text-align: left;
-            transition: background 0.2s;
-        }
-
-        .action-button:hover {
-            background: #f5f5f5;
-        }
-
-        /* Düzenlenmiş Mesaj İşareti */
-        .message-edited {
-            font-size: 11px;
-            color: #999;
-            font-style: italic;
-            margin-left: 5px;
-        }
-
-        /* Medya Mesajları */
-        .media-message {
-            max-width: 300px;
-            margin-top: 5px;
-        }
-
-        .media-image, .media-video, .media-gif, .media-sticker {
-            max-width: 100%;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        .media-sticker {
-            max-width: 150px;
-        }
-
-        .media-caption {
-            margin-top: 8px;
-            font-size: 14px;
-            color: #333;
-        }
-
-        /* Upload Progress */
-        .upload-progress {
-            margin: 20px 0;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e0e0e0;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: #075e54;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-            width: 0%;
-        }
-
-        .progress-text {
-            text-align: center;
-            margin-top: 10px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        /* Bölge Kısıtlama */
-        .restricted-icon {
-            font-size: 64px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        /* Uzun Basma Efekti */
-        .message-content:active {
-            background-color: rgba(0,0,0,0.05) !important;
-        }
-
-        .message.own .message-content:active {
-            background-color: rgba(220, 248, 198, 0.8) !important;
-        }
-
-        /* Düzenleme Modu */
-        .edit-mode {
-            background-color: #fff9c4 !important;
-            border: 2px solid #ffd600;
-        }
-
-        /* Medya Mesajı İçin Özel Stil */
-        .media-container {
-            position: relative;
-            display: inline-block;
-            max-width: 100%;
-        }
-
-        .media-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s;
-            border-radius: 8px;
-        }
-
-        .media-container:hover .media-overlay {
-            opacity: 1;
-        }
-
-        .media-play-button {
-            color: white;
-            font-size: 48px;
-            cursor: pointer;
-        }
-
-        /* Responsive Medya Seçenekleri */
-        @media (max-width: 480px) {
-            .media-options {
-                grid-template-columns: 1fr;
-            }
-            
-            .media-option {
-                padding: 15px 10px;
-            }
-        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1a1a2e; }
+        ::-webkit-scrollbar-thumb { background: #667eea; border-radius: 4px; }
+        
+        .hidden { display: none !important; }
+        .loading { text-align: center; padding: 20px; color: #667eea; }
     </style>
 </head>
 <body>
-    <div class="connection-status" id="connectionStatus"></div>
-    
-    <!-- Şehir Tarama Ekranı -->
-    <div class="city-scanning" id="cityScanning">
-        <div class="scanning-animation">📍</div>
-        <div class="scanning-text">Konumunuz taranıyor<span class="scanning-dots"></span></div>
-        <div class="scanning-text" id="scanningStatus">IP adresiniz analiz ediliyor</div>
-        <div class="city-result" id="cityResult" style="display: none;"></div>
+    <div class="landing" id="landingPage">
+        <h1>🎬 Video Oyun Platformu</h1>
+        <p style="font-size: 18px; margin-bottom: 40px;">Arkadaşlarınızla birlikte video izleyin!</p>
+        <div class="landing-buttons">
+            <button class="btn btn-primary" id="createRoomBtn">Oda Oluştur</button>
+            <button class="btn btn-secondary" id="joinRoomBtn">Odaya Katıl</button>
+        </div>
     </div>
 
-    <!-- Ana Chat Arayüzü (Başlangıçta gizli) -->
-    <div id="chatInterface" style="display: none;">
+    <div class="modal" id="userInfoModal">
+        <div class="modal-content">
+            <h2>Kullanıcı Bilgileri</h2>
+            <div class="form-group">
+                <label>Kullanıcı Adınız</label>
+                <input type="text" id="userNameInput" class="form-input" placeholder="Adınızı girin" maxlength="20">
+            </div>
+            <div class="form-group">
+                <label>Profil Fotoğrafı (Opsiyonel)</label>
+                <input type="file" id="userPhotoInput" class="form-input" accept="image/*">
+            </div>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="cancelUserInfo">İptal</button>
+                <button class="btn btn-primary" id="confirmUserInfo">Devam</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="createRoomModal">
+        <div class="modal-content">
+            <h2>Oda Oluştur</h2>
+            <div class="form-group">
+                <label>Oda Adı</label>
+                <input type="text" id="roomNameInput" class="form-input" placeholder="Oda adını girin">
+            </div>
+            <div class="form-group">
+                <label>Şifre (Opsiyonel)</label>
+                <input type="password" id="roomPasswordInput" class="form-input" placeholder="Şifre (boş bırakabilirsiniz)">
+            </div>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="cancelCreateRoom">İptal</button>
+                <button class="btn btn-primary" id="confirmCreateRoom">Oluştur</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="joinRoomModal">
+        <div class="modal-content">
+            <h2>Odaya Katıl</h2>
+            <div class="form-group">
+                <label>Oda Kodu</label>
+                <input type="text" id="roomCodeInput" class="form-input" placeholder="6 haneli kod" maxlength="6" style="text-transform: uppercase;">
+            </div>
+            <div class="form-group">
+                <label>Şifre (Gerekiyorsa)</label>
+                <input type="password" id="joinPasswordInput" class="form-input" placeholder="Şifre">
+            </div>
+            <div class="button-group">
+                <button class="btn btn-secondary" id="cancelJoinRoom">İptal</button>
+                <button class="btn btn-primary" id="confirmJoinRoom">Katıl</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-interface" id="chatInterface">
         <div class="header">
             <div class="header-left">
-                <button class="mobile-users-toggle" id="mobileUsersToggle">👥</button>
-                <button class="profile-button" id="profileButton">
-                    <img src="" alt="Profil" class="profile-avatar" id="profileAvatar">
-                </button>
-                <h1 id="roomTitle">Şehir Sohbet Odası</h1>
+                <div>
+                    <div id="roomNameDisplay" style="font-size: 18px; font-weight: 600;">Oda</div>
+                    <div class="room-code" id="roomCodeDisplay">ABC123</div>
+                </div>
             </div>
-            <div class="online-count" id="onlineCount">0 online</div>
+            <div id="onlineCount" style="background: rgba(102, 126, 234, 0.2); padding: 8px 15px; border-radius: 8px;">0 kişi</div>
         </div>
 
         <div class="container">
-            <div class="chat-container">
-                <div class="messages" id="messagesContainer"></div>
-                
-                <div class="typing-indicator" id="typingIndicator" style="display: none;"></div>
-                
-                <div class="input-container">
-                    <textarea 
-                        id="messageInput" 
-                        class="message-input" 
-                        placeholder="Mesajınızı yazın..."
-                        rows="1"
-                        disabled
-                    ></textarea>
-                    <div class="input-buttons">
-                        <button id="mediaButton" class="media-button" title="Medya Gönder" disabled>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                            </svg>
-                        </button>
-                        <button id="voiceButton" class="voice-button" title="Sesli Mesaj" disabled>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                            </svg>
-                        </button>
-                        <button id="sendButton" class="send-button" disabled>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                            </svg>
-                        </button>
+            <div class="video-section">
+                <div class="video-container" id="videoContainer">
+                    <div class="no-video" id="noVideo">
+                        <div class="no-video-icon">📹</div>
+                        <h3>Henüz Video Yok</h3>
+                        <p>Oda sahibi video yüklediğinde burada görünecek</p>
+                        <div class="upload-zone" id="uploadZone" style="display: none;">
+                            <input type="file" id="videoFileInput" accept="video/*" style="display: none;">
+                            <button class="btn btn-primary" id="selectVideoBtn">Video Seç ve Yükle</button>
+                        </div>
                     </div>
+                    <video id="videoPlayer" class="video-player" controls style="display: none;"></video>
+                </div>
+                <div class="video-controls" id="videoControls" style="display: none;">
+                    <button class="control-btn upload-btn" id="uploadNewVideoBtn">Yeni Video Yükle</button>
+                    <button class="control-btn delete-btn" id="deleteVideoBtn">Videoyu Sil</button>
                 </div>
             </div>
 
-            <div class="users-sidebar" id="usersSidebar">
-                <h3>Aktif Kullanıcılar</h3>
-                <ul class="user-list" id="userList"></ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Ses Kayıt Arayüzü -->
-    <div class="voice-recorder" id="voiceRecorder">
-        <div class="recording-timer" id="recordingTimer">00:00</div>
-        <div class="recording-visualizer">
-            <div class="recording-wave" id="recordingWave"></div>
-        </div>
-        <div class="recording-controls">
-            <button class="control-button cancel-button" id="cancelRecording">İptal</button>
-            <button class="control-button send-voice-button" id="sendVoiceButton" disabled>Gönder</button>
-        </div>
-    </div>
-
-    <!-- Ses İzin Modal -->
-    <div class="modal permission-modal" id="permissionModal">
-        <div class="modal-content">
-            <div class="permission-icon">🎤</div>
-            <h2>Ses Erişimi Gerekli</h2>
-            <p>Sesli mesaj göndermek için mikrofon erişimine izin vermeniz gerekiyor.</p>
-            <div class="button-group">
-                <button class="btn btn-secondary" id="cancelPermission">İptal</button>
-                <button class="btn btn-primary" id="grantPermission">İzin Ver</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Hoş Geldin Modal -->
-    <div class="modal welcome-modal" id="welcomeModal">
-        <div class="modal-content">
-            <div class="avatar-placeholder" id="welcomeAvatar">?</div>
-            <h2>Hoş Geldiniz!</h2>
-            <div class="form-group">
-                <label for="usernameInput">Kullanıcı Adınız</label>
-                <input type="text" id="usernameInput" class="form-input" placeholder="Kullanıcı adınızı girin" maxlength="20">
-            </div>
-            <div class="form-group">
-                <div class="file-input-wrapper">
-                    <input type="file" id="photoInput" class="file-input" accept="image/*">
-                    <label for="photoInput" class="file-input-label">Profil Fotoğrafı Seç</label>
+            <div class="chat-section">
+                <div class="messages" id="messagesContainer"></div>
+                <div class="input-container">
+                    <textarea id="messageInput" class="message-input" placeholder="Mesajınızı yazın..." rows="1"></textarea>
+                    <button id="sendButton" class="send-button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
                 </div>
-                <img id="photoPreview" class="photo-preview" style="display: none;">
             </div>
-            <button class="btn btn-primary" id="startChatButton">Sohbete Başla</button>
-        </div>
-    </div>
 
-    <!-- Profil Ayarları Modal -->
-    <div class="modal" id="profileModal">
-        <div class="modal-content">
-            <h2>Profil Ayarları</h2>
-            <div class="form-group">
-                <label for="editUsername">Kullanıcı Adı</label>
-                <input type="text" id="editUsername" class="form-input" maxlength="20">
+            <div class="users-sidebar">
+                <h3>Odadaki Kişiler</h3>
+                <div id="usersList"></div>
             </div>
-            <div class="form-group">
-                <div class="file-input-wrapper">
-                    <input type="file" id="editPhotoInput" class="file-input" accept="image/*">
-                    <label for="editPhotoInput" class="file-input-label">Fotoğraf Değiştir</label>
-                </div>
-                <img id="editPhotoPreview" class="photo-preview">
-            </div>
-            <div class="button-group">
-                <button class="btn btn-secondary" id="cancelProfileButton">İptal</button>
-                <button class="btn btn-primary" id="saveProfileButton">Kaydet</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- YENİ EKLENEN MODALLAR -->
-
-    <!-- Medya Seçim Modalı -->
-    <div class="modal" id="mediaModal">
-        <div class="modal-content">
-            <h2>Medya Gönder</h2>
-            <div class="media-options">
-                <button class="media-option" id="galleryOption">
-                    <span class="media-icon">🖼️</span>
-                    <span>Galeriden Seç</span>
-                </button>
-                <button class="media-option" id="cameraOption">
-                    <span class="media-icon">📷</span>
-                    <span>Kamera ile Çek</span>
-                </button>
-                <button class="media-option" id="gifOption">
-                    <span class="media-icon">🎬</span>
-                    <span>GIF Seç</span>
-                </button>
-                <button class="media-option" id="stickerOption">
-                    <span class="media-icon">😊</span>
-                    <span>Sticker Seç</span>
-                </button>
-            </div>
-            <div class="button-group">
-                <button class="btn btn-secondary" id="closeMediaModal">İptal</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Mesaj İşlemleri Modalı -->
-    <div class="modal" id="messageActionsModal">
-        <div class="modal-content">
-            <h2>Mesaj İşlemleri</h2>
-            <div class="message-actions">
-                <button class="action-button" id="editMessageBtn">✏️ Düzenle</button>
-                <button class="action-button" id="deleteMessageBtn">🗑️ Sil</button>
-            </div>
-            <div class="button-group">
-                <button class="btn btn-secondary" id="closeActionsModal">İptal</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Silme Onay Modalı -->
-    <div class="modal" id="deleteConfirmModal">
-        <div class="modal-content">
-            <h2>Mesajı Sil</h2>
-            <p>Sadece kendi mesajınızı silebilirsiniz. Mesajı silmek istediğinizden emin misiniz?</p>
-            <div class="button-group">
-                <button class="btn btn-secondary" id="cancelDelete">İptal</button>
-                <button class="btn btn-primary" id="confirmDelete">Sil</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bölge Kısıtlama Modalı -->
-    <div class="modal" id="regionRestrictedModal">
-        <div class="modal-content">
-            <div class="restricted-icon">🚫</div>
-            <h2>Erişim Kısıtlı</h2>
-            <p>Bu uygulama bölgenizde kullanılmıyor.</p>
-            <button class="btn btn-primary" id="closeRestrictedModal">Tamam</button>
-        </div>
-    </div>
-
-    <!-- Medya Yükleme İlerleme -->
-    <div class="modal" id="uploadProgressModal">
-        <div class="modal-content">
-            <h2>Dosya Yükleniyor</h2>
-            <div class="upload-progress">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <div class="progress-text" id="progressText">%0</div>
-            </div>
-            <button class="btn btn-secondary" id="cancelUpload" style="display: none;">İptal</button>
         </div>
     </div>
 
     <script>
-        class ChatApp {
+        class VideoPlatform {
             constructor() {
                 this.socket = null;
-                this.userId = localStorage.getItem('userId') || this.generateUserId();
+                this.userId = localStorage.getItem('userId') || this.generateId();
                 this.userName = localStorage.getItem('userName') || '';
                 this.userPhoto = localStorage.getItem('userPhoto') || '';
                 this.deviceId = this.getDeviceId();
-                this.userCity = null;
+                this.roomCode = null;
+                this.roomName = null;
+                this.isOwner = false;
                 this.userColor = this.generateColor(this.userName);
-                this.currentRoom = null;
-                this.isTyping = false;
-                this.typingTimeout = null;
-                this.reconnectAttempts = 0;
-                this.maxReconnectAttempts = 10;
-                this.reconnectDelay = 1000;
-                
-                // Ses kayıt değişkenleri
-                this.mediaRecorder = null;
-                this.audioChunks = [];
-                this.isRecording = false;
-                this.recordingStartTime = 0;
-                this.recordingTimerInterval = null;
-                this.audioContext = null;
-                this.analyser = null;
-                this.visualizerInterval = null;
-                
-                // Yeni eklenen değişkenler
-                this.selectedMessageId = null;
-                this.isEditing = false;
-                this.originalMessageText = '';
-                this.mediaStream = null;
-                this.uploadCancelToken = null;
-                
-                this.checkAndFixProfilePhoto();
-                this.initializeElements();
-                this.initializeEventListeners();
-                
-                if (!this.userName) {
-                    this.showWelcomeModal();
-                } else {
-                    this.startCityScanning();
-                }
+                this.currentAction = null;
+
+                this.initElements();
+                this.initEvents();
+                this.showLanding();
+            }
+
+            generateId() {
+                const id = 'user_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('userId', id);
+                return id;
             }
 
             getDeviceId() {
                 let deviceId = localStorage.getItem('deviceId');
                 if (!deviceId) {
-                    deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + 
-                              '_' + Date.now().toString(36);
+                    deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
                     localStorage.setItem('deviceId', deviceId);
                 }
                 return deviceId;
             }
 
-            checkAndFixProfilePhoto() {
-                if (this.userPhoto && !this.userPhoto.startsWith('data:') && !this.userPhoto.startsWith('http')) {
-                    this.userPhoto = this.createDefaultAvatar(this.userName);
-                    localStorage.setItem('userPhoto', this.userPhoto);
-                }
-            }
-
-            generateUserId() {
-                const id = Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('userId', id);
-                return id;
-            }
-
             generateColor(username) {
-                const colors = [
-                    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
-                    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
-                    '#F8C471', '#82E0AA', '#F1948A', '#85C1E9', '#D7BDE2'
-                ];
-                const index = username ? username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 0;
+                const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'];
+                const index = username ? username.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) : 0;
                 return colors[index % colors.length];
             }
 
-            async startCityScanning() {
-                this.showCityScanning();
-                
-                setTimeout(async () => {
-                    try {
-                        this.updateScanningStatus('Device ID kontrol ediliyor...');
-                        
-                        setTimeout(async () => {
-                            this.updateScanningStatus('IP adresiniz analiz ediliyor...');
-                            this.connectToServer();
-                            
-                        }, 2000);
-                        
-                    } catch (error) {
-                        console.error('Şehir tarama hatası:', error);
-                        this.showCityResult('Hata', 'Şehir belirlenemedi. Genel odaya yönlendiriliyorsunuz.');
-                        setTimeout(() => {
-                            this.userCity = 'Genel';
-                            this.showChatInterface();
-                        }, 3000);
-                    }
-                }, 2000);
-            }
-
-            showCityScanning() {
-                document.getElementById('cityScanning').style.display = 'block';
-                document.getElementById('chatInterface').style.display = 'none';
-            }
-
-            updateScanningStatus(message) {
-                document.getElementById('scanningStatus').textContent = message;
-            }
-
-            showCityResult(city, message) {
-                const cityResult = document.getElementById('cityResult');
-                cityResult.innerHTML = `📍 ${city} Sohbet Odası<br><small>${message}</small>`;
-                cityResult.style.display = 'block';
-            }
-
-            showChatInterface() {
-                document.getElementById('cityScanning').style.display = 'none';
-                document.getElementById('chatInterface').style.display = 'block';
-                this.roomTitle.textContent = `${this.userCity} Sohbet Odası`;
-                this.loadMessagesFromStorage();
-            }
-
-            initializeElements() {
-                this.roomTitle = document.getElementById('roomTitle');
+            initElements() {
+                this.landingPage = document.getElementById('landingPage');
+                this.createRoomBtn = document.getElementById('createRoomBtn');
+                this.joinRoomBtn = document.getElementById('joinRoomBtn');
+                this.userInfoModal = document.getElementById('userInfoModal');
+                this.userNameInput = document.getElementById('userNameInput');
+                this.userPhotoInput = document.getElementById('userPhotoInput');
+                this.cancelUserInfo = document.getElementById('cancelUserInfo');
+                this.confirmUserInfo = document.getElementById('confirmUserInfo');
+                this.createRoomModal = document.getElementById('createRoomModal');
+                this.roomNameInput = document.getElementById('roomNameInput');
+                this.roomPasswordInput = document.getElementById('roomPasswordInput');
+                this.cancelCreateRoom = document.getElementById('cancelCreateRoom');
+                this.confirmCreateRoom = document.getElementById('confirmCreateRoom');
+                this.joinRoomModal = document.getElementById('joinRoomModal');
+                this.roomCodeInput = document.getElementById('roomCodeInput');
+                this.joinPasswordInput = document.getElementById('joinPasswordInput');
+                this.cancelJoinRoom = document.getElementById('cancelJoinRoom');
+                this.confirmJoinRoom = document.getElementById('confirmJoinRoom');
+                this.chatInterface = document.getElementById('chatInterface');
+                this.roomNameDisplay = document.getElementById('roomNameDisplay');
+                this.roomCodeDisplay = document.getElementById('roomCodeDisplay');
                 this.onlineCount = document.getElementById('onlineCount');
+                this.videoContainer = document.getElementById('videoContainer');
+                this.noVideo = document.getElementById('noVideo');
+                this.uploadZone = document.getElementById('uploadZone');
+                this.videoPlayer = document.getElementById('videoPlayer');
+                this.videoControls = document.getElementById('videoControls');
                 this.messagesContainer = document.getElementById('messagesContainer');
                 this.messageInput = document.getElementById('messageInput');
                 this.sendButton = document.getElementById('sendButton');
-                this.typingIndicator = document.getElementById('typingIndicator');
-                this.userList = document.getElementById('userList');
-                this.usersSidebar = document.getElementById('usersSidebar');
-                this.mobileUsersToggle = document.getElementById('mobileUsersToggle');
-                this.connectionStatus = document.getElementById('connectionStatus');
-                this.profileButton = document.getElementById('profileButton');
-                this.profileAvatar = document.getElementById('profileAvatar');
-                
-                // Ses kayıt elementleri
-                this.voiceButton = document.getElementById('voiceButton');
-                this.voiceRecorder = document.getElementById('voiceRecorder');
-                this.recordingTimer = document.getElementById('recordingTimer');
-                this.recordingWave = document.getElementById('recordingWave');
-                this.cancelRecording = document.getElementById('cancelRecording');
-                this.sendVoiceButton = document.getElementById('sendVoiceButton');
-                this.permissionModal = document.getElementById('permissionModal');
-                this.cancelPermission = document.getElementById('cancelPermission');
-                this.grantPermission = document.getElementById('grantPermission');
-                
-                // Modal elements
-                this.welcomeModal = document.getElementById('welcomeModal');
-                this.usernameInput = document.getElementById('usernameInput');
-                this.photoInput = document.getElementById('photoInput');
-                this.photoPreview = document.getElementById('photoPreview');
-                this.startChatButton = document.getElementById('startChatButton');
-                
-                this.profileModal = document.getElementById('profileModal');
-                this.editUsername = document.getElementById('editUsername');
-                this.editPhotoInput = document.getElementById('editPhotoInput');
-                this.editPhotoPreview = document.getElementById('editPhotoPreview');
-                this.cancelProfileButton = document.getElementById('cancelProfileButton');
-                this.saveProfileButton = document.getElementById('saveProfileButton');
-                
-                // Yeni eklenen elementler
-                this.mediaButton = document.getElementById('mediaButton');
-                this.mediaModal = document.getElementById('mediaModal');
-                this.galleryOption = document.getElementById('galleryOption');
-                this.cameraOption = document.getElementById('cameraOption');
-                this.gifOption = document.getElementById('gifOption');
-                this.stickerOption = document.getElementById('stickerOption');
-                this.closeMediaModal = document.getElementById('closeMediaModal');
-                
-                this.messageActionsModal = document.getElementById('messageActionsModal');
-                this.editMessageBtn = document.getElementById('editMessageBtn');
-                this.deleteMessageBtn = document.getElementById('deleteMessageBtn');
-                this.closeActionsModal = document.getElementById('closeActionsModal');
-                
-                this.deleteConfirmModal = document.getElementById('deleteConfirmModal');
-                this.cancelDelete = document.getElementById('cancelDelete');
-                this.confirmDelete = document.getElementById('confirmDelete');
-                
-                this.regionRestrictedModal = document.getElementById('regionRestrictedModal');
-                this.closeRestrictedModal = document.getElementById('closeRestrictedModal');
-                
-                this.uploadProgressModal = document.getElementById('uploadProgressModal');
-                this.progressFill = document.getElementById('progressFill');
-                this.progressText = document.getElementById('progressText');
-                this.cancelUpload = document.getElementById('cancelUpload');
+                this.usersList = document.getElementById('usersList');
+                this.videoFileInput = document.getElementById('videoFileInput');
+                this.selectVideoBtn = document.getElementById('selectVideoBtn');
+                this.uploadNewVideoBtn = document.getElementById('uploadNewVideoBtn');
+                this.deleteVideoBtn = document.getElementById('deleteVideoBtn');
             }
 
-            initializeEventListeners() {
-                this.messageInput.addEventListener('input', this.handleInput.bind(this));
-                this.messageInput.addEventListener('keypress', this.handleKeyPress.bind(this));
-                this.sendButton.addEventListener('click', this.sendMessage.bind(this));
-                this.mobileUsersToggle.addEventListener('click', this.toggleUsersSidebar.bind(this));
-                this.profileButton.addEventListener('click', this.showProfileModal.bind(this));
-
-                // Ses kayıt event listeners
-                this.voiceButton.addEventListener('click', this.startVoiceRecording.bind(this));
-                this.cancelRecording.addEventListener('click', this.cancelVoiceRecording.bind(this));
-                this.sendVoiceButton.addEventListener('click', this.sendVoiceMessage.bind(this));
-                this.cancelPermission.addEventListener('click', this.hidePermissionModal.bind(this));
-                this.grantPermission.addEventListener('click', this.requestMicrophonePermission.bind(this));
-
-                // Welcome modal events
-                this.photoInput.addEventListener('change', this.handlePhotoSelect.bind(this));
-                this.startChatButton.addEventListener('click', this.startChat.bind(this));
-                
-                // Profile modal events
-                this.editPhotoInput.addEventListener('change', this.handleEditPhotoSelect.bind(this));
-                this.cancelProfileButton.addEventListener('click', this.hideProfileModal.bind(this));
-                this.saveProfileButton.addEventListener('click', this.saveProfile.bind(this));
-
-                // Auto-resize textarea
-                this.messageInput.addEventListener('input', function() {
-                    this.style.height = 'auto';
-                    this.style.height = Math.min(this.scrollHeight, 100) + 'px';
-                });
-
-                // Enter tuşu ile gönderme
-                this.messageInput.addEventListener('keydown', (e) => {
+            initEvents() {
+                this.createRoomBtn.addEventListener('click', () => this.startCreateRoom());
+                this.joinRoomBtn.addEventListener('click', () => this.startJoinRoom());
+                this.cancelUserInfo.addEventListener('click', () => this.hideModal(this.userInfoModal));
+                this.confirmUserInfo.addEventListener('click', () => this.saveUserInfo());
+                this.cancelCreateRoom.addEventListener('click', () => this.hideModal(this.createRoomModal));
+                this.confirmCreateRoom.addEventListener('click', () => this.createRoom());
+                this.cancelJoinRoom.addEventListener('click', () => this.hideModal(this.joinRoomModal));
+                this.confirmJoinRoom.addEventListener('click', () => this.joinRoom());
+                this.sendButton.addEventListener('click', () => this.sendMessage());
+                this.messageInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         this.sendMessage();
                     }
                 });
-
-                // YENİ EKLENEN EVENT LISTENERS
-                
-                // Medya butonu
-                this.mediaButton.addEventListener('click', this.showMediaModal.bind(this));
-                
-                // Medya modal eventleri
-                this.galleryOption.addEventListener('click', this.selectFromGallery.bind(this));
-                this.cameraOption.addEventListener('click', this.takePhoto.bind(this));
-                this.gifOption.addEventListener('click', this.selectGIF.bind(this));
-                this.stickerOption.addEventListener('click', this.selectSticker.bind(this));
-                this.closeMediaModal.addEventListener('click', this.hideMediaModal.bind(this));
-                
-                // Mesaj işlemleri modal eventleri
-                this.editMessageBtn.addEventListener('click', this.startEditMessage.bind(this));
-                this.deleteMessageBtn.addEventListener('click', this.confirmDeleteMessage.bind(this));
-                this.closeActionsModal.addEventListener('click', this.hideMessageActionsModal.bind(this));
-                
-                // Silme onay modal eventleri
-                this.cancelDelete.addEventListener('click', this.hideDeleteConfirmModal.bind(this));
-                this.confirmDelete.addEventListener('click', this.deleteMessage.bind(this));
-                
-                // Bölge kısıtlama modal eventi
-                this.closeRestrictedModal.addEventListener('click', this.hideRegionRestrictedModal.bind(this));
-                
-                // Yükleme iptal eventi
-                this.cancelUpload.addEventListener('click', this.cancelUpload.bind(this));
-                
-                // Mesajlara uzun basma eventi
-                this.messagesContainer.addEventListener('contextmenu', this.handleMessageLongPress.bind(this));
-                this.messagesContainer.addEventListener('touchstart', this.handleTouchStart.bind(this));
-                this.messagesContainer.addEventListener('touchend', this.handleTouchEnd.bind(this));
+                this.selectVideoBtn.addEventListener('click', () => this.videoFileInput.click());
+                this.uploadNewVideoBtn.addEventListener('click', () => this.videoFileInput.click());
+                this.deleteVideoBtn.addEventListener('click', () => this.deleteVideo());
+                this.videoFileInput.addEventListener('change', (e) => this.uploadVideo(e.target.files[0]));
+                this.videoPlayer.addEventListener('play', () => this.syncVideo(true));
+                this.videoPlayer.addEventListener('pause', () => this.syncVideo(false));
+                this.videoPlayer.addEventListener('seeked', () => this.syncVideo(!this.videoPlayer.paused));
             }
 
-            connectToServer() {
-                console.log('🔗 Sunucuya bağlanılıyor...');
-                console.log('📱 Device ID:', this.deviceId);
-                
+            showLanding() {
+                this.landingPage.style.display = 'flex';
+                this.chatInterface.style.display = 'none';
+            }
+
+            startCreateRoom() {
+                this.currentAction = 'create';
+                if (!this.userName) {
+                    this.showModal(this.userInfoModal);
+                } else {
+                    this.showModal(this.createRoomModal);
+                }
+            }
+
+            startJoinRoom() {
+                this.currentAction = 'join';
+                if (!this.userName) {
+                    this.showModal(this.userInfoModal);
+                } else {
+                    this.showModal(this.joinRoomModal);
+                }
+            }
+
+            async saveUserInfo() {
+                const userName = this.userNameInput.value.trim();
+                if (!userName) {
+                    alert('Lütfen kullanıcı adınızı girin!');
+                    return;
+                }
+                this.userName = userName;
+                localStorage.setItem('userName', userName);
+                const file = this.userPhotoInput.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        this.userPhoto = e.target.result;
+                        localStorage.setItem('userPhoto', this.userPhoto);
+                        this.proceedWithAction();
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    this.userPhoto = this.createDefaultAvatar(userName);
+                    localStorage.setItem('userPhoto', this.userPhoto);
+                    this.proceedWithAction();
+                }
+                this.hideModal(this.userInfoModal);
+            }
+
+            proceedWithAction() {
+                if (this.currentAction === 'create') {
+                    this.showModal(this.createRoomModal);
+                } else if (this.currentAction === 'join') {
+                    this.showModal(this.joinRoomModal);
+                }
+            }
+
+            connectSocket() {
                 this.socket = io({
                     transports: ['websocket', 'polling'],
-                    timeout: 30000,
-                    reconnectionAttempts: 5,
-                    reconnectionDelay: 1000
+                    timeout: 30000
                 });
 
-                this.setupSocketEvents();
-            }
+                this.socket.on('connect', () => console.log('✅ Bağlandı'));
 
-            setupSocketEvents() {
-                this.socket.on('connect', () => {
-                    console.log('✅ Sunucuya bağlandı');
-                    this.showConnectionStatus('Bağlandı', false);
-                    
-                    this.socket.emit('user-join', {
-                        userId: this.userId,
+                this.socket.on('room-created', (data) => {
+                    this.roomCode = data.roomCode;
+                    this.roomName = data.roomName;
+                    this.socket.emit('join-room', {
+                        roomCode: this.roomCode,
                         userName: this.userName,
                         userPhoto: this.userPhoto,
                         deviceId: this.deviceId
                     });
                 });
 
-                this.socket.on('user-assigned', (data) => {
-                    // YENİ: IP tabanlı oda atama kontrolü
-                    if (data.restricted) {
-                        this.showRegionRestrictedModal();
-                        return;
+                this.socket.on('room-joined', (data) => {
+                    this.roomCode = data.roomCode;
+                    this.roomName = data.roomName;
+                    this.isOwner = data.isOwner;
+                    this.showChatInterface();
+                    if (data.activeVideo) {
+                        this.displayVideo(data.activeVideo.url);
                     }
-                    
-                    this.userCity = data.city;
-                    this.currentRoom = data.city;
-                    
-                    this.showCityResult(data.city, 'Odaya yönlendiriliyorsunuz...');
-                    
-                    setTimeout(() => {
-                        this.showChatInterface();
-                        this.messageInput.disabled = false;
-                        this.voiceButton.disabled = false;
-                        this.mediaButton.disabled = false;
-                    }, 2000);
-                    
-                    this.updateProfileDisplay();
-                });
-
-                this.socket.on('message', (message) => {
-                    this.displayMessage(message);
-                    this.saveMessageToStorage(message);
-                });
-
-                this.socket.on('message-edited', (data) => {
-                    this.updateMessageDisplay(data);
-                });
-
-                this.socket.on('message-deleted', (data) => {
-                    this.removeMessageDisplay(data.messageId);
                 });
 
                 this.socket.on('user-list-update', (users) => {
-                    this.updateUserList(users);
+                    this.updateUsersList(users);
+                    this.onlineCount.textContent = `${users.length} kişi`;
                 });
 
-                this.socket.on('user-joined', (data) => {
-                    this.addSystemMessage(`${data.userName} odaya katıldı`);
+                this.socket.on('video-uploaded', (data) => {
+                    this.displayVideo(data.videoUrl);
+                    this.addSystemMessage(`📹 Video yüklendi: ${data.title || 'Video'}`);
                 });
 
-                this.socket.on('user-left', (data) => {
-                    this.addSystemMessage(`${data.userName} odadan ayrıldı`);
-                });
-
-                this.socket.on('typing', (data) => {
-                    this.showTypingIndicator(data);
-                });
-
-                this.socket.on('disconnect', (reason) => {
-                    console.log('🔌 Kullanıcı ayrıldı:', socket.id, reason);
-                    this.showConnectionStatus('Bağlantı kesildi', true);
-                    this.messageInput.disabled = true;
-                    this.voiceButton.disabled = true;
-                    this.mediaButton.disabled = true;
-                });
-
-                this.socket.on('connect_error', (error) => {
-                    console.error('❌ Bağlantı hatası:', error);
-                    this.showConnectionStatus('Bağlantı hatası', true);
-                });
-            }
-
-            showConnectionStatus(message, isError) {
-                this.connectionStatus.textContent = message;
-                this.connectionStatus.className = `connection-status ${isError ? 'error' : 'connected'}`;
-                this.connectionStatus.style.display = 'block';
-                
-                if (!isError) {
-                    setTimeout(() => {
-                        this.connectionStatus.style.display = 'none';
-                    }, 3000);
-                }
-            }
-
-            // YENİ EKLENEN MEDYA FONKSİYONLARI
-            showMediaModal() {
-                this.mediaModal.classList.add('active');
-            }
-
-            hideMediaModal() {
-                this.mediaModal.classList.remove('active');
-            }
-
-            async selectFromGallery() {
-                this.hideMediaModal();
-                
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/*,video/*';
-                input.multiple = false;
-                
-                input.onchange = (e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                        this.uploadMedia(file);
-                    }
-                };
-                
-                input.click();
-            }
-
-            async takePhoto() {
-                this.hideMediaModal();
-                
-                try {
-                    this.mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                    
-                    // Basit bir kamera arayüzü oluştur
-                    this.showCameraInterface();
-                } catch (error) {
-                    console.error('Kamera erişim hatası:', error);
-                    this.showConnectionStatus('Kamera erişimi reddedildi', true);
-                }
-            }
-
-            showCameraInterface() {
-                // Basit bir kamera arayüzü göster
-                alert('Kamera özelliği geliştirme aşamasındadır. Lütfen galeriden fotoğraf seçin.');
-                
-                // Medya akışını durdur
-                if (this.mediaStream) {
-                    this.mediaStream.getTracks().forEach(track => track.stop());
-                    this.mediaStream = null;
-                }
-            }
-
-            async selectGIF() {
-                this.hideMediaModal();
-                
-                // Basit bir GIF seçim arayüzü
-                const gifUrl = prompt('Lütfen GIF URL\'sini girin:');
-                if (gifUrl) {
-                    this.sendMediaMessage(gifUrl, 'gif');
-                }
-            }
-
-            async selectSticker() {
-                this.hideMediaModal();
-                
-                // Basit bir sticker seçim arayüzü
-                const stickers = [
-                    '😀', '😂', '🥰', '😎', '🤩', '😍', '🙂', '🤗', '👍', '❤️',
-                    '🎉', '🔥', '⭐', '🌈', '🎈', '🎂', '🎁', '🏆', '⚽', '🎮'
-                ];
-                
-                const selectedSticker = prompt(`Bir sticker seçin:\n${stickers.join(' ')}`);
-                if (selectedSticker && stickers.includes(selectedSticker)) {
-                    this.sendMediaMessage(selectedSticker, 'sticker');
-                } else if (selectedSticker) {
-                    alert('Geçersiz sticker seçtiniz.');
-                }
-            }
-
-            async uploadMedia(file) {
-                this.showUploadProgressModal();
-                
-                try {
-                    // Simüle edilmiş yükleme süreci
-                    let progress = 0;
-                    const interval = setInterval(() => {
-                        progress += 5;
-                        this.updateUploadProgress(progress);
-                        
-                        if (progress >= 100) {
-                            clearInterval(interval);
-                            
-                            // Dosyayı oku ve base64'e çevir
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                const mediaData = e.target.result;
-                                this.hideUploadProgressModal();
-                                
-                                // Medya türünü belirle
-                                let mediaType = 'image';
-                                if (file.type.startsWith('video/')) {
-                                    mediaType = 'video';
-                                } else if (file.type === 'image/gif') {
-                                    mediaType = 'gif';
-                                }
-                                
-                                this.sendMediaMessage(mediaData, mediaType, file.name);
-                            };
-                            reader.readAsDataURL(file);
+                this.socket.on('video-update', (data) => {
+                    if (!this.isOwner) {
+                        this.videoPlayer.currentTime = data.currentTime;
+                        if (data.playing) {
+                            this.videoPlayer.play();
+                        } else {
+                            this.videoPlayer.pause();
                         }
-                    }, 100);
-                    
-                } catch (error) {
-                    console.error('Medya yükleme hatası:', error);
-                    this.hideUploadProgressModal();
-                    this.showConnectionStatus('Medya yüklenemedi', true);
-                }
+                    }
+                });
+
+                this.socket.on('video-deleted', () => {
+                    this.hideVideo();
+                    this.addSystemMessage('📹 Video silindi');
+                });
+
+                this.socket.on('message', (msg) => this.displayMessage(msg));
+                this.socket.on('user-joined', (data) => this.addSystemMessage(`${data.userName} odaya katıldı`));
+                this.socket.on('user-left', (data) => this.addSystemMessage(`${data.userName} odadan ayrıldı`));
+                this.socket.on('error', (data) => alert(data.message));
             }
 
-            sendMediaMessage(mediaData, mediaType, caption = '') {
-                if (!this.socket) return;
-
-                const message = {
-                    id: Date.now().toString(),
-                    media: mediaData,
-                    mediaType: mediaType,
-                    caption: caption,
-                    time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-                    userName: this.userName,
-                    userPhoto: this.userPhoto,
-                    userColor: this.userColor,
-                    room: this.currentRoom,
-                    type: 'media'
-                };
-
-                this.socket.emit('message', message);
-            }
-
-            showUploadProgressModal() {
-                this.uploadProgressModal.classList.add('active');
-                this.updateUploadProgress(0);
-            }
-
-            hideUploadProgressModal() {
-                this.uploadProgressModal.classList.remove('active');
-            }
-
-            updateUploadProgress(progress) {
-                this.progressFill.style.width = `${progress}%`;
-                this.progressText.textContent = `%${progress}`;
-                
-                if (progress >= 100) {
-                    this.cancelUpload.style.display = 'none';
-                } else {
-                    this.cancelUpload.style.display = 'block';
-                }
-            }
-
-            cancelUpload() {
-                // Yükleme iptal işlemi
-                if (this.uploadCancelToken) {
-                    this.uploadCancelToken.cancel('Yükleme iptal edildi');
-                }
-                this.hideUploadProgressModal();
-            }
-
-            // YENİ EKLENEN MESAJ DÜZENLEME/SİLME FONKSİYONLARI
-            handleMessageLongPress(e) {
-                e.preventDefault();
-                
-                const messageElement = e.target.closest('.message-content');
-                if (messageElement) {
-                    const messageId = messageElement.closest('.message').dataset.messageId;
-                    this.showMessageActionsModal(messageId);
-                }
-            }
-
-            handleTouchStart(e) {
-                const messageElement = e.target.closest('.message-content');
-                if (messageElement) {
-                    this.touchStartTime = Date.now();
-                    this.longPressTimer = setTimeout(() => {
-                        const messageId = messageElement.closest('.message').dataset.messageId;
-                        this.showMessageActionsModal(messageId);
-                    }, 500); // 500ms uzun basma süresi
-                }
-            }
-
-            handleTouchEnd(e) {
-                if (this.longPressTimer) {
-                    clearTimeout(this.longPressTimer);
-                }
-            }
-
-            showMessageActionsModal(messageId) {
-                this.selectedMessageId = messageId;
-                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-                
-                // Sadece kendi mesajlarını düzenleyebilir/silebilir
-                if (messageElement.classList.contains('own')) {
-                    this.messageActionsModal.classList.add('active');
-                }
-            }
-
-            hideMessageActionsModal() {
-                this.messageActionsModal.classList.remove('active');
-                this.selectedMessageId = null;
-            }
-
-            startEditMessage() {
-                this.hideMessageActionsModal();
-                
-                const messageElement = document.querySelector(`[data-message-id="${this.selectedMessageId}"]`);
-                const messageTextElement = messageElement.querySelector('.message-text');
-                
-                if (messageTextElement) {
-                    this.isEditing = true;
-                    this.originalMessageText = messageTextElement.textContent;
-                    
-                    // Mesajı düzenleme moduna al
-                    messageElement.classList.add('edit-mode');
-                    this.messageInput.value = this.originalMessageText;
-                    this.messageInput.focus();
-                    
-                    // Gönder butonunu kaydet olarak değiştir
-                    this.sendButton.innerHTML = `
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
-                        </svg>
-                    `;
-                    this.sendButton.title = "Kaydet";
-                }
-            }
-
-            confirmDeleteMessage() {
-                this.hideMessageActionsModal();
-                this.deleteConfirmModal.classList.add('active');
-            }
-
-            hideDeleteConfirmModal() {
-                this.deleteConfirmModal.classList.remove('active');
-                this.selectedMessageId = null;
-            }
-
-            async deleteMessage() {
-                this.hideDeleteConfirmModal();
-                
-                if (this.socket && this.selectedMessageId) {
-                    this.socket.emit('delete-message', {
-                        messageId: this.selectedMessageId,
-                        userId: this.userId
-                    });
-                }
-                
-                this.selectedMessageId = null;
-            }
-
-            // YENİ EKLENEN BÖLGE KISITLAMA FONKSİYONLARI
-            showRegionRestrictedModal() {
-                this.regionRestrictedModal.classList.add('active');
-            }
-
-            hideRegionRestrictedModal() {
-                this.regionRestrictedModal.classList.remove('active');
-                // Kullanıcıyı ana sayfaya yönlendir veya uygulamadan çık
-                window.location.href = '/';
-            }
-
-            // SES KAYIT FONKSİYONLARI (Mevcut - Değişmedi)
-            async startVoiceRecording() {
-                if (this.isRecording) {
-                    this.stopVoiceRecording();
+            createRoom() {
+                const roomName = this.roomNameInput.value.trim();
+                const password = this.roomPasswordInput.value.trim();
+                if (!roomName) {
+                    alert('Lütfen oda adını girin!');
                     return;
                 }
-
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    this.setupVoiceRecorder(stream);
-                } catch (error) {
-                    console.error('Mikrofon erişim hatası:', error);
-                    this.showPermissionModal();
-                }
-            }
-
-            showPermissionModal() {
-                this.permissionModal.classList.add('active');
-            }
-
-            hidePermissionModal() {
-                this.permissionModal.classList.remove('active');
-            }
-
-            async requestMicrophonePermission() {
-                this.hidePermissionModal();
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    this.setupVoiceRecorder(stream);
-                } catch (error) {
-                    console.error('Mikrofon izni reddedildi:', error);
-                    this.showConnectionStatus('Mikrofon erişimi reddedildi', true);
-                }
-            }
-
-            setupVoiceRecorder(stream) {
-                this.audioChunks = [];
-                this.isRecording = true;
-                
-                this.mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: 'audio/webm;codecs=opus'
+                this.hideModal(this.createRoomModal);
+                this.connectSocket();
+                this.socket.emit('create-room', {
+                    userName: this.userName,
+                    userPhoto: this.userPhoto,
+                    deviceId: this.deviceId,
+                    roomName: roomName,
+                    password: password || null
                 });
+            }
 
-                this.mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        this.audioChunks.push(event.data);
-                    }
+            joinRoom() {
+                const roomCode = this.roomCodeInput.value.trim().toUpperCase();
+                const password = this.joinPasswordInput.value.trim();
+                if (!roomCode || roomCode.length !== 6) {
+                    alert('Lütfen geçerli 6 haneli oda kodunu girin!');
+                    return;
+                }
+                this.hideModal(this.joinRoomModal);
+                this.connectSocket();
+                this.socket.emit('join-room', {
+                    roomCode: roomCode,
+                    userName: this.userName,
+                    userPhoto: this.userPhoto,
+                    deviceId: this.deviceId,
+                    password: password || null
+                });
+            }
+
+            showChatInterface() {
+                this.landingPage.style.display = 'none';
+                this.chatInterface.style.display = 'flex';
+                this.roomNameDisplay.textContent = this.roomName;
+                this.roomCodeDisplay.textContent = this.roomCode;
+                if (this.isOwner) {
+                    this.uploadZone.style.display = 'block';
+                    this.videoControls.style.display = 'flex';
+                }
+            }
+
+            async uploadVideo(file) {
+                if (!file || !this.isOwner) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    this.noVideo.innerHTML = '<div class="loading">📤 Video yükleniyor...</div>';
+                    this.socket.emit('upload-video', {
+                        videoBase64: e.target.result,
+                        title: file.name
+                    });
                 };
-
-                this.mediaRecorder.onstop = () => {
-                    this.sendVoiceButton.disabled = false;
-                };
-
-                this.setupAudioVisualizer(stream);
-                this.mediaRecorder.start(100);
-                this.recordingStartTime = Date.now();
-                this.startRecordingTimer();
-                this.voiceRecorder.classList.add('active');
-                this.voiceButton.classList.add('recording');
-
-                setTimeout(() => {
-                    if (this.isRecording) {
-                        this.sendVoiceButton.disabled = false;
-                    }
-                }, 1000);
+                reader.readAsDataURL(file);
             }
 
-            setupAudioVisualizer(stream) {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                this.analyser = this.audioContext.createAnalyser();
-                const source = this.audioContext.createMediaStreamSource(stream);
-                source.connect(this.analyser);
-                this.analyser.fftSize = 256;
-
-                this.visualizerInterval = setInterval(() => {
-                    if (!this.isRecording) return;
-                    
-                    const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-                    this.analyser.getByteFrequencyData(dataArray);
-                    
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) {
-                        sum += dataArray[i];
-                    }
-                    const average = sum / dataArray.length;
-                    const scale = Math.min(average / 128, 1);
-                    
-                    this.recordingWave.style.transform = `scaleX(${scale})`;
-                }, 100);
+            displayVideo(url) {
+                this.noVideo.style.display = 'none';
+                this.videoPlayer.style.display = 'block';
+                this.videoPlayer.src = url;
             }
 
-            startRecordingTimer() {
-                this.recordingTimer.textContent = '00:00';
-                const updateTimer = () => {
-                    if (!this.isRecording) return;
-                    
-                    const elapsed = Math.floor((Date.now() - this.recordingStartTime) / 1000);
-                    const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
-                    const seconds = (elapsed % 60).toString().padStart(2, '0');
-                    this.recordingTimer.textContent = `${minutes}:${seconds}`;
-                    
-                    if (elapsed >= 120) {
-                        this.stopVoiceRecording();
-                    } else {
-                        setTimeout(updateTimer, 1000);
-                    }
-                };
-                updateTimer();
-            }
-
-            stopVoiceRecording() {
-                if (!this.isRecording) return;
-                
-                this.isRecording = false;
-                this.mediaRecorder.stop();
-                this.voiceButton.classList.remove('recording');
-                
-                if (this.visualizerInterval) {
-                    clearInterval(this.visualizerInterval);
-                    this.visualizerInterval = null;
-                }
-                
-                if (this.audioContext) {
-                    this.audioContext.close();
-                    this.audioContext = null;
-                }
-                
-                this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
-            }
-
-            cancelVoiceRecording() {
-                this.stopVoiceRecording();
-                this.voiceRecorder.classList.remove('active');
-                this.audioChunks = [];
-            }
-
-            async sendVoiceMessage() {
-                if (this.audioChunks.length === 0) return;
-
-                this.stopVoiceRecording();
-                this.voiceRecorder.classList.remove('active');
-
-                try {
-                    const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-                    
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const audioData = reader.result;
-                        
-                        const message = {
-                            id: Date.now().toString(),
-                            audio: audioData,
-                            duration: Math.floor((Date.now() - this.recordingStartTime) / 1000),
-                            time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-                            userName: this.userName,
-                            userPhoto: this.userPhoto,
-                            userColor: this.userColor,
-                            room: this.currentRoom,
-                            type: 'audio'
-                        };
-
-                        if (this.socket) {
-                            this.socket.emit('message', message);
-                        }
-                        
-                        this.audioChunks = [];
-                    };
-                    reader.readAsDataURL(audioBlob);
-                    
-                } catch (error) {
-                    console.error('Ses mesajı gönderme hatası:', error);
-                    this.showConnectionStatus('Ses mesajı gönderilemedi', true);
+            hideVideo() {
+                this.noVideo.style.display = 'block';
+                this.videoPlayer.style.display = 'none';
+                this.videoPlayer.src = '';
+                if (this.isOwner) {
+                    this.noVideo.innerHTML = `<div class="no-video-icon">📹</div><h3>Video Yok</h3><p>Yeni video yükleyin</p><div class="upload-zone" style="display: block;"><button class="btn btn-primary" onclick="document.getElementById('videoFileInput').click()">Video Seç ve Yükle</button></div>`;
                 }
             }
 
-            // MESAJ FONKSİYONLARI (Güncellendi)
-            handleInput() {
-                const hasText = this.messageInput.value.trim().length > 0;
-                this.sendButton.disabled = !hasText;
-
-                if (hasText && !this.isTyping && !this.isEditing) {
-                    this.isTyping = true;
-                    if (this.socket) {
-                        this.socket.emit('typing', true);
-                    }
-                }
-
-                if (this.typingTimeout) clearTimeout(this.typingTimeout);
-                this.typingTimeout = setTimeout(() => {
-                    if (this.isTyping) {
-                        this.isTyping = false;
-                        if (this.socket) {
-                            this.socket.emit('typing', false);
-                        }
-                    }
-                }, 1000);
+            syncVideo(playing) {
+                if (!this.isOwner) return;
+                this.socket.emit('video-sync', {
+                    playing: playing,
+                    currentTime: this.videoPlayer.currentTime
+                });
             }
 
-            handleKeyPress(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (this.isEditing) {
-                        this.saveEditedMessage();
-                    } else {
-                        this.sendMessage();
-                    }
+            deleteVideo() {
+                if (!this.isOwner) return;
+                if (confirm('Videoyu silmek istediğinizden emin misiniz?')) {
+                    this.socket.emit('delete-video');
                 }
             }
 
             sendMessage() {
                 const text = this.messageInput.value.trim();
-                if (!text || !this.socket) return;
-
-                const message = {
+                if (!text) return;
+                this.socket.emit('message', {
                     id: Date.now().toString(),
                     text: text,
-                    time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-                    userName: this.userName,
-                    userPhoto: this.userPhoto,
-                    userColor: this.userColor,
-                    room: this.currentRoom
-                };
-
-                this.socket.emit('message', message);
-                this.resetMessageInput();
-            }
-
-            saveEditedMessage() {
-                const newText = this.messageInput.value.trim();
-                if (!newText || !this.socket || !this.selectedMessageId) return;
-
-                const editData = {
-                    messageId: this.selectedMessageId,
-                    newText: newText,
-                    userId: this.userId,
-                    editedAt: new Date().toISOString()
-                };
-
-                this.socket.emit('edit-message', editData);
-                this.cancelEdit();
-            }
-
-            cancelEdit() {
-                this.isEditing = false;
-                this.selectedMessageId = null;
-                this.resetMessageInput();
-                
-                // Düzenleme modundaki mesajı normale döndür
-                const editingMessage = document.querySelector('.message.edit-mode');
-                if (editingMessage) {
-                    editingMessage.classList.remove('edit-mode');
-                }
-                
-                // Gönder butonunu eski haline getir
-                this.sendButton.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                    </svg>
-                `;
-                this.sendButton.title = "Gönder";
-            }
-
-            resetMessageInput() {
+                    type: 'text'
+                });
                 this.messageInput.value = '';
-                this.messageInput.style.height = 'auto';
-                this.sendButton.disabled = true;
-
-                if (this.isTyping) {
-                    this.isTyping = false;
-                    this.socket.emit('typing', false);
-                }
             }
 
-            displayMessage(message) {
-                // Eğer mesaj zaten varsa güncelle
-                const existingMessage = document.querySelector(`[data-message-id="${message.id}"]`);
-                if (existingMessage) {
-                    this.updateMessageDisplay(message);
-                    return;
-                }
-
-                const messageElement = document.createElement('div');
-                messageElement.className = `message ${message.userName === this.userName ? 'own' : 'other'}`;
-                messageElement.dataset.messageId = message.id;
-
-                const avatar = document.createElement('img');
-                avatar.className = 'user-avatar';
-                avatar.src = message.userPhoto || this.createDefaultAvatar(message.userName);
-                avatar.alt = message.userName;
-                avatar.style.backgroundColor = message.userColor;
-
-                const messageContent = document.createElement('div');
-                messageContent.className = 'message-content';
-                
-                if (message.type === 'audio') {
-                    messageContent.innerHTML = `
-                        <div class="message-header">
-                            <div class="message-sender">${this.escapeHtml(message.userName)}</div>
-                            <div class="message-time">${message.time}</div>
-                        </div>
-                        <div class="audio-message">
-                            <audio controls class="audio-player">
-                                <source src="${message.audio}" type="audio/webm">
-                                Tarayıcınız ses öğesini desteklemiyor.
-                            </audio>
-                            <div class="audio-duration">${this.formatDuration(message.duration)}</div>
-                        </div>
-                    `;
-                } else if (message.type === 'media') {
-                    let mediaHtml = '';
-                    
-                    if (message.mediaType === 'image') {
-                        mediaHtml = `<img src="${message.media}" class="media-image" alt="${message.caption}">`;
-                    } else if (message.mediaType === 'video') {
-                        mediaHtml = `
-                            <div class="media-container">
-                                <video controls class="media-video">
-                                    <source src="${message.media}" type="video/mp4">
-                                    Tarayıcınız video öğesini desteklemiyor.
-                                </video>
-                                <div class="media-overlay">
-                                    <div class="media-play-button">▶️</div>
-                                </div>
-                            </div>
-                        `;
-                    } else if (message.mediaType === 'gif') {
-                        mediaHtml = `<img src="${message.media}" class="media-gif" alt="GIF">`;
-                    } else if (message.mediaType === 'sticker') {
-                        mediaHtml = `<div class="media-sticker">${message.media}</div>`;
-                    }
-                    
-                    messageContent.innerHTML = `
-                        <div class="message-header">
-                            <div class="message-sender">${this.escapeHtml(message.userName)}</div>
-                            <div class="message-time">${message.time}</div>
-                        </div>
-                        <div class="media-message">
-                            ${mediaHtml}
-                            ${message.caption ? `<div class="media-caption">${this.escapeHtml(message.caption)}</div>` : ''}
-                        </div>
-                    `;
-                } else {
-                    // Metin mesajı
-                    const editedIndicator = message.edited ? `<span class="message-edited">(düzenlendi)</span>` : '';
-                    
-                    messageContent.innerHTML = `
-                        <div class="message-header">
-                            <div class="message-sender">${this.escapeHtml(message.userName)}</div>
-                            <div class="message-time">${message.time} ${editedIndicator}</div>
-                        </div>
-                        <div class="message-text">${this.escapeHtml(message.text)}</div>
-                    `;
-                }
-
-                messageElement.appendChild(avatar);
-                messageElement.appendChild(messageContent);
-                this.messagesContainer.appendChild(messageElement);
-                this.scrollToBottom();
-            }
-
-            updateMessageDisplay(message) {
-                const messageElement = document.querySelector(`[data-message-id="${message.id}"]`);
-                if (!messageElement) return;
-
-                const messageContent = messageElement.querySelector('.message-content');
-                const editedIndicator = message.edited ? `<span class="message-edited">(düzenlendi)</span>` : '';
-                
-                if (message.type === 'text' || !message.type) {
-                    messageContent.innerHTML = `
-                        <div class="message-header">
-                            <div class="message-sender">${this.escapeHtml(message.userName)}</div>
-                            <div class="message-time">${message.time} ${editedIndicator}</div>
-                        </div>
-                        <div class="message-text">${this.escapeHtml(message.text)}</div>
-                    `;
-                }
-            }
-
-            removeMessageDisplay(messageId) {
-                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-                if (messageElement) {
-                    messageElement.remove();
-                }
-            }
-
-            formatDuration(seconds) {
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            displayMessage(msg) {
+                const isOwn = msg.userName === this.userName;
+                const messageEl = document.createElement('div');
+                messageEl.className = `message ${isOwn ? 'own' : ''}`;
+                messageEl.innerHTML = `
+                    <img src="${msg.userPhoto || this.createDefaultAvatar(msg.userName)}" class="message-avatar" alt="${msg.userName}">
+                    <div class="message-content" style="background: ${isOwn ? '#667eea' : msg.userColor};">
+                        <div class="message-sender">${msg.userName}</div>
+                        <div class="message-text">${this.escapeHtml(msg.text)}</div>
+                        <div class="message-time">${msg.time}</div>
+                    </div>
+                `;
+                this.messagesContainer.appendChild(messageEl);
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
 
             addSystemMessage(text) {
-                const systemMessage = document.createElement('div');
-                systemMessage.className = 'message system';
-                systemMessage.style.alignSelf = 'center';
-                systemMessage.style.background = 'rgba(0,0,0,0.1)';
-                systemMessage.style.color = '#666';
-                systemMessage.style.fontSize = '14px';
-                systemMessage.style.fontStyle = 'italic';
-                systemMessage.style.padding = '8px 16px';
-                systemMessage.style.borderRadius = '15px';
-                systemMessage.innerHTML = this.escapeHtml(text);
-                
-                this.messagesContainer.appendChild(systemMessage);
-                this.scrollToBottom();
+                const msgEl = document.createElement('div');
+                msgEl.style.cssText = 'align-self: center; background: rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 15px; font-size: 13px; color: #ccc; margin: 5px 0;';
+                msgEl.textContent = text;
+                this.messagesContainer.appendChild(msgEl);
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
 
-            showTypingIndicator(data) {
-                if (data.isTyping && data.userName !== this.userName) {
-                    this.typingIndicator.textContent = `${data.userName} yazıyor...`;
-                    this.typingIndicator.style.display = 'block';
-                } else {
-                    this.typingIndicator.style.display = 'none';
-                }
-                this.scrollToBottom();
-            }
-
-            updateUserList(users) {
-                this.userList.innerHTML = '';
-                this.onlineCount.textContent = `${users.length} online`;
-
+            updateUsersList(users) {
+                this.usersList.innerHTML = '';
                 users.forEach(user => {
-                    const userItem = document.createElement('li');
-                    userItem.className = 'user-item';
-                    
-                    const avatar = document.createElement('img');
-                    avatar.className = 'user-avatar';
-                    avatar.src = user.userPhoto || this.createDefaultAvatar(user.userName);
-                    avatar.alt = user.userName;
-                    avatar.style.backgroundColor = user.userColor;
-
-                    userItem.innerHTML = `
-                        <div class="user-info">
-                            <div class="user-name">${this.escapeHtml(user.userName)}</div>
-                            <div class="user-city">${this.escapeHtml(user.city)}</div>
-                        </div>
+                    const userEl = document.createElement('div');
+                    userEl.className = 'user-item';
+                    userEl.innerHTML = `
+                        <img src="${user.userPhoto || this.createDefaultAvatar(user.userName)}" class="user-avatar" alt="${user.userName}">
+                        <div class="user-name">${user.userName}${user.isOwner ? '<span class="owner-badge">Oda Sahibi</span>' : ''}</div>
                     `;
-                    userItem.prepend(avatar);
-                    this.userList.appendChild(userItem);
+                    this.usersList.appendChild(userEl);
                 });
-            }
-
-            scrollToBottom() {
-                setTimeout(() => {
-                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                }, 100);
-            }
-
-            // PROFİL FONKSİYONLARI (Mevcut - Değişmedi)
-            showWelcomeModal() {
-                this.welcomeModal.classList.add('active');
-                this.usernameInput.focus();
-            }
-
-            hideWelcomeModal() {
-                this.welcomeModal.classList.remove('active');
-            }
-
-            showProfileModal() {
-                this.editUsername.value = this.userName;
-                this.editPhotoPreview.src = this.userPhoto || this.createDefaultAvatar(this.userName);
-                this.profileModal.classList.add('active');
-            }
-
-            hideProfileModal() {
-                this.profileModal.classList.remove('active');
-            }
-
-            handlePhotoSelect(event) {
-                const file = event.target.files[0];
-                if (file) {
-                    this.previewImage(file, this.photoPreview);
-                }
-            }
-
-            handleEditPhotoSelect(event) {
-                const file = event.target.files[0];
-                if (file) {
-                    this.previewImage(file, this.editPhotoPreview);
-                }
-            }
-
-            previewImage(file, previewElement) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    previewElement.src = e.target.result;
-                    previewElement.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
-            }
-
-            startChat() {
-                const username = this.usernameInput.value.trim();
-                if (!username) {
-                    alert('Lütfen kullanıcı adınızı girin!');
-                    return;
-                }
-
-                this.userName = username;
-                this.userColor = this.generateColor(username);
-                
-                localStorage.setItem('userName', username);
-                localStorage.setItem('userId', this.userId);
-
-                const file = this.photoInput.files[0];
-                if (file) {
-                    this.uploadProfilePhoto(file);
-                } else {
-                    this.userPhoto = this.createDefaultAvatar(username);
-                    localStorage.setItem('userPhoto', this.userPhoto);
-                    this.updateProfileDisplay();
-                    this.hideWelcomeModal();
-                    this.startCityScanning();
-                }
-            }
-
-            uploadProfilePhoto(file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    this.userPhoto = e.target.result;
-                    localStorage.setItem('userPhoto', this.userPhoto);
-                    this.updateProfileDisplay();
-                    
-                    this.hideWelcomeModal();
-                    this.startCityScanning();
-                };
-                reader.readAsDataURL(file);
-            }
-
-            saveProfile() {
-                const newUsername = this.editUsername.value.trim();
-                if (!newUsername) {
-                    alert('Lütfen kullanıcı adınızı girin!');
-                    return;
-                }
-
-                this.userName = newUsername;
-                localStorage.setItem('userName', newUsername);
-
-                const file = this.editPhotoInput.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        this.userPhoto = e.target.result;
-                        localStorage.setItem('userPhoto', this.userPhoto);
-                        this.updateProfileDisplay();
-                        this.sendProfileUpdate();
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    this.userPhoto = this.editPhotoPreview.src;
-                    localStorage.setItem('userPhoto', this.userPhoto);
-                    this.updateProfileDisplay();
-                    this.sendProfileUpdate();
-                }
-
-                this.hideProfileModal();
-            }
-
-            sendProfileUpdate() {
-                if (this.socket) {
-                    this.socket.emit('update-profile', {
-                        userId: this.userId,
-                        userName: this.userName,
-                        userPhoto: this.userPhoto
-                    });
-                }
-            }
-
-            updateProfileDisplay() {
-                this.profileAvatar.src = this.userPhoto || this.createDefaultAvatar(this.userName);
-                this.profileAvatar.alt = this.userName;
             }
 
             createDefaultAvatar(username) {
                 const firstLetter = username ? username.charAt(0).toUpperCase() : '?';
-                return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="${this.userColor}"/><text x="50" y="60" font-family="Arial" font-size="40" text-anchor="middle" fill="white">${firstLetter}</text></svg>`;
-            }
-
-            // DİĞER FONKSİYONLAR (Mevcut - Değişmedi)
-            saveMessageToStorage(message) {
-                if (!this.currentRoom) return;
-                
-                const key = `city_${this.currentRoom}_messages`;
-                let messages = JSON.parse(localStorage.getItem(key) || '[]');
-                
-                messages.push({
-                    ...message,
-                    stored: true
-                });
-
-                if (messages.length > 100) {
-                    messages = messages.slice(-100);
-                }
-
-                localStorage.setItem(key, JSON.stringify(messages));
-            }
-
-            loadMessagesFromStorage() {
-                if (!this.currentRoom) return;
-
-                const key = `city_${this.currentRoom}_messages`;
-                const messages = JSON.parse(localStorage.getItem(key) || '[]');
-                
-                this.messagesContainer.innerHTML = '';
-                messages.forEach(message => {
-                    this.displayMessage(message);
-                });
-            }
-
-            toggleUsersSidebar() {
-                this.usersSidebar.classList.toggle('active');
+                const color = this.generateColor(username);
+                return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="${color}"/><text x="50" y="60" font-family="Arial" font-size="40" text-anchor="middle" fill="white">${firstLetter}</text></svg>`;
             }
 
             escapeHtml(text) {
@@ -2289,10 +565,18 @@
                 div.textContent = text;
                 return div.innerHTML;
             }
+
+            showModal(modal) {
+                modal.classList.add('active');
+            }
+
+            hideModal(modal) {
+                modal.classList.remove('active');
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            new ChatApp();
+            new VideoPlatform();
         });
     </script>
 </body>
