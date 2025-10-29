@@ -1,13 +1,14 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
 
-// Tüm origin'lere izin ver
+// Render için CORS ayarları
 const io = socketIo(server, {
   cors: {
     origin: "*",
@@ -17,312 +18,336 @@ const io = socketIo(server, {
   transports: ['websocket', 'polling']
 });
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.static('public'));
+// Middleware
+app.use(express.json({ limit: '100mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Basit bellek deposu
+// Oda yönetimi
 const rooms = new Map();
-const activeUsers = new Map();
-const roomCodes = new Set();
+const users = new Map();
 
+// Yardımcı fonksiyonlar
 function generateRoomCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code;
-  do {
-    code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-  } while (roomCodes.has(code));
+  return crypto.randomBytes(3).toString('hex').toUpperCase();
+}
+
+function sanitizeUser(user) {
+  return {
+    id: user.id,
+    userName: user.userName,
+    userPhoto: user.userPhoto,
+    userColor: user.userColor,
+    isOwner: user.isOwner,
+    country: user.country || 'Türkiye',
+    deviceId: user.deviceId
+  };
+}
+
+function getRoomByCode(roomCode) {
+  return rooms.get(roomCode);
+}
+
+function createRoom(roomName, password, owner) {
+  const roomCode = generateRoomCode();
+  const room = {
+    code: roomCode,
+    name: roomName,
+    password: password,
+    owner: owner.id,
+    users: new Map(),
+    activeVideo: null,
+    playbackState: {
+      playing: false,
+      currentTime: 0,
+      playbackRate: 1
+    },
+    createdAt: new Date()
+  };
   
-  roomCodes.add(code);
-  return code;
+  room.users.set(owner.id, owner);
+  rooms.set(roomCode, room);
+  
+  return room;
 }
 
-function generateColor(username) {
-  const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'];
-  const index = username ? username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 0;
-  return colors[index % colors.length];
-}
-
-// Socket.io bağlantısı
+// Socket.io bağlantı yönetimi
 io.on('connection', (socket) => {
-  console.log('🔗 Yeni bağlantı:', socket.id);
+  console.log('🔗 Yeni kullanıcı bağlandı:', socket.id);
 
+  let currentUser = null;
+  let currentRoom = null;
+
+  // Oda oluşturma
   socket.on('create-room', (data) => {
     try {
-      const { userName, userPhoto, roomName, password } = data;
+      const { userName, userPhoto, deviceId, roomName, password } = data;
       
-      if (!userName || !roomName) {
-        socket.emit('error', { message: 'Kullanıcı adı ve oda adı gereklidir!' });
-        return;
-      }
-
-      const roomCode = generateRoomCode();
-      const userColor = generateColor(userName);
-
-      // Odayı oluştur
-      const room = {
-        roomCode,
-        roomName,
-        ownerId: socket.id,
-        password: password || null,
-        participants: [],
-        activeVideo: null,
-        playbackState: {
-          playing: false,
-          currentTime: 0,
-          playbackRate: 1
-        },
-        createdAt: new Date()
-      };
-
-      rooms.set(roomCode, room);
-
-      // Kullanıcıyı kaydet
-      const user = {
+      // Kullanıcı oluştur
+      currentUser = {
         id: socket.id,
-        socketId: socket.id,
-        userName,
-        userPhoto: userPhoto || '',
-        userColor,
-        roomCode,
+        userName: userName || 'Anonim',
+        userPhoto: userPhoto,
+        userColor: `hsl(${Math.random() * 360}, 70%, 60%)`,
+        deviceId: deviceId,
         isOwner: true,
-        joinedAt: new Date()
+        country: 'Türkiye'
       };
-
-      activeUsers.set(socket.id, user);
-      room.participants.push(user);
-      socket.join(roomCode);
-
-      console.log('✅ Oda oluşturuldu:', roomCode);
       
-      // Başarılı yanıt gönder
-      socket.emit('room-joined', {
-        roomCode,
-        roomName,
-        isOwner: true,
-        activeVideo: room.activeVideo,
-        playbackState: room.playbackState,
-        userColor
+      users.set(socket.id, currentUser);
+      
+      // Oda oluştur
+      const room = createRoom(roomName, password, currentUser);
+      currentRoom = room;
+      
+      socket.join(room.code);
+      
+      // Başarılı yanıt
+      socket.emit('room-created', {
+        roomCode: room.code,
+        roomName: room.name,
+        isOwner: true
       });
-
+      
+      // Odaya katıldı mesajı
+      socket.to(room.code).emit('user-joined', {
+        userName: currentUser.userName
+      });
+      
       // Kullanıcı listesini güncelle
-      updateRoomUsers(roomCode);
-
+      updateUserList(room);
+      
+      console.log(`✅ Oda oluşturuldu: ${room.code} - ${room.name}`);
+      
     } catch (error) {
       console.error('❌ Oda oluşturma hatası:', error);
       socket.emit('error', { message: 'Oda oluşturulamadı' });
     }
   });
 
+  // Odaya katılma
   socket.on('join-room', (data) => {
     try {
-      const { roomCode, userName, userPhoto, password } = data;
+      const { roomCode, userName, userPhoto, deviceId, password } = data;
       
-      if (!roomCode || !userName) {
-        socket.emit('error', { message: 'Oda kodu ve kullanıcı adı gereklidir!' });
-        return;
-      }
-
-      const room = rooms.get(roomCode.toUpperCase());
-      
+      const room = getRoomByCode(roomCode);
       if (!room) {
-        socket.emit('error', { message: 'Oda bulunamadı!' });
+        socket.emit('error', { message: 'Oda bulunamadı' });
         return;
       }
-
+      
+      // Şifre kontrolü
       if (room.password && room.password !== password) {
-        socket.emit('error', { message: 'Yanlış şifre!' });
+        socket.emit('error', { message: 'Geçersiz şifre' });
         return;
       }
-
-      const userColor = generateColor(userName);
-      const user = {
+      
+      // Kullanıcı oluştur
+      currentUser = {
         id: socket.id,
-        socketId: socket.id,
-        userName,
-        userPhoto: userPhoto || '',
-        userColor,
-        roomCode: room.roomCode,
-        isOwner: room.ownerId === socket.id,
-        joinedAt: new Date()
+        userName: userName || 'Anonim',
+        userPhoto: userPhoto,
+        userColor: `hsl(${Math.random() * 360}, 70%, 60%)`,
+        deviceId: deviceId,
+        isOwner: false,
+        country: 'Türkiye'
       };
-
-      activeUsers.set(socket.id, user);
-      room.participants.push(user);
-      socket.join(room.roomCode);
-
+      
+      users.set(socket.id, currentUser);
+      room.users.set(socket.id, currentUser);
+      currentRoom = room;
+      
+      socket.join(room.code);
+      
+      // Başarılı yanıt
       socket.emit('room-joined', {
-        roomCode: room.roomCode,
-        roomName: room.roomName,
-        isOwner: user.isOwner,
+        roomCode: room.code,
+        roomName: room.name,
+        isOwner: false,
         activeVideo: room.activeVideo,
         playbackState: room.playbackState,
-        userColor
+        userColor: currentUser.userColor
       });
-
+      
       // Diğer kullanıcılara bildir
-      socket.to(room.roomCode).emit('user-joined', {
-        userName: user.userName
+      socket.to(room.code).emit('user-joined', {
+        userName: currentUser.userName
       });
-
-      updateRoomUsers(room.roomCode);
-      console.log(`✅ ${userName} odaya katıldı: ${room.roomCode}`);
-
+      
+      // Kullanıcı listesini güncelle
+      updateUserList(room);
+      
+      console.log(`✅ Kullanıcı odaya katıldı: ${userName} -> ${room.code}`);
+      
     } catch (error) {
-      console.error('❌ Katılma hatası:', error);
-      socket.emit('error', { message: 'Odaya katılınamadı' });
+      console.error('❌ Odaya katılma hatası:', error);
+      socket.emit('error', { message: 'Odaya katılamadı' });
     }
   });
 
-  // 🚨 EKSİK OLAN EVENT'LERİ EKLE
+  // Video yükleme
   socket.on('upload-video', (data) => {
-    const user = activeUsers.get(socket.id);
-    if (!user || !user.isOwner) {
-      socket.emit('error', { message: 'Sadece oda sahibi video yükleyebilir!' });
-      return;
-    }
-
-    const room = rooms.get(user.roomCode);
-    if (room) {
-      // Base64 video URL'sini kullan
-      room.activeVideo = {
-        url: data.videoBase64,
-        title: data.title,
+    try {
+      if (!currentRoom || !currentUser || !currentUser.isOwner) {
+        socket.emit('error', { message: 'Video yüklemek için oda sahibi olmalısınız' });
+        return;
+      }
+      
+      const { videoBase64, title } = data;
+      
+      // Base64 verisini doğrudan kullan
+      const videoData = {
+        url: videoBase64,
+        title: title || 'Video',
+        uploadedBy: currentUser.userName,
         uploadedAt: new Date()
       };
-
-      // Tüm kullanıcılara bildir
-      io.to(user.roomCode).emit('video-uploaded', {
-        videoUrl: data.videoBase64,
-        title: data.title
-      });
-
-      console.log(`🎬 Video yüklendi: ${data.title}`);
-    }
-  });
-
-  socket.on('delete-video', () => {
-    const user = activeUsers.get(socket.id);
-    if (!user || !user.isOwner) return;
-
-    const room = rooms.get(user.roomCode);
-    if (room) {
-      room.activeVideo = null;
-      room.playbackState = {
+      
+      currentRoom.activeVideo = videoData;
+      currentRoom.playbackState = {
         playing: false,
         currentTime: 0,
         playbackRate: 1
       };
-
-      io.to(user.roomCode).emit('video-deleted');
-      console.log(`🗑️ Video silindi: ${user.roomCode}`);
+      
+      // Tüm kullanıcılara video yüklendiğini bildir
+      io.to(currentRoom.code).emit('video-uploaded', {
+        videoUrl: videoData.url,
+        title: videoData.title
+      });
+      
+      console.log(`🎬 Video yüklendi: ${title} -> ${currentRoom.code}`);
+      
+    } catch (error) {
+      console.error('❌ Video yükleme hatası:', error);
+      socket.emit('error', { message: 'Video yüklenemedi' });
     }
   });
 
+  // Video kontrolü
   socket.on('video-control', (controlData) => {
-    const user = activeUsers.get(socket.id);
-    if (!user || !user.isOwner) return;
-
-    const room = rooms.get(user.roomCode);
-    if (room) {
-      // Oda durumunu güncelle
-      if (controlData.playing !== undefined) room.playbackState.playing = controlData.playing;
-      if (controlData.currentTime !== undefined) room.playbackState.currentTime = controlData.currentTime;
-      if (controlData.playbackRate !== undefined) room.playbackState.playbackRate = controlData.playbackRate;
-
-      // Diğer kullanıcılara gönder (oda sahibi hariç)
-      socket.to(user.roomCode).emit('video-control', controlData);
-    }
-  });
-
-  socket.on('message', (messageData) => {
-    const user = activeUsers.get(socket.id);
-    if (!user) return;
-
-    const message = {
-      id: Date.now().toString(),
-      time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-      userName: user.userName,
-      userPhoto: user.userPhoto,
-      userColor: user.userColor,
-      roomCode: user.roomCode,
-      ...messageData
+    if (!currentRoom || !currentUser || !currentUser.isOwner) return;
+    
+    currentRoom.playbackState = {
+      playing: controlData.playing,
+      currentTime: controlData.currentTime,
+      playbackRate: controlData.playbackRate
     };
-
-    io.to(user.roomCode).emit('message', message);
+    
+    // Oda sahibi dışındaki herkese kontrol bilgilerini gönder
+    socket.to(currentRoom.code).emit('video-control', controlData);
   });
 
-  function updateRoomUsers(roomCode) {
-    const room = rooms.get(roomCode);
-    if (!room) return;
+  // Video silme
+  socket.on('delete-video', () => {
+    if (!currentRoom || !currentUser || !currentUser.isOwner) return;
+    
+    currentRoom.activeVideo = null;
+    currentRoom.playbackState = {
+      playing: false,
+      currentTime: 0,
+      playbackRate: 1
+    };
+    
+    io.to(currentRoom.code).emit('video-deleted');
+  });
 
-    const users = room.participants.map(user => ({
-      userId: user.id,
-      userName: user.userName,
-      userPhoto: user.userPhoto,
-      userColor: user.userColor,
-      isOwner: user.isOwner
-    }));
+  // Mesaj gönderme
+  socket.on('message', (messageData) => {
+    if (!currentRoom || !currentUser) return;
+    
+    const message = {
+      id: crypto.randomBytes(8).toString('hex'),
+      userName: currentUser.userName,
+      userPhoto: currentUser.userPhoto,
+      userColor: currentUser.userColor,
+      text: messageData.text,
+      type: messageData.type || 'text',
+      time: new Date().toLocaleTimeString('tr-TR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }),
+      country: currentUser.country
+    };
+    
+    io.to(currentRoom.code).emit('message', message);
+  });
 
-    io.to(roomCode).emit('user-list-update', users);
+  // Kullanıcı listesini güncelleme fonksiyonu
+  function updateUserList(room) {
+    const userList = Array.from(room.users.values()).map(user => sanitizeUser(user));
+    io.to(room.code).emit('user-list-update', userList);
   }
 
-  // Disconnect
+  // Bağlantı kesildiğinde
   socket.on('disconnect', () => {
-    const user = activeUsers.get(socket.id);
-    if (user) {
-      const room = rooms.get(user.roomCode);
-      if (room) {
-        room.participants = room.participants.filter(p => p.id !== user.id);
-        
-        // Oda boşsa sil
-        if (room.participants.length === 0) {
-          rooms.delete(user.roomCode);
-          roomCodes.delete(user.roomCode);
-          console.log(`🗑️ Oda silindi: ${user.roomCode}`);
-        } else {
-          updateRoomUsers(user.roomCode);
-          socket.to(user.roomCode).emit('user-left', { userName: user.userName });
-        }
-      }
+    console.log('🔌 Kullanıcı ayrıldı:', socket.id);
+    
+    if (currentRoom && currentUser) {
+      // Kullanıcıyı odadan çıkar
+      currentRoom.users.delete(socket.id);
       
-      activeUsers.delete(socket.id);
-      console.log(`🔌 ${user.userName} ayrıldı`);
+      // Diğer kullanıcılara bildir
+      socket.to(currentRoom.code).emit('user-left', {
+        userName: currentUser.userName
+      });
+      
+      // Eğer oda sahibi ayrıldıysa ve odada kimse kalmadıysa odayı temizle
+      if (currentUser.isOwner && currentRoom.users.size === 0) {
+        rooms.delete(currentRoom.code);
+        console.log(`🗑️ Oda silindi: ${currentRoom.code}`);
+      } else if (currentRoom.users.size > 0) {
+        // Kullanıcı listesini güncelle
+        updateUserList(currentRoom);
+      }
     }
+    
+    // Kullanıcıyı temizle
+    users.delete(socket.id);
+  });
+
+  // Hata yönetimi
+  socket.on('error', (error) => {
+    console.error('❌ Socket hatası:', error);
   });
 });
 
 // API Routes
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
-    activeUsers: activeUsers.size,
+    timestamp: new Date().toISOString(),
     rooms: rooms.size,
-    timestamp: new Date().toISOString()
+    users: users.size
   });
 });
 
 app.get('/api/rooms', (req, res) => {
-  const roomsList = Array.from(rooms.values()).map(room => ({
-    roomCode: room.roomCode,
-    roomName: room.roomName,
-    participants: room.participants.length,
+  const roomList = Array.from(rooms.values()).map(room => ({
+    code: room.code,
+    name: room.name,
+    userCount: room.users.size,
+    hasPassword: !!room.password,
     createdAt: room.createdAt
   }));
-  res.json(roomsList);
+  res.json(roomList);
 });
 
+// Static files (Render için)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Render için PORT ayarı
-const PORT = process.env.PORT || 3000;
+// Başlatma
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Render Sunucusu ${PORT} portunda çalışıyor`);
-  console.log(`🔗 Health: http://localhost:${PORT}/health`);
-  console.log(`📱 Socket.io bağlantısı hazır`);
+  console.log(`🚀 Server ${PORT} portunda çalışıyor`);
+  console.log(`🌐 URL: http://localhost:${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM alındı, server kapatılıyor...');
+  server.close(() => {
+    console.log('✅ Server başarıyla kapatıldı');
+    process.exit(0);
+  });
 });
