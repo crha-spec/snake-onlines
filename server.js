@@ -7,10 +7,10 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// Render için CORS ayarı
+// Tüm origin'lere izin ver
 const io = socketIo(server, {
   cors: {
-    origin: ["https://your-app-name.onrender.com", "http://localhost:3000"],
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -21,7 +21,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
-// Basit bellek deposu (MongoDB olmadan)
+// Basit bellek deposu
 const rooms = new Map();
 const activeUsers = new Map();
 const roomCodes = new Set();
@@ -177,37 +177,67 @@ io.on('connection', (socket) => {
     }
   });
 
-  function updateRoomUsers(roomCode) {
-    const room = rooms.get(roomCode);
-    if (!room) return;
+  // 🚨 EKSİK OLAN EVENT'LERİ EKLE
+  socket.on('upload-video', (data) => {
+    const user = activeUsers.get(socket.id);
+    if (!user || !user.isOwner) {
+      socket.emit('error', { message: 'Sadece oda sahibi video yükleyebilir!' });
+      return;
+    }
 
-    const users = room.participants.map(user => ({
-      userId: user.id,
-      userName: user.userName,
-      userPhoto: user.userPhoto,
-      userColor: user.userColor,
-      isOwner: user.isOwner
-    }));
+    const room = rooms.get(user.roomCode);
+    if (room) {
+      // Base64 video URL'sini kullan
+      room.activeVideo = {
+        url: data.videoBase64,
+        title: data.title,
+        uploadedAt: new Date()
+      };
 
-    io.to(roomCode).emit('user-list-update', users);
-  }
+      // Tüm kullanıcılara bildir
+      io.to(user.roomCode).emit('video-uploaded', {
+        videoUrl: data.videoBase64,
+        title: data.title
+      });
 
-  // Video kontrol
+      console.log(`🎬 Video yüklendi: ${data.title}`);
+    }
+  });
+
+  socket.on('delete-video', () => {
+    const user = activeUsers.get(socket.id);
+    if (!user || !user.isOwner) return;
+
+    const room = rooms.get(user.roomCode);
+    if (room) {
+      room.activeVideo = null;
+      room.playbackState = {
+        playing: false,
+        currentTime: 0,
+        playbackRate: 1
+      };
+
+      io.to(user.roomCode).emit('video-deleted');
+      console.log(`🗑️ Video silindi: ${user.roomCode}`);
+    }
+  });
+
   socket.on('video-control', (controlData) => {
     const user = activeUsers.get(socket.id);
     if (!user || !user.isOwner) return;
 
     const room = rooms.get(user.roomCode);
     if (room) {
+      // Oda durumunu güncelle
       if (controlData.playing !== undefined) room.playbackState.playing = controlData.playing;
       if (controlData.currentTime !== undefined) room.playbackState.currentTime = controlData.currentTime;
       if (controlData.playbackRate !== undefined) room.playbackState.playbackRate = controlData.playbackRate;
 
+      // Diğer kullanıcılara gönder (oda sahibi hariç)
       socket.to(user.roomCode).emit('video-control', controlData);
     }
   });
 
-  // Mesaj
   socket.on('message', (messageData) => {
     const user = activeUsers.get(socket.id);
     if (!user) return;
@@ -225,6 +255,21 @@ io.on('connection', (socket) => {
     io.to(user.roomCode).emit('message', message);
   });
 
+  function updateRoomUsers(roomCode) {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    const users = room.participants.map(user => ({
+      userId: user.id,
+      userName: user.userName,
+      userPhoto: user.userPhoto,
+      userColor: user.userColor,
+      isOwner: user.isOwner
+    }));
+
+    io.to(roomCode).emit('user-list-update', users);
+  }
+
   // Disconnect
   socket.on('disconnect', () => {
     const user = activeUsers.get(socket.id);
@@ -237,6 +282,7 @@ io.on('connection', (socket) => {
         if (room.participants.length === 0) {
           rooms.delete(user.roomCode);
           roomCodes.delete(user.roomCode);
+          console.log(`🗑️ Oda silindi: ${user.roomCode}`);
         } else {
           updateRoomUsers(user.roomCode);
           socket.to(user.roomCode).emit('user-left', { userName: user.userName });
