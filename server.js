@@ -138,7 +138,7 @@ io.on('connection', (socket) => {
       socket.join(roomCode);
       
       // Paylaşım linki oluştur
-      const shareableLink = `${process.env.NODE_ENV === 'production' ? 'https://snake-onlines-xe9h.onrender.com' : 'http://localhost:10000'}?room=${roomCode}`;
+      const shareableLink = `${process.env.NODE_ENV === 'production' ? 'https://buyepyenibisiy.onrender.com' : 'http://localhost:10000'}?room=${roomCode}`;
       
       // BAŞARILI CEVAP
       socket.emit('room-created', {
