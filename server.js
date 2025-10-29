@@ -5,25 +5,31 @@ const path = require('path');
 const crypto = require('crypto');
 const cloudinary = require('cloudinary').v2;
 const mongoose = require('mongoose');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 10000;
 
 // Environment Variables
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/videoapp';
 const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
 const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 
-// Cloudinary configuration - BÜYÜK FİLMLER İÇİN
-cloudinary.config({
-  cloud_name: CLOUDINARY_CLOUD_NAME,
-  api_key: CLOUDINARY_API_KEY,
-  api_secret: CLOUDINARY_API_SECRET,
-  timeout: 600000, // 10 dakika timeout
-  chunk_size: 20000000 // 20MB chunks
-});
+// Cloudinary configuration
+if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: CLOUDINARY_CLOUD_NAME,
+    api_key: CLOUDINARY_API_KEY,
+    api_secret: CLOUDINARY_API_SECRET,
+    timeout: 600000,
+    chunk_size: 20000000
+  });
+  console.log('✅ Cloudinary configured');
+} else {
+  console.log('⚠️ Cloudinary not configured - using Base64 fallback');
+}
 
 // MongoDB connection
 mongoose.connect(MONGODB_URI)
@@ -37,12 +43,14 @@ const roomSchema = new mongoose.Schema({
   password: String,
   owner: { type: String, required: true },
   activeVideo: {
+    type: { type: String, enum: ['upload', 'youtube'], default: 'upload' },
     url: String,
     title: String,
     cloudinaryId: String,
     uploadedBy: String,
     uploadedAt: Date,
-    fileSize: Number
+    fileSize: Number,
+    videoId: String // For YouTube videos
   },
   playbackState: {
     playing: Boolean,
@@ -70,8 +78,11 @@ const messageSchema = new mongoose.Schema({
   userName: { type: String, required: true },
   userPhoto: String,
   userColor: String,
-  text: { type: String, required: true },
+  text: String,
   type: { type: String, default: 'text' },
+  fileUrl: String,
+  fileName: String,
+  fileSize: Number,
   time: String,
   country: String,
   createdAt: { type: Date, default: Date.now }
@@ -81,7 +92,7 @@ const Room = mongoose.model('Room', roomSchema);
 const User = mongoose.model('User', userSchema);
 const Message = mongoose.model('Message', messageSchema);
 
-// Socket.io with VERY LARGE FILE support
+// Socket.io configuration
 const io = socketIo(server, {
   cors: {
     origin: "*",
@@ -89,88 +100,85 @@ const io = socketIo(server, {
     credentials: true
   },
   transports: ['websocket', 'polling'],
-  pingTimeout: 300000, // 5 dakika
+  pingTimeout: 300000,
   pingInterval: 60000,
-  maxHttpBufferSize: 2e9 // 2GB buffer! (büyük filmler için)
+  maxHttpBufferSize: 2e9
 });
 
-// Middleware with HUGE limits
-app.use(express.json({ limit: '2gb' })); // 2GB limit
+// Middleware
+app.use(express.json({ limit: '2gb' }));
 app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Yardımcı fonksiyonlar
+// Helper functions
 function generateRoomCode() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
 
-function sanitizeUser(user) {
-  return {
-    id: user.socketId,
-    userName: user.userName,
-    userPhoto: user.userPhoto,
-    userColor: user.userColor,
-    isOwner: user.isOwner,
-    country: user.country || 'Türkiye',
-    deviceId: user.deviceId
-  };
+function generateUserColor(username) {
+  const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+  const index = username ? username.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) : 0;
+  return colors[index % colors.length];
 }
 
-// Cloudinary'ye BÜYÜK video yükleme - STREAMING
-async function uploadLargeVideoToCloudinary(videoBuffer, fileName, fileSize) {
+function extractYouTubeId(url) {
+  const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
+}
+
+// Upload to Cloudinary
+async function uploadToCloudinary(videoBuffer, fileName) {
   return new Promise((resolve, reject) => {
-    console.log(`🎬 BÜYÜK film yükleniyor: ${fileName}, Boyut: ${(fileSize / 1024 / 1024 / 1024).toFixed(2)}GB`);
-    
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: 'video',
         public_id: `movies/${Date.now()}-${crypto.randomBytes(8).toString('hex')}`,
-        chunk_size: 20000000, // 20MB chunks
-        timeout: 1200000, // 20 dakika timeout
-        eager: [
-          { streaming_profile: "full_hd", format: "m3u8" }
-        ],
-        eager_async: true,
+        chunk_size: 20000000,
+        timeout: 1200000,
         transformation: [
           { quality: "auto:best" },
           { format: "mp4" }
         ]
       },
       (error, result) => {
-        if (error) {
-          console.error('❌ Cloudinary yükleme hatası:', error);
-          reject(error);
-        } else {
-          console.log('✅ BÜYÜK film yükleme başarılı:', result.public_id);
-          resolve(result);
-        }
+        if (error) reject(error);
+        else resolve(result);
       }
     );
-
-    // Buffer'ı streaming olarak yükle
     uploadStream.end(videoBuffer);
   });
 }
 
-// Kullanıcı listesini güncelleme fonksiyonu
+// Update user list
 async function updateUserList(roomCode) {
   try {
     const users = await User.find({ roomCode: roomCode });
-    const userList = users.map(user => sanitizeUser(user));
+    const userList = users.map(user => ({
+      id: user.socketId,
+      userName: user.userName,
+      userPhoto: user.userPhoto,
+      userColor: user.userColor,
+      isOwner: user.isOwner,
+      country: user.country
+    }));
     io.to(roomCode).emit('user-list-update', userList);
   } catch (error) {
     console.error('❌ Kullanıcı listesi güncelleme hatası:', error);
   }
 }
 
-// Socket.io bağlantı yönetimi
+// WebRTC signal storage
+const webrtcSignals = new Map();
+
+// Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('🔗 Yeni kullanıcı bağlandı:', socket.id);
 
   let currentUser = null;
   let currentRoom = null;
 
-  // Oda oluşturma
+  // Create room
   socket.on('create-room', async (data) => {
     try {
       const { userName, userPhoto, deviceId, roomName, password } = data;
@@ -193,9 +201,9 @@ io.on('connection', (socket) => {
       
       currentUser = new User({
         socketId: socket.id,
-        userName: userName || 'Anonim',
+        userName: userName,
         userPhoto: userPhoto,
-        userColor: `hsl(${Math.random() * 360}, 70%, 60%)`,
+        userColor: generateUserColor(userName),
         deviceId: deviceId,
         roomCode: roomCode,
         isOwner: true,
@@ -212,10 +220,11 @@ io.on('connection', (socket) => {
         roomCode: room.code,
         roomName: room.name,
         isOwner: true,
-        shareableLink: shareableLink
+        shareableLink: shareableLink,
+        userColor: currentUser.userColor
       });
       
-      console.log(`✅ Oda oluşturuldu: ${room.code}`);
+      console.log(`✅ Oda oluşturuldu: ${room.code} - ${userName}`);
       
     } catch (error) {
       console.error('❌ Oda oluşturma hatası:', error);
@@ -223,12 +232,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Odaya katılma
+  // Join room
   socket.on('join-room', async (data) => {
     try {
       const { roomCode, userName, userPhoto, deviceId, password } = data;
       
-      const room = await Room.findOne({ code: roomCode });
+      const room = await Room.findOne({ code: roomCode.toUpperCase() });
       if (!room) {
         socket.emit('error', { message: 'Oda bulunamadı' });
         return;
@@ -243,12 +252,12 @@ io.on('connection', (socket) => {
         { socketId: socket.id },
         {
           socketId: socket.id,
-          userName: userName || 'Anonim',
+          userName: userName,
           userPhoto: userPhoto,
-          userColor: `hsl(${Math.random() * 360}, 70%, 60%)`,
+          userColor: generateUserColor(userName),
           deviceId: deviceId,
           roomCode: roomCode,
-          isOwner: false,
+          isOwner: room.owner === socket.id,
           country: 'Türkiye',
           lastSeen: new Date()
         },
@@ -265,7 +274,7 @@ io.on('connection', (socket) => {
       socket.emit('room-joined', {
         roomCode: room.code,
         roomName: room.name,
-        isOwner: false,
+        isOwner: room.owner === socket.id,
         activeVideo: room.activeVideo,
         playbackState: room.playbackState,
         userColor: currentUser.userColor,
@@ -286,7 +295,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Video yükleme - BÜYÜK FİLMLER İÇİN OPTIMIZE EDİLDİ
+  // Upload video
   socket.on('upload-video', async (data) => {
     let uploadSuccess = false;
     
@@ -298,50 +307,40 @@ io.on('connection', (socket) => {
       
       const { videoBase64, title, fileSize } = data;
       
-      console.log(`🎬 Film yükleniyor: ${title}, Boyut: ${(fileSize / 1024 / 1024 / 1024).toFixed(2)}GB`);
-      
-      // Büyük dosya kontrolü
-      if (fileSize > 2 * 1024 * 1024 * 1024) { // 2GB
-        socket.emit('error', { message: 'Film boyutu 2GB\'dan küçük olmalı!' });
-        return;
-      }
+      console.log(`🎬 Video yükleniyor: ${title}`);
       
       socket.emit('upload-progress', { status: 'preparing', progress: 5 });
       
       let videoUrl = videoBase64;
       let cloudinaryId = null;
       
-      // Cloudinary'ye yükle - BÜYÜK FİLMLER İÇİN
-      try {
-        socket.emit('upload-progress', { status: 'uploading', progress: 10 });
-        
-        // Base64'ü buffer'a çevir
-        const base64Data = videoBase64.replace(/^data:video\/\w+;base64,/, '');
-        const videoBuffer = Buffer.from(base64Data, 'base64');
-        
-        socket.emit('upload-progress', { status: 'uploading', progress: 30 });
-        
-        const cloudinaryResult = await uploadLargeVideoToCloudinary(videoBuffer, title, fileSize);
-        videoUrl = cloudinaryResult.secure_url;
-        cloudinaryId = cloudinaryResult.public_id;
-        
-        socket.emit('upload-progress', { status: 'uploading', progress: 80 });
-        
-      } catch (cloudinaryError) {
-        console.log('⚠️ Cloudinary yükleme başarısız:', cloudinaryError.message);
-        // Büyük filmlerde fallback yapma, direkt hata ver
-        throw new Error('Cloudinary yükleme başarısız: ' + cloudinaryError.message);
+      // Try Cloudinary if configured
+      if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET && fileSize < 100 * 1024 * 1024) {
+        try {
+          socket.emit('upload-progress', { status: 'uploading', progress: 30 });
+          
+          const base64Data = videoBase64.replace(/^data:video\/\w+;base64,/, '');
+          const videoBuffer = Buffer.from(base64Data, 'base64');
+          
+          const cloudinaryResult = await uploadToCloudinary(videoBuffer, title);
+          videoUrl = cloudinaryResult.secure_url;
+          cloudinaryId = cloudinaryResult.public_id;
+          
+          socket.emit('upload-progress', { status: 'uploading', progress: 80 });
+        } catch (cloudinaryError) {
+          console.log('⚠️ Cloudinary yükleme başarısız, Base64 kullanılıyor');
+        }
       }
       
       socket.emit('upload-progress', { status: 'processing', progress: 90 });
       
-      // Odayı güncelle
       await Room.findOneAndUpdate(
         { code: currentRoom.code },
         {
           activeVideo: {
+            type: 'upload',
             url: videoUrl,
-            title: title || 'Film',
+            title: title,
             cloudinaryId: cloudinaryId,
             uploadedBy: currentUser.userName,
             uploadedAt: new Date(),
@@ -356,10 +355,9 @@ io.on('connection', (socket) => {
         }
       );
       
-      // Tüm kullanıcılara bildir
       io.to(currentRoom.code).emit('video-uploaded', {
         videoUrl: videoUrl,
-        title: title || 'Film',
+        title: title,
         cloudinaryId: cloudinaryId,
         fileSize: fileSize
       });
@@ -367,18 +365,65 @@ io.on('connection', (socket) => {
       socket.emit('upload-progress', { status: 'completed', progress: 100 });
       uploadSuccess = true;
       
-      console.log(`🎬 BÜYÜK film yüklendi: ${title} (${(fileSize / 1024 / 1024 / 1024).toFixed(2)}GB) -> ${currentRoom.code}`);
+      console.log(`🎬 Video yüklendi: ${title} -> ${currentRoom.code}`);
       
     } catch (error) {
-      console.error('❌ Film yükleme hatası:', error);
+      console.error('❌ Video yükleme hatası:', error);
       if (!uploadSuccess) {
         socket.emit('upload-progress', { status: 'error', progress: 0 });
-        socket.emit('error', { message: 'Film yüklenemedi: ' + error.message });
+        socket.emit('error', { message: 'Video yüklenemedi: ' + error.message });
       }
     }
   });
 
-  // Video kontrolü
+  // Share YouTube video
+  socket.on('share-youtube-link', async (data) => {
+    try {
+      if (!currentRoom || !currentUser) return;
+      
+      const { youtubeUrl, title } = data;
+      const videoId = extractYouTubeId(youtubeUrl);
+      
+      if (!videoId) {
+        socket.emit('error', { message: 'Geçersiz YouTube linki' });
+        return;
+      }
+      
+      await Room.findOneAndUpdate(
+        { code: currentRoom.code },
+        {
+          activeVideo: {
+            type: 'youtube',
+            videoId: videoId,
+            url: youtubeUrl,
+            title: title || 'YouTube Video',
+            uploadedBy: currentUser.userName,
+            uploadedAt: new Date()
+          },
+          playbackState: {
+            playing: false,
+            currentTime: 0,
+            playbackRate: 1
+          },
+          updatedAt: new Date()
+        }
+      );
+      
+      io.to(currentRoom.code).emit('youtube-video-shared', {
+        videoId: videoId,
+        title: title || 'YouTube Video',
+        sharedBy: currentUser.userName
+      });
+      
+      console.log(`🎬 YouTube video paylaşıldı: ${videoId} -> ${currentRoom.code}`);
+      
+    } catch (error) {
+      console.error('❌ YouTube video paylaşma hatası:', error);
+      socket.emit('error', { message: 'YouTube video paylaşılamadı' });
+    }
+  });
+
+  // Video control
   socket.on('video-control', async (controlData) => {
     if (!currentRoom || !currentUser || !currentUser.isOwner) return;
     
@@ -401,7 +446,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Video silme
+  // Delete video
   socket.on('delete-video', async () => {
     if (!currentRoom || !currentUser || !currentUser.isOwner) return;
     
@@ -433,7 +478,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Mesaj gönderme
+  // Send message
   socket.on('message', async (messageData) => {
     try {
       if (!currentRoom || !currentUser) return;
@@ -445,6 +490,9 @@ io.on('connection', (socket) => {
         userColor: currentUser.userColor,
         text: messageData.text,
         type: messageData.type || 'text',
+        fileUrl: messageData.fileUrl,
+        fileName: messageData.fileName,
+        fileSize: messageData.fileSize,
         time: new Date().toLocaleTimeString('tr-TR', { 
           hour: '2-digit', 
           minute: '2-digit' 
@@ -461,6 +509,9 @@ io.on('connection', (socket) => {
         userColor: currentUser.userColor,
         text: messageData.text,
         type: messageData.type || 'text',
+        fileUrl: messageData.fileUrl,
+        fileName: messageData.fileName,
+        fileSize: messageData.fileSize,
         time: message.time,
         country: currentUser.country
       });
@@ -470,7 +521,33 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Bağlantı kesildiğinde
+  // WebRTC Signaling
+  socket.on('webrtc-offer', (data) => {
+    socket.to(data.target).emit('webrtc-offer', {
+      offer: data.offer,
+      caller: socket.id,
+      callerName: currentUser?.userName
+    });
+  });
+
+  socket.on('webrtc-answer', (data) => {
+    socket.to(data.target).emit('webrtc-answer', {
+      answer: data.answer,
+      answerer: socket.id
+    });
+  });
+
+  socket.on('webrtc-ice-candidate', (data) => {
+    socket.to(data.target).emit('webrtc-ice-candidate', {
+      candidate: data.candidate
+    });
+  });
+
+  socket.on('webrtc-end-call', (data) => {
+    socket.to(data.target).emit('webrtc-end-call');
+  });
+
+  // Disconnect
   socket.on('disconnect', async (reason) => {
     console.log('🔌 Kullanıcı ayrıldı:', socket.id, 'Sebep:', reason);
     
@@ -514,19 +591,13 @@ app.get('/api/health', async (req, res) => {
       rooms: roomCount,
       users: userCount,
       messages: messageCount,
-      environment: process.env.NODE_ENV || 'development',
-      limits: {
-        maxVideoSize: '2GB',
-        maxDuration: '4 hours', 
-        supportedFormats: 'MP4, AVI, MKV, MOV, WMV'
-      }
+      environment: process.env.NODE_ENV || 'development'
     });
   } catch (error) {
     res.status(500).json({ error: 'Health check failed' });
   }
 });
 
-// Oda bilgisi endpoint'i - PAYLAŞIM İÇİN
 app.get('/api/room/:code', async (req, res) => {
   try {
     const room = await Room.findOne({ code: req.params.code }).select('code name createdAt');
@@ -557,13 +628,13 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Başlatma
+// Start server
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server ${PORT} portunda çalışıyor`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🎬 BÜYÜK FİLM DESTEĞİ: 2GB'a kadar filmler`);
-  console.log(`☁️ Cloudinary: Configured`);
-  console.log(`🗄️ MongoDB: Connected`);
+  console.log(`🎬 YouTube + Video Upload Desteği Aktif`);
+  console.log(`📞 WebRTC Görüntülü/Sesli Arama Aktif`);
+  console.log(`💬 Dosya Paylaşımı Aktif`);
 });
 
 process.on('SIGTERM', async () => {
