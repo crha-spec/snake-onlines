@@ -4,7 +4,6 @@ const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
-const axios = require('axios');
 const path = require('path');
 require('dotenv').config();
 
@@ -12,11 +11,13 @@ const app = express();
 const server = http.createServer(app);
 
 const io = socketIo(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
-  pingTimeout: 60000,
-  pingInterval: 25000,
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  },
   transports: ['websocket', 'polling'],
-  maxHttpBufferSize: 1e8
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 app.use(express.json({ limit: '100mb' }));
@@ -24,31 +25,35 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(cors());
 app.use(express.static('public'));
 
+// Cloudinary config
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dxpi8bapd',
   api_key: process.env.CLOUDINARY_API_KEY || '976283781598975',
   api_secret: process.env.CLOUDINARY_API_SECRET || 'Orqu1ukmjx76NZIsDHH_TsDnDJ0'
 });
 
-const MONGODB_URI = process.env.MONGODB_URI;
-if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI)
-    .then(() => console.log('✅ MongoDB bağlantısı başarılı'))
-    .catch(err => console.log('❌ MongoDB bağlantı hatası:', err));
-}
+// MongoDB bağlantısı
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Admin:efkaza7634@cluster0.dcuzvid.mongodb.net/video-platform?retryWrites=true&w=majority&appName=Cluster0';
 
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ MongoDB bağlantısı başarılı'))
+  .catch(err => {
+    console.log('❌ MongoDB bağlantı hatası:', err.message);
+    console.log('⚠️  Uygulama MongoDB olmadan çalışıyor');
+  });
+
+// Şemalar
 const userProfileSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true },
-  userName: { type: String, required: true, trim: true, maxlength: 20 },
+  userName: { type: String, required: true },
   userPhoto: { type: String, default: '' },
   deviceId: { type: String, required: true },
   country: { type: String, default: 'Türkiye' },
-  lastSeen: { type: Date, default: Date.now },
-  createdAt: { type: Date, default: Date.now }
+  lastSeen: { type: Date, default: Date.now }
 });
 
 const roomSchema = new mongoose.Schema({
-  roomCode: { type: String, required: true, unique: true, uppercase: true },
+  roomCode: { type: String, required: true, unique: true },
   roomName: { type: String, required: true },
   ownerId: { type: String, required: true },
   ownerName: String,
@@ -95,9 +100,11 @@ const UserProfile = mongoose.model('UserProfile', userProfileSchema);
 const Room = mongoose.model('Room', roomSchema);
 const Message = mongoose.model('Message', messageSchema);
 
+// Bellek deposu
 const rooms = new Map();
 const activeUsers = new Map();
 
+// Yardımcı fonksiyonlar
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -113,24 +120,9 @@ function generateColor(username) {
   return colors[index % colors.length];
 }
 
-async function getCountryFromIP(ip) {
-  try {
-    if (ip === '127.0.0.1' || ip === '::1') return 'Türkiye';
-    
-    const response = await axios.get(`http://ip-api.com/json/${ip}?fields=status,country`);
-    if (response.data.status === 'success') {
-      return response.data.country || 'Türkiye';
-    }
-  } catch (error) {
-    console.log('🌍 IP sorgulama hatası, varsayılan ülke kullanılıyor');
-  }
-  return 'Türkiye';
-}
-
-async function getOrCreateUserProfile(userData, ip) {
+async function getOrCreateUserProfile(userData) {
   try {
     let userProfile = await UserProfile.findOne({ userId: userData.userId });
-    const country = await getCountryFromIP(ip);
     
     if (!userProfile) {
       userProfile = new UserProfile({
@@ -138,20 +130,19 @@ async function getOrCreateUserProfile(userData, ip) {
         userName: userData.userName,
         userPhoto: userData.userPhoto || '',
         deviceId: userData.deviceId,
-        country: country
+        country: userData.country || 'Türkiye'
       });
       await userProfile.save();
     } else {
       userProfile.userName = userData.userName;
       userProfile.userPhoto = userData.userPhoto || userProfile.userPhoto;
-      userProfile.country = country;
       userProfile.lastSeen = new Date();
       await userProfile.save();
     }
     return userProfile;
   } catch (error) {
     console.error('❌ Profil hatası:', error);
-    return { ...userData, country: 'Türkiye' };
+    return userData;
   }
 }
 
@@ -171,162 +162,168 @@ function updateRoomUsers(roomCode) {
   io.to(roomCode).emit('user-list-update', roomUsers);
 }
 
+// Socket.io
 io.on('connection', async (socket) => {
   console.log('🔗 Yeni bağlantı:', socket.id);
-  const clientIP = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
 
   let heartbeatInterval = setInterval(() => socket.emit('ping'), 20000);
   socket.on('pong', () => {});
-// Oda oluşturma event'ini güncelle:
-socket.on('create-room', async (data) => {
+
+  // Oda oluştur
+  socket.on('create-room', async (data) => {
     try {
-        const { userName, userPhoto, deviceId, roomName, password } = data;
-        const userProfile = await getOrCreateUserProfile({ 
-            userId: socket.id, userName, userPhoto, deviceId 
-        }, clientIP);
-        
-        let roomCode;
-        let attempts = 0;
-        do { 
-            roomCode = generateRoomCode(); 
-            attempts++;
-            if (attempts > 10) throw new Error('Oda kodu oluşturulamadı');
-        } while (await Room.findOne({ roomCode }));
-        
-        const room = new Room({
-            roomCode,
-            roomName: roomName || `${userName}'in Odası`,
-            ownerId: userProfile.userId,
-            ownerName: userName,
-            password: password || null
-        });
-        await room.save();
+      const { userName, userPhoto, deviceId, roomName, password } = data;
+      const userProfile = await getOrCreateUserProfile({ 
+        userId: socket.id, 
+        userName, 
+        userPhoto, 
+        deviceId 
+      });
+      
+      let roomCode;
+      let attempts = 0;
+      do { 
+        roomCode = generateRoomCode(); 
+        attempts++;
+        if (attempts > 10) throw new Error('Oda kodu oluşturulamadı');
+      } while (await Room.findOne({ roomCode }));
+      
+      const room = new Room({
+        roomCode,
+        roomName: roomName || `${userName}'in Odası`,
+        ownerId: userProfile.userId,
+        ownerName: userName,
+        password: password || null
+      });
+      await room.save();
 
-        console.log('✅ Oda oluşturuldu:', roomCode);
-        
-        // HEMEN kullanıcıyı odaya ekle
-        const user = {
-            id: userProfile.userId,
-            socketId: socket.id,
-            userName: userProfile.userName,
-            userPhoto: userProfile.userPhoto,
-            userColor: generateColor(userProfile.userName),
-            country: userProfile.country,
-            deviceId: deviceId,
-            roomCode: room.roomCode,
-            isOwner: true,
-            joinedAt: new Date()
-        };
+      console.log('✅ Oda oluşturuldu:', roomCode);
+      
+      const user = {
+        id: userProfile.userId,
+        socketId: socket.id,
+        userName: userProfile.userName,
+        userPhoto: userProfile.userPhoto,
+        userColor: generateColor(userProfile.userName),
+        country: userProfile.country,
+        deviceId: deviceId,
+        roomCode: room.roomCode,
+        isOwner: true,
+        joinedAt: new Date()
+      };
 
-        activeUsers.set(socket.id, user);
-        if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
-        rooms.get(room.roomCode).add(socket.id);
-        socket.join(room.roomCode);
+      activeUsers.set(socket.id, user);
+      if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
+      rooms.get(room.roomCode).add(socket.id);
+      socket.join(room.roomCode);
 
-        room.participants.push({
-            userId: user.id,
-            userName: user.userName,
-            userPhoto: user.userPhoto,
-            userColor: user.userColor,
-            country: user.country,
-            joinedAt: new Date()
-        });
-        await room.save();
+      room.participants.push({
+        userId: user.id,
+        userName: user.userName,
+        userPhoto: user.userPhoto,
+        userColor: user.userColor,
+        country: user.country,
+        joinedAt: new Date()
+      });
+      await room.save();
 
-        // HEMEN room-joined event'ini gönder, room-created DEĞİL
-        socket.emit('room-joined', {
-            roomCode: room.roomCode,
-            roomName: room.roomName,
-            isOwner: true,
-            activeVideo: room.activeVideo,
-            playbackState: room.playbackState,
-            userColor: user.userColor
-        });
+      socket.emit('room-joined', {
+        roomCode: room.roomCode,
+        roomName: room.roomName,
+        isOwner: true,
+        activeVideo: room.activeVideo,
+        playbackState: room.playbackState,
+        userColor: user.userColor
+      });
 
-        updateRoomUsers(room.roomCode);
-        console.log(`✅ ${user.userName} odayı oluşturdu ve katıldı: ${room.roomCode}`);
+      updateRoomUsers(room.roomCode);
+      console.log(`✅ ${user.userName} odayı oluşturdu: ${room.roomCode}`);
 
     } catch (error) {
-        console.error('❌ Oda oluşturma hatası:', error);
-        socket.emit('error', { message: 'Oda oluşturulamadı: ' + error.message });
+      console.error('❌ Oda oluşturma hatası:', error);
+      socket.emit('error', { message: 'Oda oluşturulamadı: ' + error.message });
     }
-});
+  });
 
-// Odaya katılma event'ini de güncelle:
-socket.on('join-room', async (data) => {
+  // Odaya katıl
+  socket.on('join-room', async (data) => {
     try {
-        const { roomCode, userName, userPhoto, deviceId, password } = data;
-        const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
-        
-        if (!room) {
-            socket.emit('error', { message: 'Oda bulunamadı!' });
-            return;
-        }
+      const { roomCode, userName, userPhoto, deviceId, password } = data;
+      const room = await Room.findOne({ roomCode: roomCode.toUpperCase() });
+      
+      if (!room) {
+        socket.emit('error', { message: 'Oda bulunamadı!' });
+        return;
+      }
 
-        if (room.password && room.password !== password) {
-            socket.emit('error', { message: 'Yanlış şifre!' });
-            return;
-        }
+      if (room.password && room.password !== password) {
+        socket.emit('error', { message: 'Yanlış şifre!' });
+        return;
+      }
 
-        if (room.participants.length >= room.maxParticipants) {
-            socket.emit('error', { message: 'Oda dolu! Max ' + room.maxParticipants + ' kişi' });
-            return;
-        }
+      if (room.participants.length >= room.maxParticipants) {
+        socket.emit('error', { message: 'Oda dolu! Max ' + room.maxParticipants + ' kişi' });
+        return;
+      }
 
-        const userProfile = await getOrCreateUserProfile({ 
-            userId: socket.id, userName, userPhoto, deviceId 
-        }, clientIP);
-        
-        const user = {
-            id: userProfile.userId,
-            socketId: socket.id,
-            userName: userProfile.userName,
-            userPhoto: userProfile.userPhoto,
-            userColor: generateColor(userProfile.userName),
-            country: userProfile.country,
-            deviceId: deviceId,
-            roomCode: room.roomCode,
-            isOwner: room.ownerId === userProfile.userId,
-            joinedAt: new Date()
-        };
+      const userProfile = await getOrCreateUserProfile({ 
+        userId: socket.id, 
+        userName, 
+        userPhoto, 
+        deviceId 
+      });
+      
+      const user = {
+        id: userProfile.userId,
+        socketId: socket.id,
+        userName: userProfile.userName,
+        userPhoto: userProfile.userPhoto,
+        userColor: generateColor(userProfile.userName),
+        country: userProfile.country,
+        deviceId: deviceId,
+        roomCode: room.roomCode,
+        isOwner: room.ownerId === userProfile.userId,
+        joinedAt: new Date()
+      };
 
-        activeUsers.set(socket.id, user);
-        if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
-        rooms.get(room.roomCode).add(socket.id);
-        socket.join(room.roomCode);
+      activeUsers.set(socket.id, user);
+      if (!rooms.has(room.roomCode)) rooms.set(room.roomCode, new Set());
+      rooms.get(room.roomCode).add(socket.id);
+      socket.join(room.roomCode);
 
-        room.participants.push({
-            userId: user.id,
-            userName: user.userName,
-            userPhoto: user.userPhoto,
-            userColor: user.userColor,
-            country: user.country,
-            joinedAt: new Date()
-        });
-        await room.save();
+      room.participants.push({
+        userId: user.id,
+        userName: user.userName,
+        userPhoto: user.userPhoto,
+        userColor: user.userColor,
+        country: user.country,
+        joinedAt: new Date()
+      });
+      await room.save();
 
-        socket.emit('room-joined', {
-            roomCode: room.roomCode,
-            roomName: room.roomName,
-            isOwner: user.isOwner,
-            activeVideo: room.activeVideo,
-            playbackState: room.playbackState,
-            userColor: user.userColor
-        });
+      socket.emit('room-joined', {
+        roomCode: room.roomCode,
+        roomName: room.roomName,
+        isOwner: user.isOwner,
+        activeVideo: room.activeVideo,
+        playbackState: room.playbackState,
+        userColor: user.userColor
+      });
 
-        updateRoomUsers(room.roomCode);
-        socket.to(room.roomCode).emit('user-joined', { 
-            userName: user.userName,
-            country: user.country 
-        });
-        
-        console.log(`✅ ${user.userName} → ${room.roomCode}`);
+      updateRoomUsers(room.roomCode);
+      socket.to(room.roomCode).emit('user-joined', { 
+        userName: user.userName,
+        country: user.country 
+      });
+      
+      console.log(`✅ ${user.userName} → ${room.roomCode}`);
     } catch (error) {
-        console.error('❌ Katılma hatası:', error);
-        socket.emit('error', { message: 'Odaya katılınamadı' });
+      console.error('❌ Katılma hatası:', error);
+      socket.emit('error', { message: 'Odaya katılınamadı' });
     }
-});
+  });
 
+  // Video yükle
   socket.on('upload-video', async (videoData) => {
     try {
       const user = activeUsers.get(socket.id);
@@ -377,6 +374,7 @@ socket.on('join-room', async (data) => {
     }
   });
 
+  // Video kontrol
   socket.on('video-control', async (controlData) => {
     try {
       const user = activeUsers.get(socket.id);
@@ -401,6 +399,7 @@ socket.on('join-room', async (data) => {
     }
   });
 
+  // Video sil
   socket.on('delete-video', async () => {
     try {
       const user = activeUsers.get(socket.id);
@@ -430,6 +429,7 @@ socket.on('join-room', async (data) => {
     }
   });
 
+  // Mesaj
   socket.on('message', async (messageData) => {
     try {
       const user = activeUsers.get(socket.id);
@@ -465,6 +465,7 @@ socket.on('join-room', async (data) => {
     }
   });
 
+  // Disconnect
   socket.on('disconnect', async () => {
     clearInterval(heartbeatInterval);
     const user = activeUsers.get(socket.id);
@@ -486,6 +487,7 @@ socket.on('join-room', async (data) => {
   });
 });
 
+// API Routes
 app.get('/health', async (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.json({ 
@@ -511,6 +513,7 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server: http://localhost:${PORT}`);
+  console.log(`🚀 Video Platform Server ${PORT} portunda çalışıyor`);
   console.log(`🔗 Health: http://localhost:${PORT}/health`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
