@@ -3,13 +3,16 @@
   "version": "1.0.0",
   "description": "Gerçek zamanlı video izleme ve sohbet platformu",
   "main": "server.js",
-  "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js",
-    "render-build": "echo 'No build needed'"
+    "dev": "nodemon server.js"
   },
-  "keywords": ["socket.io", "video", "chat", "realtime"],
+  "keywords": [
+    "socket.io",
+    "video",
+    "chat",
+    "realtime"
+  ],
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
