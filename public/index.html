@@ -866,6 +866,33 @@
             background: #2d2d44;
             border-radius: 8px;
         }
+
+        /* Recording Indicator */
+        #recordingIndicator {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(231, 76, 60, 0.9);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            z-index: 10000;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 2px solid #fff;
+        }
+        
+        .recording-pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -981,6 +1008,15 @@
         </div>
     </div>
 
+    <!-- Ses Kaydı Görseli -->
+    <div id="recordingIndicator">
+        <div style="font-size: 24px; margin-bottom: 10px;" class="recording-pulse">🎤 Kayıt Yapılıyor...</div>
+        <div id="recordingTimer" style="font-size: 18px; font-weight: bold; margin: 10px 0;">00:00</div>
+        <div style="margin-top: 15px;">
+            <button class="btn btn-primary" onclick="stopRecording()" style="background: #e74c3c;">⏹️ Kaydı Bitir</button>
+        </div>
+    </div>
+
     <!-- Main Chat Interface -->
     <div class="chat-interface" id="chatInterface">
         <div class="header">
@@ -1077,8 +1113,14 @@
                         <button class="chat-btn" onclick="document.getElementById('imageInput').click()" title="Resim Gönder">
                             🖼️
                         </button>
-                        <button class="chat-btn" onclick="document.getElementById('audioInput').click()" title="Ses Gönder">
+                        <button class="chat-btn" onclick="document.getElementById('audioInput').click()" title="Ses Dosyası Gönder">
                             🎵
+                        </button>
+                        <button class="chat-btn" id="recordButton" onclick="startRecording()" title="Ses Kaydı Yap">
+                            🎤
+                        </button>
+                        <button class="chat-btn" id="stopButton" onclick="stopRecording()" title="Kaydı Durdur" style="display: none; background: #e74c3c;">
+                            ⏹️
                         </button>
                     </div>
                     <textarea id="messageInput" class="message-input" placeholder="Mesajınızı yazın..." rows="1" disabled></textarea>
@@ -1094,6 +1136,7 @@
             <input type="file" id="fileInput" style="display: none;" accept="*">
             <input type="file" id="imageInput" style="display: none;" accept="image/*">
             <input type="file" id="audioInput" style="display: none;" accept="audio/*">
+            <input type="file" id="videoFileInput" style="display: none;" accept="video/*">
 
             <!-- Users Sidebar -->
             <div class="users-sidebar">
@@ -1126,6 +1169,12 @@
                 this.isInCall = false;
                 this.currentCallType = null;
                 this.callerId = null;
+
+                // Ses kaydı değişkenleri
+                this.mediaRecorder = null;
+                this.audioChunks = [];
+                this.recordingStartTime = null;
+                this.recordingTimer = null;
 
                 this.initElements();
                 this.initEvents();
@@ -1221,6 +1270,12 @@
                 this.endCallBtn = document.getElementById('endCallBtn');
                 this.incomingCallModal = document.getElementById('incomingCallModal');
                 this.callerInfo = document.getElementById('callerInfo');
+                
+                // Ses kaydı elementleri
+                this.recordButton = document.getElementById('recordButton');
+                this.stopButton = document.getElementById('stopButton');
+                this.recordingIndicator = document.getElementById('recordingIndicator');
+                this.recordingTimer = document.getElementById('recordingTimer');
             }
 
             initEvents() {
@@ -1327,11 +1382,12 @@
             }
 
             showError(message) {
+                console.log('❌ HATA:', message);
                 alert('Hata: ' + message);
             }
 
             showSuccess(message) {
-                console.log('✅ ' + message);
+                console.log('✅ BAŞARI:', message);
             }
 
             startCreateRoom() {
@@ -1441,7 +1497,7 @@
                     if (data.status === 'preparing') {
                         this.loadingText.textContent = `Film hazırlanıyor... %${data.progress}`;
                     } else if (data.status === 'uploading') {
-                        this.loadingText.textContent = `Cloudinary'ye yükleniyor... %${data.progress}`;
+                        this.loadingText.textContent = `Yükleniyor... %${data.progress}`;
                     } else if (data.status === 'processing') {
                         this.loadingText.textContent = `İşleniyor... %${data.progress}`;
                     } else if (data.status === 'completed') {
@@ -1727,20 +1783,13 @@
                     return;
                 }
 
-                // 2GB boyut limiti
-                if (file.size > 2 * 1024 * 1024 * 1024) {
-                    this.showError('Film boyutu 2GB\'dan küçük olmalı!');
+                // 100MB boyut limiti
+                if (file.size > 100 * 1024 * 1024) {
+                    this.showError('Film boyutu 100MB\'dan küçük olmalı!');
                     return;
                 }
 
-                // Büyük dosya uyarısı
-                if (file.size > 500 * 1024 * 1024) {
-                    if (!confirm(`Bu film ${(file.size / 1024 / 1024).toFixed(0)}MB boyutunda. Yüklemek istediğinize emin misiniz? (5-10 dakika sürebilir)`)) {
-                        return;
-                    }
-                }
-
-                this.showLoading('Film yükleniyor... Bu işlem biraz zaman alabilir...');
+                this.showLoading('Film yükleniyor...');
                 
                 const reader = new FileReader();
                 
@@ -1761,13 +1810,6 @@
                 reader.onerror = () => {
                     this.hideLoading();
                     this.showError('Dosya okunurken hata oluştu!');
-                };
-                
-                reader.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const percent = (event.loaded / event.total) * 100;
-                        this.loadingText.textContent = `Film okunuyor... %${Math.round(percent)}`;
-                    }
                 };
                 
                 reader.readAsDataURL(file);
@@ -1967,6 +2009,81 @@
                 event.target.value = '';
             }
 
+            // Ses kaydı fonksiyonları
+            async startRecording() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    this.mediaRecorder = new MediaRecorder(stream);
+                    this.audioChunks = [];
+                    
+                    this.mediaRecorder.ondataavailable = (event) => {
+                        this.audioChunks.push(event.data);
+                    };
+                    
+                    this.mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+                        this.sendAudioRecording(audioBlob);
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    
+                    this.mediaRecorder.start();
+                    this.recordingStartTime = Date.now();
+                    
+                    // UI güncelleme
+                    this.recordButton.style.display = 'none';
+                    this.stopButton.style.display = 'flex';
+                    this.recordingIndicator.style.display = 'block';
+                    
+                    // Timer başlat
+                    this.startRecordingTimer();
+                    
+                } catch (error) {
+                    console.error('Ses kaydı başlatılamadı:', error);
+                    this.showError('Mikrofon erişimi reddedildi! Lütfen tarayıcı ayarlarından mikrofon erişimine izin verin.');
+                }
+            }
+
+            stopRecording() {
+                if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                    this.mediaRecorder.stop();
+                    
+                    // UI güncelleme
+                    this.recordButton.style.display = 'flex';
+                    this.stopButton.style.display = 'none';
+                    this.recordingIndicator.style.display = 'none';
+                    
+                    // Timer durdur
+                    clearInterval(this.recordingTimer);
+                }
+            }
+
+            startRecordingTimer() {
+                this.recordingTimer = setInterval(() => {
+                    const elapsed = Date.now() - this.recordingStartTime;
+                    const seconds = Math.floor(elapsed / 1000);
+                    const minutes = Math.floor(seconds / 60);
+                    const displaySeconds = seconds % 60;
+                    this.recordingTimer.textContent = 
+                        `${minutes.toString().padStart(2, '0')}:${displaySeconds.toString().padStart(2, '0')}`;
+                }, 1000);
+            }
+
+            sendAudioRecording(audioBlob) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const audioData = {
+                        fileUrl: e.target.result,
+                        fileName: `ses-kaydi-${Date.now()}.wav`,
+                        fileSize: audioBlob.size,
+                        type: 'audio'
+                    };
+                    
+                    this.socket.emit('message', audioData);
+                    this.showSuccess('Ses kaydı gönderildi!');
+                };
+                reader.readAsDataURL(audioBlob);
+            }
+
             displayMessage(msg) {
                 console.log('💬 Mesaj gösteriliyor:', msg);
                 const isOwn = msg.userName === this.userName;
@@ -1984,7 +2101,7 @@
                             <img src="${msg.fileUrl}" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
                             <div>
                                 <a href="${msg.fileUrl}" download="${msg.fileName}" class="file-download">
-                                    📷 ${msg.fileName}
+                                    📷 ${msg.fileName} (${this.formatFileSize(msg.fileSize)})
                                 </a>
                             </div>
                         </div>
@@ -1994,11 +2111,11 @@
                         <div class="message-text">${this.escapeHtml(msg.text || '')}</div>
                         <div class="message-file">
                             <audio controls style="width: 250px; margin: 5px 0;">
-                                <source src="${msg.fileUrl}" type="audio/mpeg">
+                                <source src="${msg.fileUrl}" type="audio/wav">
                             </audio>
                             <div>
                                 <a href="${msg.fileUrl}" download="${msg.fileName}" class="file-download">
-                                    🎵 ${msg.fileName}
+                                    🎵 ${msg.fileName} (${this.formatFileSize(msg.fileSize)})
                                 </a>
                             </div>
                         </div>
@@ -2175,7 +2292,7 @@
                 this.hideModal(this.incomingCallModal);
                 
                 try {
-                    this.currentCallType = 'video'; // Assume video for now
+                    this.currentCallType = 'video';
                     
                     // Get local media stream
                     const constraints = {
@@ -2208,9 +2325,6 @@
                             });
                         }
                     };
-                    
-                    // Set remote description and create answer
-                    // Note: We need to store the offer when we receive it
                     
                     this.webrtcContainer.style.display = 'block';
                     this.endCallBtn.style.display = 'block';
@@ -2251,9 +2365,7 @@
             }
 
             getOtherUser() {
-                // For 1:1 calls, get the other user in the room
-                // This is a simplified version - in real app you'd need proper user management
-                return this.callerId || (this.usersList.children[0]?.dataset.userId);
+                return this.callerId;
             }
 
             toggleMute() {
@@ -2278,7 +2390,7 @@
         // Movie Search Class
         class MovieSearch {
             constructor() {
-                this.apiKey = 'AIzaSyB_8l9hKHLipw2XnoC-5X4L5v7Gp6Q6ZQw'; // YouTube Data API key
+                this.apiKey = 'AIzaSyB_8l9hKHLipw2XnoC-5X4L5v7Gp6Q6ZQw';
             }
 
             async searchMovies(query) {
@@ -2422,6 +2534,19 @@
         function toggleCamera() {
             if (videoPlatform) {
                 videoPlatform.toggleCamera();
+            }
+        }
+
+        // Ses kaydı fonksiyonları
+        function startRecording() {
+            if (videoPlatform) {
+                videoPlatform.startRecording();
+            }
+        }
+
+        function stopRecording() {
+            if (videoPlatform) {
+                videoPlatform.stopRecording();
             }
         }
 
