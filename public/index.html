@@ -807,6 +807,7 @@
                 this.userColor = this.generateColor(this.userName);
                 this.currentAction = null;
                 this.videoFileInput = null;
+                this.pendingRoomData = null;
 
                 this.initElements();
                 this.initEvents();
@@ -1033,41 +1034,66 @@
             }
 
             connectSocket() {
-    this.showLoading('Sunucuya bağlanılıyor...');
-    
-    // 🚨 BU SATIRI DEĞİŞTİR - URL'siz bağlan
-    this.socket = io({
-        transports: ['websocket', 'polling'],
-        timeout: 30000,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 2000
-    });
+                this.showLoading('Sunucuya bağlanılıyor...');
+                
+                const serverUrl = window.location.hostname === 'localhost' 
+                    ? 'http://localhost:3000' 
+                    : window.location.origin;
+                
+                console.log('🌐 Sunucuya bağlanılıyor:', serverUrl);
+                
+                this.socket = io(serverUrl, {
+                    transports: ['websocket', 'polling'],
+                    timeout: 30000,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 2000
+                });
 
-    this.setupSocketEvents();
-}
+                this.setupSocketEvents();
+            }
 
+            setupSocketEvents() {
+                this.socket.on('connect', () => {
+                    console.log('✅ Socket bağlantısı kuruldu');
+                    this.hideLoading();
+                    
+                    if (this.currentAction === 'create') {
+                        this.finalizeCreateRoom();
+                    } else if (this.currentAction === 'join') {
+                        this.finalizeJoinRoom();
+                    }
+                });
 
-this.socket.on('room-joined', (data) => {
-    console.log('✅ Odaya katıldı:', data.roomCode);
-    
-    this.roomCode = data.roomCode;
-    this.roomName = data.roomName;
-    this.isOwner = data.isOwner;
-    this.userColor = data.userColor || this.userColor;
-    
-    this.showChatInterface();
-    
-    if (data.activeVideo) {
-        this.displayVideo(data.activeVideo.url);
-    }
-    
-    if (data.playbackState) {
-        this.syncVideoState(data.playbackState);
-    }
-    
-    // BU SATIRI EKLE - BAŞARI MESAJI
-    this.showSuccess(`${this.roomName} odasına katıldınız! Oda Kodu: ${this.roomCode}`);
-});
+                this.socket.on('room-created', (data) => {
+                    console.log('✅ Oda oluşturuldu:', data.roomCode);
+                    this.roomCode = data.roomCode;
+                    this.roomName = data.roomName;
+                    this.isOwner = true;
+                    
+                    this.showChatInterface();
+                    this.showSuccess(`${this.roomName} odası oluşturuldu! Oda Kodu: ${this.roomCode}`);
+                });
+
+                this.socket.on('room-joined', (data) => {
+                    console.log('✅ Odaya katıldı:', data.roomCode);
+                    
+                    this.roomCode = data.roomCode;
+                    this.roomName = data.roomName;
+                    this.isOwner = data.isOwner;
+                    this.userColor = data.userColor || this.userColor;
+                    
+                    this.showChatInterface();
+                    
+                    if (data.activeVideo) {
+                        this.displayVideo(data.activeVideo.url);
+                    }
+                    
+                    if (data.playbackState) {
+                        this.syncVideoState(data.playbackState);
+                    }
+                    
+                    this.showSuccess(`${this.roomName} odasına katıldınız! Oda Kodu: ${this.roomCode}`);
+                });
 
                 this.socket.on('user-list-update', (users) => {
                     this.updateUsersList(users);
@@ -1102,65 +1128,54 @@ this.socket.on('room-joined', (data) => {
                     this.addSystemMessage(`🚪 ${data.userName} odadan ayrıldı`);
                 });
 
-this.socket.on('error', (data) => {
-    this.hideLoading();
-    this.showError(data.message);
-    // 🚨 Hata durumunda landing page'e dön
-    this.showLanding();
-});
+                this.socket.on('error', (data) => {
+                    this.hideLoading();
+                    this.showError(data.message);
+                    this.showLanding();
+                });
 
                 this.socket.on('disconnect', (reason) => {
                     console.log('🔌 Bağlantı kesildi:', reason);
                     this.showError('Bağlantı kesildi. Lütfen sayfayı yenileyin.');
                 });
 
-this.socket.on('connect_error', (error) => {
-    this.hideLoading();
-    this.showError('Sunucuya bağlanılamadı: ' + error.message);
-    // 🚨 Hata durumunda landing page'e dön
-    this.showLanding();
-});
+                this.socket.on('connect_error', (error) => {
+                    this.hideLoading();
+                    this.showError('Sunucuya bağlanılamadı: ' + error.message);
+                    this.showLanding();
+                });
             }
 
-// 🚨 createRoom fonksiyonunu düzelt
-createRoom() {
-    const roomName = this.roomNameInput.value.trim();
-    const password = this.roomPasswordInput.value.trim();
-    
-    if (!roomName) {
-        this.showError('Lütfen oda adını girin!');
-        return;
-    }
+            createRoom() {
+                const roomName = this.roomNameInput.value.trim();
+                const password = this.roomPasswordInput.value.trim();
+                
+                if (!roomName) {
+                    this.showError('Lütfen oda adını girin!');
+                    return;
+                }
 
-    this.hideModal(this.createRoomModal);
-    this.showLoading('Oda oluşturuluyor...');
-    
-    // Önce socket bağlantısını kur
-    this.connectSocket();
-    
-    // Socket bağlandıktan sonra oda oluştur
-    const checkConnection = setInterval(() => {
-        if (this.socket && this.socket.connected) {
-            clearInterval(checkConnection);
-            this.socket.emit('create-room', {
-                userName: this.userName,
-                userPhoto: this.userPhoto,
-                deviceId: this.deviceId,
-                roomName: roomName,
-                password: password || null
-            });
-        }
-    }, 100);
-    
-    // 10 saniye timeout
-    setTimeout(() => {
-        clearInterval(checkConnection);
-        if (!this.socket || !this.socket.connected) {
-            this.hideLoading();
-            this.showError('Sunucuya bağlanılamadı! Lütfen tekrar deneyin.');
-        }
-    }, 10000);
-}
+                this.hideModal(this.createRoomModal);
+                this.showLoading('Oda oluşturuluyor...');
+                
+                this.pendingRoomData = { roomName, password };
+                this.currentAction = 'create';
+                
+                this.connectSocket();
+            }
+
+            finalizeCreateRoom() {
+                if (this.pendingRoomData) {
+                    this.socket.emit('create-room', {
+                        userName: this.userName,
+                        userPhoto: this.userPhoto,
+                        deviceId: this.deviceId,
+                        roomName: this.pendingRoomData.roomName,
+                        password: this.pendingRoomData.password || null
+                    });
+                    this.pendingRoomData = null;
+                }
+            }
 
             joinRoom() {
                 const roomCode = this.roomCodeInput.value.trim().toUpperCase();
@@ -1172,20 +1187,25 @@ createRoom() {
                 }
 
                 this.hideModal(this.joinRoomModal);
-                this.connectSocket();
+                this.showLoading('Odaya katılınıyor...');
                 
-                // Socket bağlandıktan sonra odaya katıl
-                setTimeout(() => {
-                    if (this.socket && this.socket.connected) {
-                        this.socket.emit('join-room', {
-                            roomCode: roomCode,
-                            userName: this.userName,
-                            userPhoto: this.userPhoto,
-                            deviceId: this.deviceId,
-                            password: password || null
-                        });
-                    }
-                }, 1000);
+                this.pendingRoomData = { roomCode, password };
+                this.currentAction = 'join';
+                
+                this.connectSocket();
+            }
+
+            finalizeJoinRoom() {
+                if (this.pendingRoomData) {
+                    this.socket.emit('join-room', {
+                        roomCode: this.pendingRoomData.roomCode,
+                        userName: this.userName,
+                        userPhoto: this.userPhoto,
+                        deviceId: this.deviceId,
+                        password: this.pendingRoomData.password || null
+                    });
+                    this.pendingRoomData = null;
+                }
             }
 
             showChatInterface() {
@@ -1194,13 +1214,11 @@ createRoom() {
                 this.roomNameDisplay.textContent = this.roomName;
                 this.roomCodeDisplay.textContent = this.roomCode;
                 
-                // Oda sahibi kontrollerini göster
                 if (this.isOwner) {
                     this.uploadZone.style.display = 'block';
                     this.videoControls.style.display = 'flex';
                 }
                 
-                // Mesaj input'unu aktif et
                 this.messageInput.disabled = false;
                 this.sendButton.disabled = false;
                 this.messageInput.focus();
@@ -1241,7 +1259,6 @@ createRoom() {
                 };
                 reader.readAsDataURL(file);
                 
-                // Input'u temizle
                 this.videoFileInput.value = '';
             }
 
@@ -1271,7 +1288,6 @@ createRoom() {
                 }
             }
 
-            // Video Kontrol Fonksiyonları
             togglePlay() {
                 if (this.videoPlayer.paused) {
                     this.videoPlayer.play();
@@ -1325,15 +1341,14 @@ createRoom() {
                 if (this.isOwner) return;
                 
                 if (state.playing !== undefined) {
-                    if (state.playing) {
-                        this.videoPlayer.play();
-                    } else {
+                    if (state.playing && this.videoPlayer.paused) {
+                        this.videoPlayer.play().catch(e => console.log('Play error:', e));
+                    } else if (!state.playing && !this.videoPlayer.paused) {
                         this.videoPlayer.pause();
                     }
                 }
                 
                 if (state.currentTime !== undefined) {
-                    // Sadece büyük fark varsa sync et
                     if (Math.abs(this.videoPlayer.currentTime - state.currentTime) > 2) {
                         this.videoPlayer.currentTime = state.currentTime;
                     }
@@ -1449,7 +1464,6 @@ createRoom() {
             }
         }
 
-        // Global instance
         let videoPlatform;
 
         document.addEventListener('DOMContentLoaded', () => {
