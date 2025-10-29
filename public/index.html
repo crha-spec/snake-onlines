@@ -914,6 +914,12 @@
                     }
                 });
                 
+                // Auto-resize textarea
+                this.messageInput.addEventListener('input', () => {
+                    this.messageInput.style.height = 'auto';
+                    this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 100) + 'px';
+                });
+                
                 // Video File Input
                 this.videoFileInput.addEventListener('change', (e) => this.uploadVideo(e.target.files[0]));
                 
@@ -1037,7 +1043,7 @@
                 this.showLoading('Sunucuya bağlanılıyor...');
                 
                 const serverUrl = window.location.hostname === 'localhost' 
-                    ? 'http://localhost:3000' 
+                    ? 'http://localhost:10000' 
                     : window.location.origin;
                 
                 console.log('🌐 Sunucuya bağlanılıyor:', serverUrl);
@@ -1084,6 +1090,12 @@
                     
                     this.showChatInterface();
                     
+                    // Geçmiş mesajları göster
+                    if (data.previousMessages && data.previousMessages.length > 0) {
+                        data.previousMessages.forEach(msg => this.displayMessage(msg));
+                        this.addSystemMessage(`💬 ${data.previousMessages.length} geçmiş mesaj yüklendi`);
+                    }
+                    
                     if (data.activeVideo) {
                         this.displayVideo(data.activeVideo.url);
                     }
@@ -1101,22 +1113,26 @@
                 });
 
                 this.socket.on('video-uploaded', (data) => {
+                    console.log('🎬 Video yüklendi eventi alındı');
                     this.displayVideo(data.videoUrl);
                     this.addSystemMessage(`🎬 "${data.title}" videosu yüklendi`);
                 });
 
                 this.socket.on('video-control', (controlData) => {
+                    console.log('🎮 Video kontrol eventi alındı:', controlData);
                     if (!this.isOwner) {
                         this.syncVideoState(controlData);
                     }
                 });
 
                 this.socket.on('video-deleted', () => {
+                    console.log('🗑️ Video silindi eventi alındı');
                     this.hideVideo();
                     this.addSystemMessage('🗑️ Video silindi');
                 });
 
                 this.socket.on('message', (msg) => {
+                    console.log('💬 Mesaj alındı:', msg);
                     this.displayMessage(msg);
                 });
 
@@ -1136,7 +1152,9 @@
 
                 this.socket.on('disconnect', (reason) => {
                     console.log('🔌 Bağlantı kesildi:', reason);
-                    this.showError('Bağlantı kesildi. Lütfen sayfayı yenileyin.');
+                    if (reason !== 'io client disconnect') {
+                        this.showError('Bağlantı kesildi. Lütfen sayfayı yenileyin.');
+                    }
                 });
 
                 this.socket.on('connect_error', (error) => {
@@ -1234,16 +1252,19 @@
                     return;
                 }
 
-                if (file.size > 100 * 1024 * 1024) {
-                    this.showError('Video boyutu 100MB\'dan küçük olmalı!');
+                // 3GB boyut limiti - Cloudinary için
+                if (file.size > 3 * 1024 * 1024 * 1024) {
+                    this.showError('Video boyutu 3GB\'dan küçük olmalı!');
                     return;
                 }
 
-                this.showLoading('Video yükleniyor...');
+                this.showLoading('Video Cloudinary\'ye yükleniyor... Bu işlem biraz zaman alabilir...');
                 
                 const reader = new FileReader();
-                reader.onload = async (e) => {
+                
+                reader.onload = (e) => {
                     try {
+                        console.log('📤 Video Cloudinary\'ye gönderiliyor...');
                         this.socket.emit('upload-video', {
                             videoBase64: e.target.result,
                             title: file.name
@@ -1253,20 +1274,34 @@
                         this.showError('Video yüklenirken hata oluştu: ' + error.message);
                     }
                 };
+                
                 reader.onerror = () => {
                     this.hideLoading();
                     this.showError('Dosya okunurken hata oluştu!');
                 };
+                
+                reader.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const percent = (event.loaded / event.total) * 100;
+                        this.loadingText.textContent = `Video yükleniyor... %${Math.round(percent)}`;
+                    }
+                };
+                
                 reader.readAsDataURL(file);
                 
                 this.videoFileInput.value = '';
             }
 
             displayVideo(url) {
+                console.log('🎬 Video gösteriliyor');
                 this.noVideo.style.display = 'none';
                 this.videoPlayer.style.display = 'block';
                 this.videoPlayer.src = url;
                 this.hideLoading();
+                
+                if (this.isOwner) {
+                    this.videoControls.style.display = 'flex';
+                }
             }
 
             hideVideo() {
@@ -1370,8 +1405,13 @@
 
             sendMessage() {
                 const text = this.messageInput.value.trim();
-                if (!text || !this.socket) return;
+                if (!text || !this.socket) {
+                    console.log('❌ Mesaj gönderilemedi:', { text, socket: !!this.socket });
+                    return;
+                }
 
+                console.log('📤 Mesaj gönderiliyor:', text);
+                
                 this.socket.emit('message', {
                     text: text,
                     type: 'text'
@@ -1379,9 +1419,11 @@
                 
                 this.messageInput.value = '';
                 this.messageInput.style.height = 'auto';
+                this.messageInput.focus();
             }
 
             displayMessage(msg) {
+                console.log('💬 Mesaj gösteriliyor:', msg);
                 const isOwn = msg.userName === this.userName;
                 const messageEl = document.createElement('div');
                 messageEl.className = `message ${isOwn ? 'own' : ''}`;
