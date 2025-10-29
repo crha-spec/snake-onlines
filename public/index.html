@@ -1079,6 +1079,22 @@
                     this.showChatInterface();
                     this.showSuccess(`${this.roomName} odası oluşturuldu! Oda Kodu: ${this.roomCode}`);
                 });
+                
+                    this.socket.on('upload-progress', (data) => {
+        if (data.status === 'preparing') {
+            this.loadingText.textContent = `Film hazırlanıyor... %${data.progress}`;
+        } else if (data.status === 'uploading') {
+            this.loadingText.textContent = `Cloudinary'ye yükleniyor... %${data.progress}`;
+        } else if (data.status === 'processing') {
+            this.loadingText.textContent = `İşleniyor... %${data.progress}`;
+        } else if (data.status === 'completed') {
+            this.hideLoading();
+            this.showSuccess('Film başarıyla yüklendi!');
+        } else if (data.status === 'error') {
+            this.hideLoading();
+            this.showError('Film yüklenirken hata oluştu');
+        }
+    });
 
                 this.socket.on('room-joined', (data) => {
                     console.log('✅ Odaya katıldı:', data.roomCode);
@@ -1244,53 +1260,61 @@
                 this.showSuccess(`${this.roomName} odasına katıldınız!`);
             }
 
-            async uploadVideo(file) {
-                if (!file || !this.isOwner) return;
-                
-                if (!file.type.startsWith('video/')) {
-                    this.showError('Lütfen geçerli bir video dosyası seçin!');
-                    return;
-                }
+async uploadVideo(file) {
+    if (!file || !this.isOwner) return;
+    
+    if (!file.type.startsWith('video/')) {
+        this.showError('Lütfen geçerli bir video dosyası seçin!');
+        return;
+    }
 
-                // 3GB boyut limiti - Cloudinary için
-                if (file.size > 3 * 1024 * 1024 * 1024) {
-                    this.showError('Video boyutu 3GB\'dan küçük olmalı!');
-                    return;
-                }
+    // 10GB boyut limiti (2-3 saatlik filmler için)
+    if (file.size > 10 * 1024 * 1024 * 1024) {
+        this.showError('Film boyutu 10GB\'dan küçük olmalı!');
+        return;
+    }
 
-                this.showLoading('Video Cloudinary\'ye yükleniyor... Bu işlem biraz zaman alabilir...');
-                
-                const reader = new FileReader();
-                
-                reader.onload = (e) => {
-                    try {
-                        console.log('📤 Video Cloudinary\'ye gönderiliyor...');
-                        this.socket.emit('upload-video', {
-                            videoBase64: e.target.result,
-                            title: file.name
-                        });
-                    } catch (error) {
-                        this.hideLoading();
-                        this.showError('Video yüklenirken hata oluştu: ' + error.message);
-                    }
-                };
-                
-                reader.onerror = () => {
-                    this.hideLoading();
-                    this.showError('Dosya okunurken hata oluştu!');
-                };
-                
-                reader.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        const percent = (event.loaded / event.total) * 100;
-                        this.loadingText.textContent = `Video yükleniyor... %${Math.round(percent)}`;
-                    }
-                };
-                
-                reader.readAsDataURL(file);
-                
-                this.videoFileInput.value = '';
-            }
+    // Büyük dosya uyarısı
+    if (file.size > 500 * 1024 * 1024) {
+        if (!confirm(`Bu film ${(file.size / 1024 / 1024).toFixed(0)}MB boyutunda. Yüklemek istediğinize emin misiniz? (5-10 dakika sürebilir)`)) {
+            return;
+        }
+    }
+
+    this.showLoading('Film Cloudinary\'ye yükleniyor... Bu işlem biraz zaman alabilir...');
+    
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+        try {
+            console.log('📤 Film Cloudinary\'ye gönderiliyor...');
+            this.socket.emit('upload-video', {
+                videoBase64: e.target.result,
+                title: file.name,
+                fileSize: file.size // Dosya boyutunu da gönder
+            });
+        } catch (error) {
+            this.hideLoading();
+            this.showError('Film yüklenirken hata oluştu: ' + error.message);
+        }
+    };
+    
+    reader.onerror = () => {
+        this.hideLoading();
+        this.showError('Dosya okunurken hata oluştu!');
+    };
+    
+    reader.onprogress = (event) => {
+        if (event.lengthComputable) {
+            const percent = (event.loaded / event.total) * 100;
+            this.loadingText.textContent = `Film okunuyor... %${Math.round(percent)}`;
+        }
+    };
+    
+    reader.readAsDataURL(file);
+    
+    this.videoFileInput.value = '';
+}   
 
             displayVideo(url) {
                 console.log('🎬 Video gösteriliyor');
