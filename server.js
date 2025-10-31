@@ -138,7 +138,7 @@ io.on('connection', (socket) => {
       socket.join(roomCode);
       
       // Paylaşım linki oluştur
-      const shareableLink = `${process.env.NODE_ENV === 'production' ? 'https://buyepyenibisiy.onrender.com' : 'http://localhost:10000'}?room=${roomCode}`;
+      const shareableLink = `${process.env.NODE_ENV === 'production' ? 'https://snake-onlines-xe9h.onrender.com' : 'http://localhost:10000'}?room=${roomCode}`;
       
       // BAŞARILI CEVAP
       socket.emit('room-created', {
@@ -304,12 +304,22 @@ io.on('connection', (socket) => {
 
   // 🎮 VIDEO KONTROLÜ
   socket.on('video-control', (controlData) => {
-    if (!currentRoomCode || !currentUser || !currentUser.isOwner) return;
+    if (!currentRoomCode || !currentUser) return;
     
     const room = rooms.get(currentRoomCode);
     room.playbackState = controlData;
     
+    // Sadece oda sahibi değilse diğer kullanıcılara gönder
+    if (!currentUser.isOwner) return;
+    
     socket.to(currentRoomCode).emit('video-control', controlData);
+  });
+
+  // 🎮 YOUTUBE KONTROLÜ
+  socket.on('youtube-control', (controlData) => {
+    if (!currentRoomCode || !currentUser || !currentUser.isOwner) return;
+    
+    socket.to(currentRoomCode).emit('youtube-control', controlData);
   });
 
   // 🗑️ VIDEO SİLME
@@ -318,6 +328,11 @@ io.on('connection', (socket) => {
     
     const room = rooms.get(currentRoomCode);
     room.video = null;
+    room.playbackState = {
+      playing: false,
+      currentTime: 0,
+      playbackRate: 1
+    };
     
     io.to(currentRoomCode).emit('video-deleted');
     console.log(`🗑️ Video silindi: ${currentRoomCode}`);
@@ -375,7 +390,8 @@ io.on('connection', (socket) => {
     socket.to(data.target).emit('webrtc-offer', {
       offer: data.offer,
       caller: socket.id,
-      callerName: currentUser?.userName
+      callerName: currentUser?.userName,
+      type: data.type
     });
   });
 
