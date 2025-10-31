@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Oyun Platformu</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
     <style>
         * { 
             margin: 0; padding: 0; box-sizing: border-box; 
@@ -963,25 +964,25 @@
         </div>
     </div>
 
-    <!-- Google Film Arama Modal'ı -->
-    <div class="modal" id="googleSearchModal">
+    <!-- YouTube Film Arama Modal'ı -->
+    <div class="modal" id="youtubeSearchModal">
         <div class="modal-content" style="max-width: 800px;">
-            <h2>🔍 Film Ara</h2>
+            <h2>🔍 YouTube'dan Film Ara</h2>
             
             <div class="form-group">
-                <input type="text" id="movieSearchInput" class="form-input" 
+                <input type="text" id="youtubeSearchInput" class="form-input" 
                        placeholder="Film adı yazın... Örnek: Interstellar, Yüzüklerin Efendisi">
-                <button class="btn btn-primary" onclick="searchMovies()" style="margin-top: 10px;">
+                <button class="btn btn-primary" onclick="searchYouTubeMovies()" style="margin-top: 10px;">
                     🎬 Film Ara
                 </button>
             </div>
             
-            <div id="searchResults" style="max-height: 400px; overflow-y: auto; margin-top: 20px;">
-                <!-- Arama sonuçları buraya gelecek -->
+            <div id="youtubeSearchResults" style="max-height: 400px; overflow-y: auto; margin-top: 20px;">
+                <!-- YouTube arama sonuçları buraya gelecek -->
             </div>
             
             <div class="button-group">
-                <button class="btn btn-secondary" onclick="hideGoogleSearch()">Kapat</button>
+                <button class="btn btn-secondary" onclick="hideYouTubeSearch()">Kapat</button>
             </div>
         </div>
     </div>
@@ -996,10 +997,10 @@
         </div>
     </div>
 
-    <!-- Incoming Call Modal -->
+    <!-- Gelen Çağrı Modal'ı -->
     <div class="modal" id="incomingCallModal">
         <div class="modal-content">
-            <h2>📞 Gelen Çağrı</h2>
+            <h2 id="callTypeTitle">📞 Gelen Çağrı</h2>
             <div id="callerInfo" style="text-align: center; margin: 20px 0;"></div>
             <div class="button-group">
                 <button class="btn btn-primary" onclick="acceptCall()">Kabul Et</button>
@@ -1090,7 +1091,7 @@
                     <button class="control-btn upload-btn" onclick="document.getElementById('videoFileInput').click()">
                         📹 Video Yükle
                     </button>
-                    <button class="control-btn upload-btn" onclick="showGoogleSearch()">
+                    <button class="control-btn upload-btn" onclick="showYouTubeSearch()">
                         🔍 Film Ara
                     </button>
                     <button class="control-btn upload-btn" onclick="showYouTubeShare()">
@@ -1161,6 +1162,7 @@
                 this.currentAction = null;
                 this.videoFileInput = null;
                 this.pendingRoomData = null;
+                this.youtubePlayer = null;
                 
                 // WebRTC variables
                 this.localStream = null;
@@ -1169,12 +1171,17 @@
                 this.isInCall = false;
                 this.currentCallType = null;
                 this.callerId = null;
+                this.callTarget = null;
 
                 // Ses kaydı değişkenleri
                 this.mediaRecorder = null;
                 this.audioChunks = [];
                 this.recordingStartTime = null;
                 this.recordingTimer = null;
+
+                // Video senkronizasyonu için
+                this.syncInterval = null;
+                this.lastSyncTime = 0;
 
                 this.initElements();
                 this.initEvents();
@@ -1229,8 +1236,16 @@
                 this.cancelJoinRoom = document.getElementById('cancelJoinRoom');
                 this.confirmJoinRoom = document.getElementById('confirmJoinRoom');
                 
+                this.youtubeSearchModal = document.getElementById('youtubeSearchModal');
+                this.youtubeSearchInput = document.getElementById('youtubeSearchInput');
+                this.youtubeSearchResults = document.getElementById('youtubeSearchResults');
+                
                 this.loadingModal = document.getElementById('loadingModal');
                 this.loadingText = document.getElementById('loadingText');
+                
+                this.incomingCallModal = document.getElementById('incomingCallModal');
+                this.callerInfo = document.getElementById('callerInfo');
+                this.callTypeTitle = document.getElementById('callTypeTitle');
                 
                 // Chat Interface
                 this.chatInterface = document.getElementById('chatInterface');
@@ -1268,8 +1283,6 @@
                 this.localVideo = document.getElementById('localVideo');
                 this.remoteVideo = document.getElementById('remoteVideo');
                 this.endCallBtn = document.getElementById('endCallBtn');
-                this.incomingCallModal = document.getElementById('incomingCallModal');
-                this.callerInfo = document.getElementById('callerInfo');
                 
                 // Ses kaydı elementleri
                 this.recordButton = document.getElementById('recordButton');
@@ -1318,6 +1331,7 @@
                 this.videoPlayer.addEventListener('pause', () => this.onVideoPause());
                 this.videoPlayer.addEventListener('seeked', () => this.onVideoSeek());
                 this.videoPlayer.addEventListener('ratechange', () => this.onVideoRateChange());
+                this.videoPlayer.addEventListener('timeupdate', () => this.onVideoTimeUpdate());
                 
                 // Oda Kodu Kopyalama
                 this.copyRoomCodeBtn.addEventListener('click', () => this.copyRoomCode());
@@ -1331,6 +1345,9 @@
                 });
                 this.roomCodeInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') this.joinRoom();
+                });
+                this.youtubeSearchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') searchYouTubeMovies();
                 });
             }
 
@@ -1587,8 +1604,8 @@
                 this.socket.on('webrtc-offer', async (data) => {
                     console.log('📞 Gelen çağrı:', data);
                     this.callerId = data.caller;
-                    this.showIncomingCall(data.callerName, 'video');
-                    this.currentCallType = 'video';
+                    this.currentCallType = data.type;
+                    this.showIncomingCall(data.callerName, data.type);
                 });
 
                 this.socket.on('webrtc-answer', async (data) => {
@@ -1828,6 +1845,12 @@
                 if (this.isOwner) {
                     this.videoControls.style.display = 'flex';
                 }
+                
+                // YouTube player'ı temizle
+                if (this.youtubePlayer) {
+                    this.youtubePlayer.destroy();
+                    this.youtubePlayer = null;
+                }
             }
 
             displayYouTubeVideo(videoId, title) {
@@ -1835,21 +1858,33 @@
                 this.noVideo.style.display = 'none';
                 this.videoPlayer.style.display = 'none';
                 this.youtubeContainer.style.display = 'block';
+                this.youtubeContainer.innerHTML = '<div id="youtubePlayer"></div>';
                 
-                this.youtubeContainer.innerHTML = `
-                    <iframe 
-                        width="100%" 
-                        height="100%" 
-                        src="https://www.youtube.com/embed/${videoId}?enablejsapi=1" 
-                        frameborder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        allowfullscreen>
-                    </iframe>
-                `;
-                
-                if (this.isOwner) {
-                    this.videoControls.style.display = 'flex';
-                }
+                // YouTube Player API'sini kullan
+                this.youtubePlayer = new YT.Player('youtubePlayer', {
+                    height: '100%',
+                    width: '100%',
+                    videoId: videoId,
+                    playerVars: {
+                        'playsinline': 1,
+                        'enablejsapi': 1,
+                        'origin': window.location.origin
+                    },
+                    events: {
+                        'onReady': () => {
+                            console.log('YouTube player hazır');
+                            if (this.isOwner) {
+                                this.videoControls.style.display = 'flex';
+                            }
+                        },
+                        'onStateChange': (event) => {
+                            if (this.isOwner) {
+                                // YouTube durum değişikliklerini diğer kullanıcılara ilet
+                                this.sendYouTubeControl(event.data);
+                            }
+                        }
+                    }
+                });
                 
                 this.showSuccess(`"${title}" videosu yüklendi!`);
             }
@@ -1859,6 +1894,12 @@
                 this.videoPlayer.style.display = 'none';
                 this.youtubeContainer.style.display = 'none';
                 this.videoPlayer.src = '';
+                
+                // YouTube player'ı temizle
+                if (this.youtubePlayer) {
+                    this.youtubePlayer.destroy();
+                    this.youtubePlayer = null;
+                }
                 
                 if (this.isOwner) {
                     this.noVideo.innerHTML = `
@@ -1875,22 +1916,48 @@
             }
 
             togglePlay() {
-                if (this.videoPlayer.paused) {
-                    this.videoPlayer.play();
-                    this.playPauseBtn.textContent = '⏸️ Duraklat';
-                } else {
-                    this.videoPlayer.pause();
-                    this.playPauseBtn.textContent = '▶️ Oynat';
+                if (this.youtubePlayer) {
+                    // YouTube kontrolü
+                    const state = this.youtubePlayer.getPlayerState();
+                    if (state === YT.PlayerState.PLAYING) {
+                        this.youtubePlayer.pauseVideo();
+                        this.playPauseBtn.textContent = '▶️ Oynat';
+                    } else {
+                        this.youtubePlayer.playVideo();
+                        this.playPauseBtn.textContent = '⏸️ Duraklat';
+                    }
+                } else if (this.videoPlayer) {
+                    // Normal video kontrolü
+                    if (this.videoPlayer.paused) {
+                        this.videoPlayer.play();
+                        this.playPauseBtn.textContent = '⏸️ Duraklat';
+                    } else {
+                        this.videoPlayer.pause();
+                        this.playPauseBtn.textContent = '▶️ Oynat';
+                    }
                 }
             }
 
             seek(seconds) {
-                this.videoPlayer.currentTime += seconds;
+                if (this.youtubePlayer) {
+                    // YouTube kontrolü
+                    const currentTime = this.youtubePlayer.getCurrentTime();
+                    this.youtubePlayer.seekTo(currentTime + seconds, true);
+                } else if (this.videoPlayer) {
+                    // Normal video kontrolü
+                    this.videoPlayer.currentTime += seconds;
+                }
                 this.sendVideoControl();
             }
 
             changePlaybackRate(rate) {
-                this.videoPlayer.playbackRate = parseFloat(rate);
+                if (this.youtubePlayer) {
+                    // YouTube kontrolü
+                    this.youtubePlayer.setPlaybackRate(parseFloat(rate));
+                } else if (this.videoPlayer) {
+                    // Normal video kontrolü
+                    this.videoPlayer.playbackRate = parseFloat(rate);
+                }
                 this.sendVideoControl();
             }
 
@@ -1913,36 +1980,95 @@
                 this.sendVideoControl();
             }
 
+            onVideoTimeUpdate() {
+                // Sadece sahipse ve 2 saniyeden fazla zaman geçtiyse senkronizasyon gönder
+                if (this.isOwner && Date.now() - this.lastSyncTime > 2000) {
+                    this.sendVideoControl();
+                    this.lastSyncTime = Date.now();
+                }
+            }
+
             sendVideoControl() {
                 if (!this.isOwner) return;
                 
-                this.socket.emit('video-control', {
-                    playing: !this.videoPlayer.paused,
-                    currentTime: this.videoPlayer.currentTime,
-                    playbackRate: this.videoPlayer.playbackRate
-                });
+                let state = {};
+                
+                if (this.youtubePlayer) {
+                    // YouTube kontrolü
+                    state = {
+                        type: 'youtube',
+                        playing: this.youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING,
+                        currentTime: this.youtubePlayer.getCurrentTime(),
+                        playbackRate: this.youtubePlayer.getPlaybackRate()
+                    };
+                } else if (this.videoPlayer) {
+                    // Normal video kontrolü
+                    state = {
+                        type: 'video',
+                        playing: !this.videoPlayer.paused,
+                        currentTime: this.videoPlayer.currentTime,
+                        playbackRate: this.videoPlayer.playbackRate
+                    };
+                }
+                
+                this.socket.emit('video-control', state);
+            }
+
+            sendYouTubeControl(state) {
+                if (!this.isOwner) return;
+                
+                const controlData = {
+                    type: 'youtube',
+                    state: state,
+                    currentTime: this.youtubePlayer.getCurrentTime()
+                };
+                
+                this.socket.emit('youtube-control', controlData);
             }
 
             syncVideoState(state) {
                 if (this.isOwner) return;
                 
-                if (state.playing !== undefined) {
-                    if (state.playing && this.videoPlayer.paused) {
-                        this.videoPlayer.play().catch(e => console.log('Play error:', e));
-                    } else if (!state.playing && !this.videoPlayer.paused) {
-                        this.videoPlayer.pause();
+                if (state.type === 'youtube' && this.youtubePlayer) {
+                    // YouTube senkronizasyonu
+                    if (state.playing !== undefined) {
+                        if (state.playing && this.youtubePlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                            this.youtubePlayer.playVideo();
+                        } else if (!state.playing && this.youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                            this.youtubePlayer.pauseVideo();
+                        }
                     }
-                }
-                
-                if (state.currentTime !== undefined) {
-                    if (Math.abs(this.videoPlayer.currentTime - state.currentTime) > 2) {
-                        this.videoPlayer.currentTime = state.currentTime;
+                    
+                    if (state.currentTime !== undefined) {
+                        const currentTime = this.youtubePlayer.getCurrentTime();
+                        if (Math.abs(currentTime - state.currentTime) > 2) {
+                            this.youtubePlayer.seekTo(state.currentTime, true);
+                        }
                     }
-                }
-                
-                if (state.playbackRate !== undefined) {
-                    this.videoPlayer.playbackRate = state.playbackRate;
-                    this.playbackRate.value = state.playbackRate;
+                    
+                    if (state.playbackRate !== undefined) {
+                        this.youtubePlayer.setPlaybackRate(state.playbackRate);
+                    }
+                } else if (state.type === 'video' && this.videoPlayer) {
+                    // Normal video senkronizasyonu
+                    if (state.playing !== undefined) {
+                        if (state.playing && this.videoPlayer.paused) {
+                            this.videoPlayer.play().catch(e => console.log('Play error:', e));
+                        } else if (!state.playing && !this.videoPlayer.paused) {
+                            this.videoPlayer.pause();
+                        }
+                    }
+                    
+                    if (state.currentTime !== undefined) {
+                        if (Math.abs(this.videoPlayer.currentTime - state.currentTime) > 2) {
+                            this.videoPlayer.currentTime = state.currentTime;
+                        }
+                    }
+                    
+                    if (state.playbackRate !== undefined) {
+                        this.videoPlayer.playbackRate = state.playbackRate;
+                        this.playbackRate.value = state.playbackRate;
+                    }
                 }
             }
 
@@ -1951,6 +2077,7 @@
                 
                 if (confirm('Videoyu silmek istediğinizden emin misiniz?')) {
                     this.socket.emit('delete-video');
+                    this.hideVideo();
                 }
             }
 
@@ -2236,7 +2363,6 @@
                     };
                     
                     this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                    this.localVideo.srcObject = this.localStream;
                     
                     // Create peer connection
                     this.peerConnection = new RTCPeerConnection(this.rtcConfiguration);
@@ -2255,7 +2381,7 @@
                     this.peerConnection.onicecandidate = (event) => {
                         if (event.candidate) {
                             this.socket.emit('webrtc-ice-candidate', {
-                                target: this.getOtherUser(),
+                                target: this.callTarget,
                                 candidate: event.candidate
                             });
                         }
@@ -2265,17 +2391,25 @@
                     const offer = await this.peerConnection.createOffer();
                     await this.peerConnection.setLocalDescription(offer);
                     
+                    // Find another user in the room to call
+                    const otherUser = this.findOtherUser();
+                    if (!otherUser) {
+                        this.showError('Aranacak kullanıcı bulunamadı!');
+                        return;
+                    }
+                    
+                    this.callTarget = otherUser.id;
+                    
                     // Send offer to other user
                     this.socket.emit('webrtc-offer', {
-                        target: this.getOtherUser(),
+                        target: this.callTarget,
                         offer: offer,
-                        type: type
+                        type: type,
+                        callerName: this.userName
                     });
                     
                     // Show call UI
-                    this.webrtcContainer.style.display = 'block';
-                    this.endCallBtn.style.display = 'block';
-                    this.isInCall = true;
+                    this.showCallUI();
                     
                 } catch (error) {
                     console.error('❌ Çağrı başlatma hatası:', error);
@@ -2283,8 +2417,38 @@
                 }
             }
 
+            findOtherUser() {
+                // Odadaki diğer kullanıcıları bul
+                const userItems = document.querySelectorAll('.user-item');
+                for (let userItem of userItems) {
+                    const userName = userItem.querySelector('.user-name').textContent;
+                    if (userName !== this.userName) {
+                        return {
+                            id: userName, // Gerçek uygulamada socket ID kullanılmalı
+                            name: userName
+                        };
+                    }
+                }
+                return null;
+            }
+
+            showCallUI() {
+                this.webrtcContainer.style.display = 'block';
+                this.endCallBtn.style.display = 'block';
+                this.isInCall = true;
+                
+                // Show local video for video calls
+                if (this.currentCallType === 'video') {
+                    this.localVideo.srcObject = this.localStream;
+                } else {
+                    // Audio call - hide local video
+                    this.localVideo.style.display = 'none';
+                }
+            }
+
             showIncomingCall(callerName, type) {
                 this.callerInfo.textContent = `${callerName} ${type === 'video' ? 'görüntülü' : 'sesli'} çağrı yapıyor`;
+                this.callTypeTitle.textContent = type === 'video' ? '📹 Gelen Görüntülü Çağrı' : '📞 Gelen Sesli Çağrı';
                 this.showModal(this.incomingCallModal);
             }
 
@@ -2292,8 +2456,6 @@
                 this.hideModal(this.incomingCallModal);
                 
                 try {
-                    this.currentCallType = 'video';
-                    
                     // Get local media stream
                     const constraints = {
                         video: this.currentCallType === 'video',
@@ -2301,7 +2463,6 @@
                     };
                     
                     this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                    this.localVideo.srcObject = this.localStream;
                     
                     // Create peer connection
                     this.peerConnection = new RTCPeerConnection(this.rtcConfiguration);
@@ -2326,9 +2487,21 @@
                         }
                     };
                     
-                    this.webrtcContainer.style.display = 'block';
-                    this.endCallBtn.style.display = 'block';
-                    this.isInCall = true;
+                    // Set remote description
+                    await this.peerConnection.setRemoteDescription(this.pendingOffer);
+                    
+                    // Create answer
+                    const answer = await this.peerConnection.createAnswer();
+                    await this.peerConnection.setLocalDescription(answer);
+                    
+                    // Send answer
+                    this.socket.emit('webrtc-answer', {
+                        target: this.callerId,
+                        answer: answer
+                    });
+                    
+                    // Show call UI
+                    this.showCallUI();
                     
                 } catch (error) {
                     console.error('❌ Çağrı kabul etme hatası:', error);
@@ -2340,6 +2513,7 @@
                 this.hideModal(this.incomingCallModal);
                 this.socket.emit('webrtc-end-call', { target: this.callerId });
                 this.callerId = null;
+                this.pendingOffer = null;
             }
 
             endCall() {
@@ -2357,15 +2531,16 @@
                 this.endCallBtn.style.display = 'none';
                 this.isInCall = false;
                 this.callerId = null;
+                this.callTarget = null;
+                
+                // Reset local video display
+                this.localVideo.style.display = 'block';
+                this.localVideo.srcObject = null;
                 
                 // Notify other user
-                if (this.socket) {
-                    this.socket.emit('webrtc-end-call', { target: this.getOtherUser() });
+                if (this.socket && this.callTarget) {
+                    this.socket.emit('webrtc-end-call', { target: this.callTarget });
                 }
-            }
-
-            getOtherUser() {
-                return this.callerId;
             }
 
             toggleMute() {
@@ -2387,17 +2562,21 @@
             }
         }
 
-        // Movie Search Class
-        class MovieSearch {
+        // YouTube Film Arama Class'ı
+        class YouTubeMovieSearch {
             constructor() {
-                this.apiKey = 'AIzaSyB_8l9hKHLipw2XnoC-5X4L5v7Gp6Q6ZQw';
+                this.apiKey = 'AIzaSyB_8l9hKHLipw2XnoC-5X4L5v7Gp6Q6ZQw'; // YouTube API anahtarınızı buraya ekleyin
             }
 
             async searchMovies(query) {
                 try {
                     const response = await fetch(
-                        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=${encodeURIComponent(query + ' full movie')}&type=video&key=${this.apiKey}`
+                        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&q=${encodeURIComponent(query + ' film')}&type=video&key=${this.apiKey}`
                     );
+                    
+                    if (!response.ok) {
+                        throw new Error('YouTube API hatası');
+                    }
                     
                     const data = await response.json();
                     return data.items || [];
@@ -2410,28 +2589,31 @@
 
         // Global instances
         let videoPlatform;
-        const movieSearch = new MovieSearch();
+        const youtubeMovieSearch = new YouTubeMovieSearch();
 
         // Modal functions
-        function showGoogleSearch() {
-            document.getElementById('googleSearchModal').classList.add('active');
-            document.getElementById('movieSearchInput').focus();
+        function showYouTubeSearch() {
+            document.getElementById('youtubeSearchModal').classList.add('active');
+            document.getElementById('youtubeSearchInput').focus();
         }
 
-        function hideGoogleSearch() {
-            document.getElementById('googleSearchModal').classList.remove('active');
+        function hideYouTubeSearch() {
+            document.getElementById('youtubeSearchModal').classList.remove('active');
         }
 
-        // Film arama fonksiyonu
-        async function searchMovies() {
-            const query = document.getElementById('movieSearchInput').value.trim();
-            if (!query) return;
+        // YouTube film arama fonksiyonu
+        async function searchYouTubeMovies() {
+            const query = document.getElementById('youtubeSearchInput').value.trim();
+            if (!query) {
+                alert('Lütfen bir film adı girin!');
+                return;
+            }
 
-            const resultsContainer = document.getElementById('searchResults');
+            const resultsContainer = document.getElementById('youtubeSearchResults');
             resultsContainer.innerHTML = '<div class="loading">🔍 Filmler aranıyor...</div>';
 
             try {
-                const videos = await movieSearch.searchMovies(query);
+                const videos = await youtubeMovieSearch.searchMovies(query);
                 
                 if (videos.length === 0) {
                     resultsContainer.innerHTML = '<div class="error-message">❌ Film bulunamadı</div>';
@@ -2442,12 +2624,12 @@
                 
                 for (const video of videos) {
                     const videoId = video.id.videoId;
-                    const title = video.snippet.title;
+                    const title = video.snippet.title.replace(/"/g, '&quot;');
                     const thumbnail = video.snippet.thumbnails.medium.url;
                     const channel = video.snippet.channelTitle;
                     
                     html += `
-                        <div class="movie-result" onclick="selectMovie('${videoId}', '${title.replace(/'/g, "\\'")}')">
+                        <div class="movie-result" onclick="selectYouTubeMovie('${videoId}', '${title}')">
                             <img src="${thumbnail}" style="width: 120px; height: 90px; border-radius: 8px;">
                             <div>
                                 <div style="font-weight: bold; color: white;">${title}</div>
@@ -2465,8 +2647,8 @@
             }
         }
 
-        // Film seçildiğinde
-        function selectMovie(videoId, title) {
+        // YouTube film seçildiğinde
+        function selectYouTubeMovie(videoId, title) {
             if (!videoPlatform.socket) {
                 alert('Önce odaya katılmalısınız!');
                 return;
@@ -2477,7 +2659,7 @@
                 title: title
             });
             
-            hideGoogleSearch();
+            hideYouTubeSearch();
         }
 
         // YouTube link paylaşımı
@@ -2555,6 +2737,11 @@
             videoPlatform = new VideoPlatform();
             videoPlatform.checkUrlForRoomCode();
         });
+
+        // YouTube Player API yüklendiğinde
+        function onYouTubeIframeAPIReady() {
+            console.log('✅ YouTube API hazır');
+        }
     </script>
 </body>
 </html>
