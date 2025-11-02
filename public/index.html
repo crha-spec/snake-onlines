@@ -167,12 +167,14 @@
         
         .header { 
             background: #2d2d44; 
-            padding: 15px 20px; 
+            padding: 12px 20px; 
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.3); 
             border-bottom: 1px solid #444;
+            min-height: 60px;
+            flex-shrink: 0;
         }
         
         .header-left { 
@@ -182,47 +184,47 @@
         }
         
         .room-info h2 {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         
         .room-code { 
             background: rgba(102, 126, 234, 0.2); 
-            padding: 6px 12px; 
+            padding: 4px 8px; 
             border-radius: 6px; 
             font-weight: 600; 
             letter-spacing: 1px; 
-            font-size: 14px;
+            font-size: 12px;
             border: 1px solid rgba(102, 126, 234, 0.3);
         }
         
         .online-count { 
             background: rgba(255, 255, 255, 0.1); 
-            padding: 8px 15px; 
+            padding: 6px 12px; 
             border-radius: 8px; 
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 500;
         }
         
         /* WebRTC Call Controls */
         .call-controls {
             display: flex;
-            gap: 10px;
-            margin-left: 20px;
+            gap: 8px;
+            margin-left: 15px;
         }
         
         .call-btn {
-            padding: 8px 16px;
+            padding: 6px 12px;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
         }
         
         .video-call-btn {
@@ -249,10 +251,10 @@
             display: flex; 
             flex: 1; 
             overflow: hidden; 
-            height: calc(100vh - 70px);
+            height: calc(100vh - 60px);
         }
         
-        /* Video Section */
+        /* Video Section - GÜNCELLENDİ */
         .video-section { 
             flex: 2; 
             display: flex; 
@@ -260,28 +262,29 @@
             background: #000; 
             min-width: 0;
             position: relative;
+            height: 100%;
         }
         
         /* Oda Kodu Görüntüleme Alanı */
         .room-code-display {
             position: absolute;
-            top: 15px;
-            left: 15px;
+            top: 10px;
+            left: 10px;
             background: rgba(0, 0, 0, 0.7);
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 8px;
             z-index: 100;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
         
         .room-code-display .code {
-            font-size: 18px;
+            font-size: 14px;
             font-weight: bold;
-            letter-spacing: 2px;
+            letter-spacing: 1px;
             color: #fff;
         }
         
@@ -289,10 +292,10 @@
             background: #667eea;
             border: none;
             color: white;
-            padding: 5px 10px;
+            padding: 4px 8px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 10px;
             transition: background 0.2s;
         }
         
@@ -301,9 +304,9 @@
         }
         
         .room-code-display .share-link {
-            font-size: 12px;
+            font-size: 10px;
             color: #ccc;
-            margin-top: 5px;
+            margin-top: 2px;
         }
         
         .video-container { 
@@ -314,6 +317,7 @@
             background: #000; 
             position: relative;
             min-height: 0;
+            height: 100%;
         }
         
         .video-player { 
@@ -326,38 +330,39 @@
         
         .no-video { 
             text-align: center; 
-            padding: 40px 20px; 
+            padding: 20px; 
             color: #666; 
         }
         
         .no-video-icon { 
-            font-size: 64px; 
-            margin-bottom: 20px; 
+            font-size: 48px; 
+            margin-bottom: 15px; 
             opacity: 0.5;
         }
         
         .upload-zone { 
-            margin-top: 20px; 
+            margin-top: 15px; 
         }
         
         /* Video Controls */
         .video-controls { 
-            padding: 15px 20px; 
+            padding: 12px 15px; 
             background: #1a1a2e; 
             display: flex; 
-            gap: 10px; 
+            gap: 8px; 
             justify-content: center; 
             align-items: center;
             border-top: 1px solid #444;
             flex-wrap: wrap;
+            flex-shrink: 0;
         }
         
         .control-btn { 
-            padding: 10px 16px; 
+            padding: 8px 12px; 
             border: none; 
-            border-radius: 8px; 
+            border-radius: 6px; 
             cursor: pointer; 
-            font-size: 14px; 
+            font-size: 12px; 
             font-weight: 600; 
             transition: all 0.2s ease;
             background: #2d2d44;
@@ -397,13 +402,13 @@
         /* WebRTC Video Call */
         .webrtc-container {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 300px;
-            height: 200px;
+            bottom: 15px;
+            right: 15px;
+            width: 250px;
+            height: 160px;
             background: #000;
             border: 2px solid #667eea;
-            border-radius: 10px;
+            border-radius: 8px;
             z-index: 200;
             display: none;
         }
@@ -411,27 +416,27 @@
         .webrtc-video {
             width: 100%;
             height: 100%;
-            border-radius: 8px;
+            border-radius: 6px;
             object-fit: cover;
         }
         
         .webrtc-controls {
             position: absolute;
-            bottom: 10px;
+            bottom: 8px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
         
         .webrtc-btn {
-            padding: 8px;
+            padding: 6px;
             border: none;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 16px;
-            width: 40px;
-            height: 40px;
+            font-size: 14px;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -454,16 +459,16 @@
         
         .messages { 
             flex: 1; 
-            padding: 20px; 
+            padding: 15px; 
             overflow-y: auto; 
             display: flex; 
             flex-direction: column; 
-            gap: 12px; 
+            gap: 10px; 
         }
         
         .message { 
             display: flex; 
-            gap: 10px; 
+            gap: 8px; 
             max-width: 90%; 
             animation: messageAppear 0.3s ease;
         }
@@ -485,16 +490,16 @@
         }
         
         .message-avatar { 
-            width: 36px; 
-            height: 36px; 
+            width: 32px; 
+            height: 32px; 
             border-radius: 50%; 
             object-fit: cover; 
             flex-shrink: 0;
         }
         
         .message-content { 
-            padding: 12px 15px; 
-            border-radius: 12px; 
+            padding: 10px 12px; 
+            border-radius: 10px; 
             background: #2d2d44; 
             max-width: 100%;
             word-wrap: break-word;
@@ -507,12 +512,12 @@
         .message-header {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 4px;
+            gap: 6px;
+            margin-bottom: 3px;
         }
         
         .message-sender { 
-            font-size: 13px; 
+            font-size: 12px; 
             font-weight: 600; 
             color: #667eea;
         }
@@ -522,20 +527,20 @@
         }
         
         .country-flag {
-            font-size: 12px;
+            font-size: 10px;
         }
         
         .message-text { 
-            font-size: 14px; 
+            font-size: 13px; 
             line-height: 1.4;
             color: #fff;
         }
         
         .message-file {
-            margin-top: 8px;
-            padding: 8px;
+            margin-top: 6px;
+            padding: 6px;
             background: rgba(255,255,255,0.1);
-            border-radius: 6px;
+            border-radius: 5px;
             border: 1px solid rgba(255,255,255,0.2);
         }
         
@@ -545,7 +550,7 @@
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
         }
         
         .file-download:hover {
@@ -553,43 +558,44 @@
         }
         
         .message-time { 
-            font-size: 11px; 
+            font-size: 10px; 
             color: rgba(255,255,255,0.6); 
-            margin-top: 4px; 
+            margin-top: 3px; 
             text-align: right;
         }
         
         .system-message {
             align-self: center;
             background: rgba(255,255,255,0.1);
-            padding: 8px 16px;
-            border-radius: 15px;
-            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
             color: #ccc;
-            margin: 5px 0;
+            margin: 4px 0;
             font-style: italic;
         }
         
         .input-container { 
-            padding: 15px; 
+            padding: 12px; 
             background: #2d2d44; 
             display: flex; 
-            gap: 10px; 
+            gap: 8px; 
             align-items: flex-end;
             border-top: 1px solid #444;
+            flex-shrink: 0;
         }
         
         .message-input { 
             flex: 1; 
-            padding: 12px 15px; 
+            padding: 10px 12px; 
             border: none; 
-            border-radius: 20px; 
+            border-radius: 18px; 
             background: #1a1a2e; 
             color: #fff; 
             outline: none; 
             resize: none; 
-            max-height: 100px; 
-            font-size: 14px;
+            max-height: 80px; 
+            font-size: 13px;
             line-height: 1.4;
         }
         
@@ -599,20 +605,20 @@
         
         .chat-buttons {
             display: flex;
-            gap: 5px;
-            margin-bottom: 10px;
+            gap: 4px;
+            margin-bottom: 8px;
         }
         
         .chat-btn {
             background: #667eea;
             border: none;
             color: white;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 50%;
             cursor: pointer;
-            font-size: 16px;
-            width: 40px;
-            height: 40px;
+            font-size: 14px;
+            width: 36px;
+            height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -628,8 +634,8 @@
             color: #fff; 
             border: none; 
             border-radius: 50%; 
-            width: 40px; 
-            height: 40px; 
+            width: 36px; 
+            height: 36px; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
@@ -649,26 +655,26 @@
         
         /* Users Sidebar */
         .users-sidebar { 
-            width: 250px; 
+            width: 220px; 
             background: #2d2d44; 
-            padding: 20px; 
+            padding: 15px; 
             overflow-y: auto; 
             border-left: 1px solid #444;
         }
         
         .users-sidebar h3 { 
-            margin-bottom: 15px; 
+            margin-bottom: 12px; 
             color: #667eea; 
-            font-size: 16px;
+            font-size: 14px;
         }
         
         .user-item { 
             display: flex; 
             align-items: center; 
-            gap: 10px; 
-            padding: 10px; 
-            border-radius: 8px; 
-            margin-bottom: 8px; 
+            gap: 8px; 
+            padding: 8px; 
+            border-radius: 6px; 
+            margin-bottom: 6px; 
             background: #1a1a2e;
             transition: background 0.2s ease;
         }
@@ -678,8 +684,8 @@
         }
         
         .user-avatar { 
-            width: 35px; 
-            height: 35px; 
+            width: 30px; 
+            height: 30px; 
             border-radius: 50%; 
             object-fit: cover;
             flex-shrink: 0;
@@ -691,7 +697,7 @@
         }
         
         .user-name { 
-            font-size: 14px; 
+            font-size: 13px; 
             font-weight: 500;
             white-space: nowrap;
             overflow: hidden;
@@ -699,37 +705,37 @@
         }
         
         .user-country {
-            font-size: 11px;
+            font-size: 10px;
             color: #667eea;
-            margin-top: 2px;
+            margin-top: 1px;
         }
         
         .owner-badge { 
             background: #ffd700; 
             color: #000; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            font-size: 10px; 
+            padding: 1px 4px; 
+            border-radius: 3px; 
+            font-size: 9px; 
             font-weight: 600; 
-            margin-left: 5px; 
+            margin-left: 4px; 
         }
         
         /* Loading States */
         .loading { 
             text-align: center; 
-            padding: 20px; 
+            padding: 15px; 
             color: #667eea; 
-            font-size: 16px;
+            font-size: 14px;
         }
         
         .loading-spinner {
-            border: 3px solid #333;
-            border-top: 3px solid #667eea;
+            border: 2px solid #333;
+            border-top: 2px solid #667eea;
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            width: 25px;
+            height: 25px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
+            margin: 0 auto 8px;
         }
         
         @keyframes spin {
@@ -739,7 +745,7 @@
         
         /* Scrollbar */
         ::-webkit-scrollbar { 
-            width: 8px; 
+            width: 6px; 
         }
         
         ::-webkit-scrollbar-track { 
@@ -748,7 +754,7 @@
         
         ::-webkit-scrollbar-thumb { 
             background: #667eea; 
-            border-radius: 4px; 
+            border-radius: 3px; 
         }
         
         ::-webkit-scrollbar-thumb:hover { 
@@ -764,17 +770,17 @@
         
         .youtube-results {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
             max-height: 60vh;
             overflow-y: auto;
-            margin-top: 15px;
-            padding: 10px;
+            margin-top: 12px;
+            padding: 8px;
         }
         
         .youtube-result {
             background: #2d2d44;
-            border-radius: 10px;
+            border-radius: 8px;
             overflow: hidden;
             cursor: pointer;
             transition: transform 0.3s, box-shadow 0.3s;
@@ -782,40 +788,41 @@
         }
         
         .youtube-result:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.3);
             border-color: #667eea;
         }
         
         .youtube-thumbnail {
             width: 100%;
-            height: 180px;
+            height: 160px;
             object-fit: cover;
         }
         
         .youtube-info {
-            padding: 15px;
+            padding: 12px;
         }
         
         .youtube-title {
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
             color: #fff;
+            font-size: 13px;
         }
         
         .youtube-channel {
             color: #ccc;
-            font-size: 14px;
-            margin-bottom: 5px;
+            font-size: 12px;
+            margin-bottom: 4px;
         }
         
         .youtube-meta {
             color: #888;
-            font-size: 12px;
+            font-size: 11px;
             display: flex;
             justify-content: space-between;
         }
@@ -823,12 +830,12 @@
         .youtube-duration {
             background: rgba(0,0,0,0.7);
             color: #fff;
-            padding: 3px 6px;
-            border-radius: 4px;
-            font-size: 11px;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 10px;
             position: absolute;
-            bottom: 8px;
-            right: 8px;
+            bottom: 6px;
+            right: 6px;
         }
         
         .thumbnail-container {
@@ -872,12 +879,12 @@
         
         .local-video-mini {
             position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 200px;
-            height: 150px;
+            bottom: 15px;
+            right: 15px;
+            width: 180px;
+            height: 135px;
             border: 2px solid #667eea;
-            border-radius: 10px;
+            border-radius: 8px;
             overflow: hidden;
             background: #000;
         }
@@ -890,23 +897,23 @@
         
         .call-controls-fullscreen {
             position: absolute;
-            bottom: 20px;
+            bottom: 15px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 15px;
+            gap: 12px;
             z-index: 10;
         }
         
         .call-control-btn {
-            width: 60px;
-            height: 60px;
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
             border: none;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 20px;
             cursor: pointer;
             transition: all 0.3s;
         }
@@ -938,12 +945,12 @@
         /* Sesli arama için overlay */
         .voice-call-overlay {
             position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 300px;
+            top: 15px;
+            right: 15px;
+            width: 280px;
             background: #2d2d44;
-            border-radius: 10px;
-            padding: 15px;
+            border-radius: 8px;
+            padding: 12px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5);
             z-index: 3000;
             display: none;
@@ -958,37 +965,37 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
             border-bottom: 1px solid #444;
         }
         
         .voice-call-title {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
             color: #667eea;
         }
         
         .voice-call-timer {
-            font-size: 14px;
+            font-size: 12px;
             color: #ccc;
         }
         
         .voice-call-controls {
             display: flex;
             justify-content: space-around;
-            margin-top: 15px;
+            margin-top: 12px;
         }
         
         .voice-control-btn {
-            width: 50px;
-            height: 50px;
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
             border: none;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 18px;
             cursor: pointer;
         }
         
@@ -1013,16 +1020,16 @@
         }
         
         .calling-animation {
-            font-size: 48px;
-            margin: 20px 0;
+            font-size: 40px;
+            margin: 15px 0;
             animation: pulse 1.5s infinite;
         }
         
         .countdown {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
             color: #667eea;
-            margin: 10px 0;
+            margin: 8px 0;
         }
         
         /* Recording Indicator */
@@ -1034,8 +1041,8 @@
             transform: translate(-50%, -50%);
             background: rgba(231, 76, 60, 0.9);
             color: white;
-            padding: 30px;
-            border-radius: 15px;
+            padding: 25px;
+            border-radius: 12px;
             z-index: 10000;
             text-align: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -1055,12 +1062,12 @@
         /* Call Quality Indicator */
         .call-quality {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 8px;
+            right: 8px;
             background: rgba(0,0,0,0.7);
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
             z-index: 201;
         }
         
@@ -1068,17 +1075,19 @@
         .quality-good { color: #f39c12; }
         .quality-poor { color: #e74c3c; }
         
-        /* Responsive */
+        /* Responsive - GÜNCELLENDİ */
         @media (max-width: 768px) {
             .container { 
                 flex-direction: column; 
+                height: calc(100vh - 60px);
             }
             
             .chat-section { 
                 max-width: 100%; 
                 border-left: none; 
                 border-top: 1px solid #2d2d44; 
-                height: 40vh;
+                height: 35vh;
+                flex-shrink: 0;
             }
             
             .users-sidebar { 
@@ -1086,58 +1095,61 @@
             }
             
             .video-section {
-                height: 60vh;
+                height: 65vh;
+                flex-shrink: 0;
             }
             
             .landing h1 {
-                font-size: 36px;
+                font-size: 32px;
             }
             
             .landing-buttons {
                 flex-direction: column;
                 width: 100%;
-                max-width: 300px;
+                max-width: 280px;
             }
             
             .btn {
                 width: 100%;
-            }
-            
-            .video-controls {
-                padding: 10px;
-                gap: 8px;
-            }
-            
-            .control-btn {
-                padding: 8px 12px;
-                font-size: 12px;
-            }
-            
-            .room-code-display {
-                top: 10px;
-                left: 10px;
-                padding: 8px 12px;
-            }
-            
-            .room-code-display .code {
+                padding: 12px 20px;
                 font-size: 16px;
             }
             
-            .call-controls {
-                margin-left: 10px;
-                gap: 5px;
+            .video-controls {
+                padding: 8px;
+                gap: 6px;
             }
             
-            .call-btn {
-                padding: 6px 12px;
+            .control-btn {
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+            
+            .room-code-display {
+                top: 8px;
+                left: 8px;
+                padding: 6px 10px;
+            }
+            
+            .room-code-display .code {
                 font-size: 12px;
             }
             
+            .call-controls {
+                margin-left: 8px;
+                gap: 4px;
+            }
+            
+            .call-btn {
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            
             .webrtc-container {
-                width: 200px;
-                height: 150px;
-                bottom: 10px;
-                right: 10px;
+                width: 180px;
+                height: 120px;
+                bottom: 8px;
+                right: 8px;
             }
             
             .youtube-modal {
@@ -1150,26 +1162,43 @@
             }
             
             .local-video-mini {
-                width: 120px;
-                height: 90px;
-                bottom: 10px;
-                right: 10px;
+                width: 100px;
+                height: 75px;
+                bottom: 8px;
+                right: 8px;
             }
             
             .call-controls-fullscreen {
-                bottom: 10px;
+                bottom: 8px;
             }
             
             .call-control-btn {
-                width: 50px;
-                height: 50px;
-                font-size: 20px;
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
             }
             
             .voice-call-overlay {
-                width: calc(100% - 40px);
-                right: 20px;
-                left: 20px;
+                width: calc(100% - 30px);
+                right: 15px;
+                left: 15px;
+            }
+            
+            .header {
+                padding: 10px 15px;
+                min-height: 50px;
+            }
+            
+            .container {
+                height: calc(100vh - 50px);
+            }
+            
+            .video-section {
+                height: 60vh;
+            }
+            
+            .chat-section {
+                height: 40vh;
             }
         }
         
@@ -1181,21 +1210,21 @@
         .error-message {
             background: #e74c3c;
             color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin: 10px 0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 8px 0;
             text-align: center;
-            font-size: 14px;
+            font-size: 12px;
         }
         
         .success-message {
             background: #27ae60;
             color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin: 10px 0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 8px 0;
             text-align: center;
-            font-size: 14px;
+            font-size: 12px;
         }
     </style>
 </head>
@@ -1390,9 +1419,9 @@
 
     <!-- Ses Kaydı Görseli -->
     <div id="recordingIndicator">
-        <div style="font-size: 24px; margin-bottom: 10px;" class="recording-pulse">🎤 Kayıt Yapılıyor...</div>
-        <div id="recordingTimer" style="font-size: 18px; font-weight: bold; margin: 10px 0;">00:00</div>
-        <div style="margin-top: 15px;">
+        <div style="font-size: 20px; margin-bottom: 8px;" class="recording-pulse">🎤 Kayıt Yapılıyor...</div>
+        <div id="recordingTimer" style="font-size: 16px; font-weight: bold; margin: 8px 0;">00:00</div>
+        <div style="margin-top: 12px;">
             <button class="btn btn-primary" onclick="stopRecording()" style="background: #e74c3c;">⏹️ Kaydı Bitir</button>
         </div>
     </div>
@@ -1438,7 +1467,7 @@
                         <span id="qualityText">Kalite: İyi</span>
                     </div>
                     <video id="remoteVideo" class="webrtc-video" autoplay></video>
-                    <video id="localVideo" class="webrtc-video" autoplay muted style="position: absolute; top: 10px; right: 10px; width: 100px; height: 75px; border: 1px solid #fff;"></video>
+                    <video id="localVideo" class="webrtc-video" autoplay muted style="position: absolute; top: 8px; right: 8px; width: 80px; height: 60px; border: 1px solid #fff;"></video>
                     <div class="webrtc-controls">
                         <button class="webrtc-btn webrtc-mute" onclick="toggleMute()">🎤</button>
                         <button class="webrtc-btn webrtc-camera" onclick="toggleCamera()">📹</button>
@@ -1461,12 +1490,12 @@
                 </div>
                 
                 <!-- VIDEO CONTROLS -->
-                <div class="video-controls" id="videoControls" style="display: none; background: #2d2d44; padding: 15px; border-top: 2px solid #667eea;">
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center;">
+                <div class="video-controls" id="videoControls" style="display: none; background: #2d2d44; padding: 12px; border-top: 2px solid #667eea;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center;">
                         <button class="control-btn" onclick="videoPlatform.seek(-10)">⏪ 10s</button>
                         <button class="control-btn" id="playPauseBtn" onclick="videoPlatform.togglePlay()">⏸️ Duraklat</button>
                         <button class="control-btn" onclick="videoPlatform.seek(10)">⏩ 10s</button>
-                        <select class="control-btn" id="playbackRate" onchange="videoPlatform.changePlaybackRate(this.value)" style="background: #2d2d44; color: white; border: 1px solid #667eea; padding: 8px 12px; border-radius: 8px;">
+                        <select class="control-btn" id="playbackRate" onchange="videoPlatform.changePlaybackRate(this.value)" style="background: #2d2d44; color: white; border: 1px solid #667eea; padding: 6px 10px; border-radius: 6px; font-size: 11px;">
                             <option value="0.5">0.5x</option>
                             <option value="1" selected>1x</option>
                             <option value="1.5">1.5x</option>
@@ -1511,7 +1540,7 @@
                     </div>
                     <textarea id="messageInput" class="message-input" placeholder="Mesajınızı yazın..." rows="1" disabled></textarea>
                     <button id="sendButton" class="send-button" disabled>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
                         </svg>
                     </button>
@@ -1712,18 +1741,40 @@
                 // Auto-resize textarea
                 this.messageInput.addEventListener('input', () => {
                     this.messageInput.style.height = 'auto';
-                    this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 100) + 'px';
+                    this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 80) + 'px';
                 });
                 
                 // Video File Input
                 this.videoFileInput.addEventListener('change', (e) => this.uploadVideo(e.target.files[0]));
                 
-                // Video Player Events
-                this.videoPlayer.addEventListener('play', () => this.onVideoPlay());
-                this.videoPlayer.addEventListener('pause', () => this.onVideoPause());
-                this.videoPlayer.addEventListener('seeked', () => this.onVideoSeek());
-                this.videoPlayer.addEventListener('ratechange', () => this.onVideoRateChange());
-                this.videoPlayer.addEventListener('timeupdate', () => this.onVideoTimeUpdate());
+                // Video Player Events - GÜNCELLENDİ (SENKRONİZASYON İÇİN)
+                this.videoPlayer.addEventListener('play', () => {
+                    this.onVideoPlay();
+                    // ANINDA senkronizasyon
+                    this.sendVideoControl();
+                });
+                
+                this.videoPlayer.addEventListener('pause', () => {
+                    this.onVideoPause();
+                    // ANINDA senkronizasyon
+                    this.sendVideoControl();
+                });
+                
+                this.videoPlayer.addEventListener('seeked', () => {
+                    this.onVideoSeek();
+                    // ANINDA senkronizasyon
+                    this.sendVideoControl();
+                });
+                
+                this.videoPlayer.addEventListener('ratechange', () => {
+                    this.onVideoRateChange();
+                    // ANINDA senkronizasyon
+                    this.sendVideoControl();
+                });
+                
+                this.videoPlayer.addEventListener('timeupdate', () => {
+                    this.onVideoTimeUpdate();
+                });
                 
                 // Oda Kodu Kopyalama
                 this.copyRoomCodeBtn.addEventListener('click', () => this.copyRoomCode());
@@ -1741,6 +1792,40 @@
                 this.youtubeSearchInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') searchYouTubeVideos();
                 });
+
+                // Fullscreen change event - GÜNCELLENDİ
+                document.addEventListener('fullscreenchange', () => {
+                    this.handleFullscreenChange();
+                });
+            }
+
+            handleFullscreenChange() {
+                if (!document.fullscreenElement) {
+                    // Tam ekrandan çıkıldığında layout'u düzelt
+                    setTimeout(() => {
+                        this.fixLayoutAfterFullscreen();
+                    }, 100);
+                }
+            }
+
+            fixLayoutAfterFullscreen() {
+                // Container'ı yeniden boyutlandır
+                const container = document.querySelector('.container');
+                if (container) {
+                    container.style.height = 'calc(100vh - 60px)';
+                }
+                
+                // Video section'ı düzelt
+                const videoSection = document.querySelector('.video-section');
+                if (videoSection) {
+                    videoSection.style.height = '100%';
+                }
+                
+                // Chat section'ı düzelt
+                const chatSection = document.querySelector('.chat-section');
+                if (chatSection && window.innerWidth <= 768) {
+                    chatSection.style.height = '35vh';
+                }
             }
 
             initFileUploads() {
@@ -2202,7 +2287,7 @@
                         <h2>🎉 Oda Oluşturuldu!</h2>
                         <div class="form-group">
                             <label>Oda Kodunuz:</label>
-                            <div class="room-code-share" style="background: rgba(102, 126, 234, 0.2); padding: 15px; border-radius: 10px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 3px; margin: 10px 0;">
+                            <div class="room-code-share" style="background: rgba(102, 126, 234, 0.2); padding: 12px; border-radius: 8px; text-align: center; font-size: 20px; font-weight: bold; letter-spacing: 2px; margin: 8px 0;">
                                 ${roomCode}
                             </div>
                         </div>
@@ -2314,6 +2399,13 @@
                     this.youtubePlayer.destroy();
                     this.youtubePlayer = null;
                 }
+
+                // Video yüklendikten sonra ANINDA senkronizasyon
+                this.videoPlayer.onloadeddata = () => {
+                    if (this.isOwner) {
+                        this.sendVideoControl();
+                    }
+                };
             }
 
             displayYouTubeVideo(videoId, title) {
@@ -2338,11 +2430,13 @@
                             console.log('YouTube player hazır');
                             if (this.isOwner) {
                                 this.videoControls.style.display = 'flex';
+                                // ANINDA senkronizasyon
+                                this.sendYouTubeControl(this.youtubePlayer.getPlayerState());
                             }
                         },
                         'onStateChange': (event) => {
                             if (this.isOwner) {
-                                // YouTube durum değişikliklerini diğer kullanıcılara ilet
+                                // YouTube durum değişikliklerini diğer kullanıcılara ANINDA ilet
                                 this.sendYouTubeControl(event.data);
                             }
                         }
@@ -2389,6 +2483,8 @@
                         this.youtubePlayer.playVideo();
                         this.playPauseBtn.textContent = '⏸️ Duraklat';
                     }
+                    // ANINDA senkronizasyon
+                    this.sendYouTubeControl(this.youtubePlayer.getPlayerState());
                 } else if (this.videoPlayer) {
                     // Normal video kontrolü
                     if (this.videoPlayer.paused) {
@@ -2398,6 +2494,8 @@
                         this.videoPlayer.pause();
                         this.playPauseBtn.textContent = '▶️ Oynat';
                     }
+                    // ANINDA senkronizasyon
+                    this.sendVideoControl();
                 }
             }
 
@@ -2406,41 +2504,44 @@
                     // YouTube kontrolü
                     const currentTime = this.youtubePlayer.getCurrentTime();
                     this.youtubePlayer.seekTo(currentTime + seconds, true);
+                    // ANINDA senkronizasyon
+                    this.sendYouTubeControl(this.youtubePlayer.getPlayerState());
                 } else if (this.videoPlayer) {
                     // Normal video kontrolü
                     this.videoPlayer.currentTime += seconds;
+                    // ANINDA senkronizasyon
+                    this.sendVideoControl();
                 }
-                this.sendVideoControl();
             }
 
             changePlaybackRate(rate) {
                 if (this.youtubePlayer) {
                     // YouTube kontrolü
                     this.youtubePlayer.setPlaybackRate(parseFloat(rate));
+                    // ANINDA senkronizasyon
+                    this.sendYouTubeControl(this.youtubePlayer.getPlayerState());
                 } else if (this.videoPlayer) {
                     // Normal video kontrolü
                     this.videoPlayer.playbackRate = parseFloat(rate);
+                    // ANINDA senkronizasyon
+                    this.sendVideoControl();
                 }
-                this.sendVideoControl();
             }
 
             onVideoPlay() {
                 this.playPauseBtn.textContent = '⏸️ Duraklat';
-                this.sendVideoControl();
             }
 
             onVideoPause() {
                 this.playPauseBtn.textContent = '▶️ Oynat';
-                this.sendVideoControl();
             }
 
             onVideoSeek() {
-                this.sendVideoControl();
+                // Seek işlemi zaten seek() fonksiyonunda handle ediliyor
             }
 
             onVideoRateChange() {
                 this.playbackRate.value = this.videoPlayer.playbackRate;
-                this.sendVideoControl();
             }
 
             onVideoTimeUpdate() {
@@ -2474,6 +2575,7 @@
                     };
                 }
                 
+                console.log('🎮 Video kontrolü gönderiliyor:', state);
                 this.socket.emit('video-control', state);
             }
 
@@ -2483,14 +2585,18 @@
                 const controlData = {
                     type: 'youtube',
                     state: state,
-                    currentTime: this.youtubePlayer.getCurrentTime()
+                    currentTime: this.youtubePlayer.getCurrentTime(),
+                    playbackRate: this.youtubePlayer.getPlaybackRate()
                 };
                 
+                console.log('🎮 YouTube kontrolü gönderiliyor:', controlData);
                 this.socket.emit('youtube-control', controlData);
             }
 
             syncVideoState(state) {
                 if (this.isOwner) return;
+                
+                console.log('🎮 Video senkronizasyonu alındı:', state);
                 
                 if (state.type === 'youtube' && this.youtubePlayer) {
                     this.syncYouTubeState(state);
@@ -2499,13 +2605,16 @@
                     if (state.playing !== undefined) {
                         if (state.playing && this.videoPlayer.paused) {
                             this.videoPlayer.play().catch(e => console.log('Play error:', e));
+                            this.playPauseBtn.textContent = '⏸️ Duraklat';
                         } else if (!state.playing && !this.videoPlayer.paused) {
                             this.videoPlayer.pause();
+                            this.playPauseBtn.textContent = '▶️ Oynat';
                         }
                     }
                     
                     if (state.currentTime !== undefined) {
-                        if (Math.abs(this.videoPlayer.currentTime - state.currentTime) > 2) {
+                        // Sadece büyük fark varsa senkronize et (1 saniyeden fazla)
+                        if (Math.abs(this.videoPlayer.currentTime - state.currentTime) > 1) {
                             this.videoPlayer.currentTime = state.currentTime;
                         }
                     }
@@ -2521,13 +2630,16 @@
                 if (state.playing !== undefined) {
                     if (state.playing && this.youtubePlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
                         this.youtubePlayer.playVideo();
+                        this.playPauseBtn.textContent = '⏸️ Duraklat';
                     } else if (!state.playing && this.youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING) {
                         this.youtubePlayer.pauseVideo();
+                        this.playPauseBtn.textContent = '▶️ Oynat';
                     }
                 }
                 
                 if (state.currentTime !== undefined) {
                     const currentTime = this.youtubePlayer.getCurrentTime();
+                    // Sadece büyük fark varsa senkronize et (2 saniyeden fazla)
                     if (Math.abs(currentTime - state.currentTime) > 2) {
                         this.youtubePlayer.seekTo(state.currentTime, true);
                     }
@@ -2691,7 +2803,7 @@
                     contentHtml = `
                         <div class="message-text">${this.escapeHtml(msg.text || '')}</div>
                         <div class="message-file">
-                            <img src="${msg.fileUrl}" style="max-width: 200px; max-height: 200px; border-radius: 8px;">
+                            <img src="${msg.fileUrl}" style="max-width: 180px; max-height: 180px; border-radius: 6px;">
                             <div>
                                 <a href="${msg.fileUrl}" download="${msg.fileName}" class="file-download">
                                     📷 ${msg.fileName} (${this.formatFileSize(msg.fileSize)})
@@ -2703,7 +2815,7 @@
                     contentHtml = `
                         <div class="message-text">${this.escapeHtml(msg.text || '')}</div>
                         <div class="message-file">
-                            <audio controls style="width: 250px; margin: 5px 0;">
+                            <audio controls style="width: 220px; margin: 4px 0;">
                                 <source src="${msg.fileUrl}" type="audio/wav">
                             </audio>
                             <div>
@@ -3612,6 +3724,9 @@
             // Tam ekran videoları temizle
             remoteVideoFullscreen.srcObject = null;
             localVideoFullscreen.srcObject = null;
+            
+            // Layout'u düzelt
+            videoPlatform.fixLayoutAfterFullscreen();
         }
 
         function toggleFullscreen() {
