@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 10000;
 const rooms = new Map();      // Tüm odalar
 const users = new Map();      // Tüm kullanıcılar
 const messages = new Map();   // Tüm mesajlar (oda bazlı)
+const pendingOffers = new Map(); // Bekleyen WebRTC offer'ları
 
 // Socket.io configuration - BÜYÜK DOSYA DESTEĞİ
 const io = socketIo(server, {
@@ -138,7 +139,7 @@ io.on('connection', (socket) => {
       socket.join(roomCode);
       
       // Paylaşım linki oluştur
-      const shareableLink = `${process.env.NODE_ENV === 'production' ? 'https://snake-onlines-xe9h.onrender.com' : 'http://localhost:10000'}?room=${roomCode}`;
+      const shareableLink = `${process.env.NODE_ENV === 'production' ? 'https://your-app.onrender.com' : 'http://localhost:10000'}?room=${roomCode}`;
       
       // BAŞARILI CEVAP
       socket.emit('room-created', {
@@ -385,31 +386,156 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 📞 WEBRTC GÖRÜNTÜLÜ/SESLİ ARAMA
-  socket.on('webrtc-offer', (data) => {
-    socket.to(data.target).emit('webrtc-offer', {
-      offer: data.offer,
-      caller: socket.id,
-      callerName: currentUser?.userName,
-      type: data.type
-    });
+  // 📞 WEBRTC GÖRÜNTÜLÜ/SESLİ ARAMA - GELİŞTİRİLMİŞ
+  socket.on('start-call', (data) => {
+    try {
+      const { targetUserName, offer, type, callerName } = data;
+      console.log(`📞 Çağrı başlatılıyor: ${callerName} -> ${targetUserName} (${type})`);
+      
+      // Tüm kullanıcıları kontrol et
+      let targetSocketId = null;
+      
+      users.forEach((user, socketId) => {
+        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
+          targetSocketId = socketId;
+          console.log(`✅ Hedef kullanıcı bulundu: ${targetUserName} -> ${socketId}`);
+        }
+      });
+      
+      if (targetSocketId) {
+        // Pending offer'ı kaydet
+        pendingOffers.set(targetSocketId, {
+          offer: offer,
+          callerName: callerName,
+          type: type
+        });
+        
+        // Hedef kullanıcıya çağrıyı gönder
+        io.to(targetSocketId).emit('incoming-call', {
+          offer: offer,
+          callerName: callerName,
+          type: type
+        });
+        
+        console.log(`✅ Çağrı gönderildi: ${callerName} -> ${targetUserName}`);
+      } else {
+        console.log(`❌ Hedef kullanıcı bulunamadı: ${targetUserName}`);
+        socket.emit('call-error', { 
+          message: 'Kullanıcı bulunamadı veya çevrimdışı' 
+        });
+      }
+    } catch (error) {
+      console.error('❌ Çağrı başlatma hatası:', error);
+      socket.emit('call-error', { message: 'Çağrı başlatılamadı' });
+    }
   });
 
+  // Gelen çağrıya cevap
   socket.on('webrtc-answer', (data) => {
-    socket.to(data.target).emit('webrtc-answer', {
-      answer: data.answer,
-      answerer: socket.id
-    });
+    try {
+      const { targetUserName, answer } = data;
+      console.log(`📞 Cevap alındı: ${currentUser?.userName} -> ${targetUserName}`);
+      
+      // Çağrıyı başlatan kullanıcıyı bul
+      let callerSocketId = null;
+      
+      users.forEach((user, socketId) => {
+        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
+          callerSocketId = socketId;
+        }
+      });
+      
+      if (callerSocketId) {
+        io.to(callerSocketId).emit('webrtc-answer', {
+          answer: answer,
+          answererName: currentUser?.userName
+        });
+        console.log(`✅ Cevap iletildi: ${currentUser?.userName} -> ${targetUserName}`);
+      }
+    } catch (error) {
+      console.error('❌ Cevap iletme hatası:', error);
+    }
   });
 
+  // ICE candidate exchange
   socket.on('webrtc-ice-candidate', (data) => {
-    socket.to(data.target).emit('webrtc-ice-candidate', {
-      candidate: data.candidate
-    });
+    try {
+      const { targetUserName, candidate } = data;
+      
+      // Hedef kullanıcıyı bul
+      let targetSocketId = null;
+      
+      users.forEach((user, socketId) => {
+        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
+          targetSocketId = socketId;
+        }
+      });
+      
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('webrtc-ice-candidate', {
+          candidate: candidate,
+          senderName: currentUser?.userName
+        });
+      }
+    } catch (error) {
+      console.error('❌ ICE candidate hatası:', error);
+    }
   });
 
-  socket.on('webrtc-end-call', (data) => {
-    socket.to(data.target).emit('webrtc-end-call');
+  // Çağrıyı reddetme
+  socket.on('reject-call', (data) => {
+    try {
+      const { targetUserName } = data;
+      console.log(`❌ Çağrı reddedildi: ${currentUser?.userName} -> ${targetUserName}`);
+      
+      // Çağrıyı başlatan kullanıcıyı bul
+      let callerSocketId = null;
+      
+      users.forEach((user, socketId) => {
+        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
+          callerSocketId = socketId;
+        }
+      });
+      
+      if (callerSocketId) {
+        io.to(callerSocketId).emit('call-rejected', {
+          rejectedBy: currentUser?.userName
+        });
+        
+        // Pending offer'ı temizle
+        pendingOffers.delete(socket.id);
+      }
+    } catch (error) {
+      console.error('❌ Çağrı reddetme hatası:', error);
+    }
+  });
+
+  // Çağrıyı sonlandırma
+  socket.on('end-call', (data) => {
+    try {
+      const { targetUserName } = data;
+      console.log(`📞 Çağrı sonlandırıldı: ${currentUser?.userName} -> ${targetUserName}`);
+      
+      // Hedef kullanıcıyı bul
+      let targetSocketId = null;
+      
+      users.forEach((user, socketId) => {
+        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
+          targetSocketId = socketId;
+        }
+      });
+      
+      if (targetSocketId) {
+        io.to(targetSocketId).emit('call-ended', {
+          endedBy: currentUser?.userName
+        });
+        
+        // Pending offer'ı temizle
+        pendingOffers.delete(targetSocketId);
+      }
+    } catch (error) {
+      console.error('❌ Çağrı sonlandırma hatası:', error);
+    }
   });
 
   // 🔌 BAĞLANTI KESİLDİĞİNDE
@@ -427,6 +553,9 @@ io.on('connection', (socket) => {
         });
         
         updateUserList(currentRoomCode);
+        
+        // Pending offer'ları temizle
+        pendingOffers.delete(socket.id);
         
         // Oda boşsa temizle (5 dakika sonra)
         if (room.users.size === 0) {
@@ -457,6 +586,7 @@ app.get('/api/health', (req, res) => {
       fileSharing: true,
       voiceMessages: true,
       videoCalls: true,
+      audioCalls: true,
       realtimeChat: true
     }
   });
@@ -474,7 +604,7 @@ app.get('/api/room/:code', (req, res) => {
       name: room.name,
       userCount: room.users.size,
       createdAt: room.createdAt,
-      joinUrl: `https://snake-onlines-xe9h.onrender.com?room=${room.code}`
+      joinUrl: `https://your-app.onrender.com?room=${room.code}`
     });
   } catch (error) {
     res.status(500).json({ error: 'Oda bilgisi alınamadı' });
@@ -494,14 +624,17 @@ app.get('*', (req, res) => {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SERVER ${PORT} PORTUNDA ÇALIŞIYOR`);
   console.log(`🎯 MONGODB OLMADAN - BELLEK TABANLI`);
-  console.log(`📸 ÖZELLİKLER:`);
+  console.log(`📸 TÜM ÖZELLİKLER AKTİF:`);
   console.log(`   ✅ Oda Oluşturma/Katılma`);
   console.log(`   ✅ Video Yükleme & YouTube`);
   console.log(`   ✅ Fotoğraf Paylaşımı (50MB)`);
   console.log(`   ✅ Ses Kaydı & Dosya Paylaşımı`);
-  console.log(`   📞 Görüntülü/Sesli Arama`);
+  console.log(`   📞 Görüntülü Arama (Optimized)`);
+  console.log(`   📞 Sesli Arama (Optimized)`);
   console.log(`   💬 Gerçek Zamanlı Sohbet`);
   console.log(`   🔗 Oda Kodu Paylaşımı`);
+  console.log(`   🎮 Video Senkronizasyonu`);
+  console.log(`   📊 Kalite Monitörü`);
 });
 
 process.on('SIGTERM', () => {
