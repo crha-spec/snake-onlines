@@ -1,26 +1,31 @@
 {
   "name": "video-oyun-platformu",
-  "version": "2.5.0", 
-  "description": "Gerçek zamanlı video izleme, sohbet ve görüntülü arama platformu",
+  "version": "3.0.0",
+  "description": "Gerçek zamanlı video izleme, sohbet ve görüntülü arama platformu - İzleyici Kontrollü",
   "main": "server.js",
   "type": "module",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "render-start": "node render-start.js",
-    "health-check": "curl -f http://localhost:10000/api/health || exit 1"
+    "health-check": "curl -f http://localhost:10000/api/health || exit 1",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linting configured\" && exit 0"
   },
   "keywords": [
     "video",
-    "realtime", 
+    "realtime",
     "chat",
     "webrtc",
     "socket.io",
     "streaming",
-    "youtube-api"
+    "youtube-api",
+    "video-sync",
+    "watch-party"
   ],
   "author": "Video Platform Team",
   "license": "MIT",
@@ -37,7 +42,15 @@
     "nodemon": "^3.0.1"
   },
   "render": {
-    "start": "npm run render-start", 
+    "start": "npm run render-start",
     "healthCheckPath": "/api/health"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crha-spec/snake-onlines.git"
+  },
+  "bugs": {
+    "url": "https://github.com/crha-spec/snake-onlines/issues"
+  },
+  "homepage": "https://github.com/crha-spec/snake-onlines#readme"
 }
