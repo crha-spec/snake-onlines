@@ -1,31 +1,56 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const path = require('path');
-const crypto = require('crypto');
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import crypto from 'crypto';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-const server = http.createServer(app);
-const PORT = process.env.PORT || 10000;
+const server = createServer(app);
 
-// 🎯 MONGODB OLMADAN - BELLEK TABANLI SİSTEM
-const rooms = new Map();      // Tüm odalar
-const users = new Map();      // Tüm kullanıcılar
-const messages = new Map();   // Tüm mesajlar (oda bazlı)
-const pendingOffers = new Map(); // Bekleyen WebRTC offer'ları
-
-// Socket.io configuration - BÜYÜK DOSYA DESTEĞİ
-const io = socketIo(server, {
+// ✅ WEBSOCKET BAĞLANTI SORUNU ÇÖZÜMÜ
+const io = new Server(server, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"],
-    credentials: true
+    methods: ["GET", "POST"]
   },
-  transports: ['websocket', 'polling'],
-  maxHttpBufferSize: 100 * 1024 * 1024 // 100MB dosya desteği
+  maxHttpBufferSize: 100 * 1024 * 1024,
+  pingTimeout: 60000, // 60 saniye
+  pingInterval: 25000, // 25 saniye
+  connectTimeout: 45000, // 45 saniye
+  transports: ['websocket', 'polling'] // İkisini de kullan
 });
 
-// Yardımcı fonksiyonlar
+const PORT = process.env.PORT || 10000;
+
+// 🎯 BELLEK TABANLI VERİ YAPILARI
+const rooms = new Map();
+const users = new Map();
+const messages = new Map();
+const connections = new Map(); // Bağlantı takibi
+
+// 🕐 BAĞLANTI KONTROL SİSTEMİ
+const connectionWatchdog = new Map();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [socketId, lastActivity] of connectionWatchdog.entries()) {
+    // 30 dakika aktivite yoksa bağlantıyı temizle
+    if (now - lastActivity > 30 * 60 * 1000) {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        console.log(`🕐 Uzun süre aktivite yok, bağlantı temizleniyor: ${socketId}`);
+        socket.disconnect(true);
+      }
+      connectionWatchdog.delete(socketId);
+    }
+  }
+}, 60000); // Her 1 dakikada bir kontrol et
+
+// ✅ YARDIMCI FONKSİYONLAR
 function generateRoomCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -69,32 +94,97 @@ function updateUserList(roomCode) {
   io.to(roomCode).emit('user-list-update', userList);
 }
 
-// Middleware - BÜYÜK DOSYA DESTEĞİ
+// ✅ WEBRTC ICE SERVER KONFİGÜRASYONU (UZAK BAĞLANTI İÇİN)
+const rtcConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    // Fallback STUN sunucuları
+    { urls: 'stun:stun.voiparound.com' },
+    { urls: 'stun:stun.voipbuster.com' },
+    { urls: 'stun:stun.voipstunt.com' }
+  ],
+  iceCandidatePoolSize: 10,
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require'
+};
+
+// ✅ ORTAK KONTROL SİSTEMİ (ADMIN KONTROLÜ)
+function syncVideoToAll(roomCode, controlData) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  
+  // Video durumunu oda hafızasında sakla
+  room.playbackState = controlData;
+  
+  // Tüm kullanıcılara senkronize et (oda sahibi hariç)
+  socket.to(roomCode).emit('video-control', controlData);
+}
+
+// ✅ YOUTUBE API KONTROLÜ
+function setupYouTubeSync(roomCode, videoId) {
+  const room = rooms.get(roomCode);
+  if (!room) return;
+  
+  // YouTube player kontrolü için özel event
+  room.youTubeSync = {
+    videoId: videoId,
+    lastState: room.playbackState
+  };
+}
+
+// ✅ BAĞLANTI SAĞLIK KONTROLÜ
+function setupConnectionHealth(socket, roomCode) {
+  const healthInterval = setInterval(() => {
+    if (socket.connected) {
+      socket.emit('connection-health-check');
+      connectionWatchdog.set(socket.id, Date.now());
+    } else {
+      clearInterval(healthInterval);
+    }
+  }, 15000); // 15 saniyede bir health check
+
+  socket.on('connection-health-response', () => {
+    connectionWatchdog.set(socket.id, Date.now());
+  });
+
+  socket.on('disconnect', () => {
+    clearInterval(healthInterval);
+    connectionWatchdog.delete(socket.id);
+  });
+}
+
+// ✅ MIDDLEWARE
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Socket.io connection handling
+// ✅ SOCKET.IO BAĞLANTI YÖNETİMİ
 io.on('connection', (socket) => {
   console.log('✅ Yeni kullanıcı bağlandı:', socket.id);
+  connectionWatchdog.set(socket.id, Date.now());
 
   let currentUser = null;
   let currentRoomCode = null;
 
-  // 🎯 ODA OLUŞTURMA - BASİT ve GARANTİ
+  // 🎯 BAĞLANTI SAĞLIK KONTROLÜNÜ BAŞLAT
+  setupConnectionHealth(socket, currentRoomCode);
+
+  // 🎯 ODA OLUŞTURMA
   socket.on('create-room', (data) => {
     try {
       console.log('🎯 Oda oluşturma isteği:', data);
       
       const { userName, userPhoto, deviceId, roomName, password } = data;
       
-      // Validasyon
       if (!userName || !roomName) {
         socket.emit('error', { message: 'Kullanıcı adı ve oda adı gereklidir!' });
         return;
       }
       
-      // Benzersiz oda kodu oluştur
       let roomCode;
       do {
         roomCode = generateRoomCode();
@@ -102,7 +192,6 @@ io.on('connection', (socket) => {
       
       console.log('🔑 Yeni oda kodu:', roomCode);
       
-      // Oda oluştur
       const room = {
         code: roomCode,
         name: roomName,
@@ -113,13 +202,14 @@ io.on('connection', (socket) => {
         playbackState: {
           playing: false,
           currentTime: 0,
-          playbackRate: 1
+          playbackRate: 1,
+          duration: 0
         },
+        youTubeSync: null,
         messages: [],
         createdAt: new Date()
       };
       
-      // Kullanıcı oluştur
       currentUser = {
         id: socket.id,
         userName: userName,
@@ -130,7 +220,6 @@ io.on('connection', (socket) => {
         country: 'Türkiye'
       };
       
-      // Belleğe kaydet
       room.users.set(socket.id, currentUser);
       rooms.set(roomCode, room);
       users.set(socket.id, { roomCode, ...currentUser });
@@ -138,10 +227,8 @@ io.on('connection', (socket) => {
       currentRoomCode = roomCode;
       socket.join(roomCode);
       
-      // Paylaşım linki oluştur
       const shareableLink = `${process.env.NODE_ENV === 'production' ? 'https://your-app.onrender.com' : 'http://localhost:10000'}?room=${roomCode}`;
       
-      // BAŞARILI CEVAP
       socket.emit('room-created', {
         roomCode: roomCode,
         roomName: roomName,
@@ -169,13 +256,11 @@ io.on('connection', (socket) => {
         return;
       }
       
-      // Şifre kontrolü
       if (room.password && room.password !== password) {
         socket.emit('error', { message: 'Şifre yanlış!' });
         return;
       }
       
-      // Kullanıcı oluştur
       currentUser = {
         id: socket.id,
         userName: userName,
@@ -186,16 +271,13 @@ io.on('connection', (socket) => {
         country: 'Türkiye'
       };
       
-      // Belleğe kaydet
       room.users.set(socket.id, currentUser);
       users.set(socket.id, { roomCode, ...currentUser });
       currentRoomCode = roomCode;
       socket.join(roomCode);
       
-      // Geçmiş mesajları getir
       const roomMessages = messages.get(roomCode) || [];
       
-      // Başarılı cevap
       socket.emit('room-joined', {
         roomCode: room.code,
         roomName: room.name,
@@ -203,15 +285,14 @@ io.on('connection', (socket) => {
         userColor: currentUser.userColor,
         previousMessages: roomMessages.slice(-50),
         activeVideo: room.video,
-        playbackState: room.playbackState
+        playbackState: room.playbackState,
+        rtcConfig: rtcConfiguration // ✅ WEBRTC config gönder
       });
       
-      // Diğer kullanıcılara bildir
       socket.to(roomCode).emit('user-joined', {
         userName: currentUser.userName
       });
       
-      // Kullanıcı listesini güncelle
       updateUserList(roomCode);
       
       console.log(`✅ KULLANICI KATILDI: ${userName} -> ${roomCode}`);
@@ -222,49 +303,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 🎬 VIDEO YÜKLEME
-  socket.on('upload-video', (data) => {
-    try {
-      if (!currentRoomCode || !currentUser || !currentUser.isOwner) {
-        socket.emit('error', { message: 'Video yüklemek için oda sahibi olmalısınız' });
-        return;
-      }
-      
-      const { videoBase64, title, fileSize } = data;
-      const room = rooms.get(currentRoomCode);
-      
-      console.log(`🎬 Video yükleniyor: ${title}`);
-      
-      // Progress bildirimi
-      socket.emit('upload-progress', { status: 'uploading', progress: 50 });
-      
-      // Odaya video bilgisini kaydet
-      room.video = {
-        url: videoBase64,
-        title: title || 'Video',
-        uploadedBy: currentUser.userName,
-        uploadedAt: new Date()
-      };
-      
-      // Tüm kullanıcılara bildir
-      io.to(currentRoomCode).emit('video-uploaded', {
-        videoUrl: videoBase64,
-        title: title || 'Video',
-        uploadedBy: currentUser.userName
-      });
-      
-      socket.emit('upload-progress', { status: 'completed', progress: 100 });
-      
-      console.log(`✅ VIDEO YÜKLENDI: ${title} -> ${currentRoomCode}`);
-      
-    } catch (error) {
-      console.error('❌ Video yükleme hatası:', error);
-      socket.emit('upload-progress', { status: 'error', progress: 0 });
-      socket.emit('error', { message: 'Video yüklenemedi!' });
-    }
-  });
-
-  // 📺 YOUTUBE VIDEO PAYLAŞMA
+  // 🎬 YOUTUBE VIDEO PAYLAŞMA
   socket.on('share-youtube-link', (data) => {
     try {
       if (!currentRoomCode || !currentUser) return;
@@ -278,7 +317,6 @@ io.on('connection', (socket) => {
         return;
       }
       
-      // Odaya YouTube video bilgisini kaydet
       room.video = {
         type: 'youtube',
         videoId: videoId,
@@ -288,7 +326,10 @@ io.on('connection', (socket) => {
         uploadedAt: new Date()
       };
       
-      // Tüm kullanıcılara bildir
+      // YouTube senkronizasyonunu başlat
+      setupYouTubeSync(currentRoomCode, videoId);
+      
+      // Tüm kullanıcılara bildir (SADECE video bilgisi)
       io.to(currentRoomCode).emit('youtube-video-shared', {
         videoId: videoId,
         title: title || 'YouTube Video',
@@ -303,50 +344,30 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 🎮 VIDEO KONTROLÜ
+  // 🎮 VIDEO KONTROLÜ (ADMIN İÇİN)
   socket.on('video-control', (controlData) => {
     if (!currentRoomCode || !currentUser) return;
     
     const room = rooms.get(currentRoomCode);
-    room.playbackState = controlData;
+    if (!room || !currentUser.isOwner) return;
     
-    // Sadece oda sahibi değilse diğer kullanıcılara gönder
-    if (!currentUser.isOwner) return;
+    console.log('🎮 Video kontrolü:', controlData);
     
-    socket.to(currentRoomCode).emit('video-control', controlData);
-  });
-
-  // 🎮 YOUTUBE KONTROLÜ
-  socket.on('youtube-control', (controlData) => {
-    if (!currentRoomCode || !currentUser || !currentUser.isOwner) return;
-    
-    socket.to(currentRoomCode).emit('youtube-control', controlData);
-  });
-
-  // 🗑️ VIDEO SİLME
-  socket.on('delete-video', () => {
-    if (!currentRoomCode || !currentUser || !currentUser.isOwner) return;
-    
-    const room = rooms.get(currentRoomCode);
-    room.video = null;
+    // Video durumunu güncelle
     room.playbackState = {
-      playing: false,
-      currentTime: 0,
-      playbackRate: 1
+      ...room.playbackState,
+      ...controlData
     };
     
-    io.to(currentRoomCode).emit('video-deleted');
-    console.log(`🗑️ Video silindi: ${currentRoomCode}`);
+    // Tüm izleyicilere senkronize et (admin hariç)
+    socket.to(currentRoomCode).emit('video-control', room.playbackState);
   });
 
-  // 📨 MESAJ GÖNDERME - TÜM DOSYA TÜRLERİ DESTEĞİ
+  // 📨 MESAJ GÖNDERME
   socket.on('message', (messageData) => {
     try {
       if (!currentRoomCode || !currentUser) return;
       
-      console.log('💬 Mesaj gönderiliyor:', messageData.type || 'text');
-      
-      // Mesajı hazırla
       const message = {
         id: Date.now().toString(),
         userName: currentUser.userName,
@@ -365,182 +386,70 @@ io.on('connection', (socket) => {
         timestamp: new Date()
       };
       
-      // Belleğe kaydet
       const roomMessages = messages.get(currentRoomCode) || [];
       roomMessages.push(message);
       
-      // Son 100 mesajı sakla
       if (roomMessages.length > 100) {
         messages.set(currentRoomCode, roomMessages.slice(-100));
       } else {
         messages.set(currentRoomCode, roomMessages);
       }
       
-      // Tüm kullanıcılara gönder
       io.to(currentRoomCode).emit('message', message);
-      
-      console.log('✅ Mesaj gönderildi:', messageData.type || 'text');
+      connectionWatchdog.set(socket.id, Date.now());
       
     } catch (error) {
       console.error('❌ Mesaj gönderme hatası:', error);
     }
   });
 
-  // 📞 WEBRTC GÖRÜNTÜLÜ/SESLİ ARAMA - GELİŞTİRİLMİŞ
-  socket.on('start-call', (data) => {
-    try {
-      const { targetUserName, offer, type, callerName } = data;
-      console.log(`📞 Çağrı başlatılıyor: ${callerName} -> ${targetUserName} (${type})`);
-      
-      // Tüm kullanıcıları kontrol et
-      let targetSocketId = null;
-      
-      users.forEach((user, socketId) => {
-        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
-          targetSocketId = socketId;
-          console.log(`✅ Hedef kullanıcı bulundu: ${targetUserName} -> ${socketId}`);
-        }
-      });
-      
-      if (targetSocketId) {
-        // Pending offer'ı kaydet
-        pendingOffers.set(targetSocketId, {
-          offer: offer,
-          callerName: callerName,
-          type: type
-        });
-        
-        // Hedef kullanıcıya çağrıyı gönder
-        io.to(targetSocketId).emit('incoming-call', {
-          offer: offer,
-          callerName: callerName,
-          type: type
-        });
-        
-        console.log(`✅ Çağrı gönderildi: ${callerName} -> ${targetUserName}`);
-      } else {
-        console.log(`❌ Hedef kullanıcı bulunamadı: ${targetUserName}`);
-        socket.emit('call-error', { 
-          message: 'Kullanıcı bulunamadı veya çevrimdışı' 
-        });
-      }
-    } catch (error) {
-      console.error('❌ Çağrı başlatma hatası:', error);
-      socket.emit('call-error', { message: 'Çağrı başlatılamadı' });
-    }
+  // 📞 WEBRTC GÖRÜNTÜLÜ/SESLİ ARAMA - GELİŞMİŞ
+  socket.on('webrtc-offer', (data) => {
+    console.log('📞 WebRTC Offer gönderiliyor:', data.target);
+    socket.to(data.target).emit('webrtc-offer', {
+      offer: data.offer,
+      caller: socket.id,
+      callerName: currentUser?.userName,
+      rtcConfig: rtcConfiguration, // ✅ Config gönder
+      type: data.type
+    });
   });
 
-  // Gelen çağrıya cevap
   socket.on('webrtc-answer', (data) => {
-    try {
-      const { targetUserName, answer } = data;
-      console.log(`📞 Cevap alındı: ${currentUser?.userName} -> ${targetUserName}`);
-      
-      // Çağrıyı başlatan kullanıcıyı bul
-      let callerSocketId = null;
-      
-      users.forEach((user, socketId) => {
-        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
-          callerSocketId = socketId;
-        }
-      });
-      
-      if (callerSocketId) {
-        io.to(callerSocketId).emit('webrtc-answer', {
-          answer: answer,
-          answererName: currentUser?.userName
-        });
-        console.log(`✅ Cevap iletildi: ${currentUser?.userName} -> ${targetUserName}`);
-      }
-    } catch (error) {
-      console.error('❌ Cevap iletme hatası:', error);
-    }
+    console.log('📞 WebRTC Answer gönderiliyor:', data.target);
+    socket.to(data.target).emit('webrtc-answer', {
+      answer: data.answer,
+      answerer: socket.id
+    });
   });
 
-  // ICE candidate exchange
   socket.on('webrtc-ice-candidate', (data) => {
-    try {
-      const { targetUserName, candidate } = data;
-      
-      // Hedef kullanıcıyı bul
-      let targetSocketId = null;
-      
-      users.forEach((user, socketId) => {
-        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
-          targetSocketId = socketId;
-        }
-      });
-      
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('webrtc-ice-candidate', {
-          candidate: candidate,
-          senderName: currentUser?.userName
-        });
-      }
-    } catch (error) {
-      console.error('❌ ICE candidate hatası:', error);
-    }
+    socket.to(data.target).emit('webrtc-ice-candidate', {
+      candidate: data.candidate,
+      sender: socket.id
+    });
   });
 
-  // Çağrıyı reddetme
-  socket.on('reject-call', (data) => {
-    try {
-      const { targetUserName } = data;
-      console.log(`❌ Çağrı reddedildi: ${currentUser?.userName} -> ${targetUserName}`);
-      
-      // Çağrıyı başlatan kullanıcıyı bul
-      let callerSocketId = null;
-      
-      users.forEach((user, socketId) => {
-        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
-          callerSocketId = socketId;
-        }
-      });
-      
-      if (callerSocketId) {
-        io.to(callerSocketId).emit('call-rejected', {
-          rejectedBy: currentUser?.userName
-        });
-        
-        // Pending offer'ı temizle
-        pendingOffers.delete(socket.id);
-      }
-    } catch (error) {
-      console.error('❌ Çağrı reddetme hatası:', error);
-    }
+  socket.on('webrtc-end-call', (data) => {
+    socket.to(data.target).emit('webrtc-end-call', {
+      endedBy: currentUser?.userName
+    });
   });
 
-  // Çağrıyı sonlandırma
-  socket.on('end-call', (data) => {
-    try {
-      const { targetUserName } = data;
-      console.log(`📞 Çağrı sonlandırıldı: ${currentUser?.userName} -> ${targetUserName}`);
-      
-      // Hedef kullanıcıyı bul
-      let targetSocketId = null;
-      
-      users.forEach((user, socketId) => {
-        if (user.userName === targetUserName && user.roomCode === currentRoomCode) {
-          targetSocketId = socketId;
-        }
-      });
-      
-      if (targetSocketId) {
-        io.to(targetSocketId).emit('call-ended', {
-          endedBy: currentUser?.userName
-        });
-        
-        // Pending offer'ı temizle
-        pendingOffers.delete(targetSocketId);
-      }
-    } catch (error) {
-      console.error('❌ Çağrı sonlandırma hatası:', error);
-    }
+  // ✅ BAĞLANTI SAĞLIK KONTROLÜ
+  socket.on('connection-health-response', () => {
+    connectionWatchdog.set(socket.id, Date.now());
+  });
+
+  socket.on('client-heartbeat', () => {
+    connectionWatchdog.set(socket.id, Date.now());
+    socket.emit('server-heartbeat', { timestamp: Date.now() });
   });
 
   // 🔌 BAĞLANTI KESİLDİĞİNDE
   socket.on('disconnect', (reason) => {
     console.log('🔌 Kullanıcı ayrıldı:', socket.id, 'Sebep:', reason);
+    connectionWatchdog.delete(socket.id);
     
     if (currentUser && currentRoomCode) {
       const room = rooms.get(currentRoomCode);
@@ -554,10 +463,6 @@ io.on('connection', (socket) => {
         
         updateUserList(currentRoomCode);
         
-        // Pending offer'ları temizle
-        pendingOffers.delete(socket.id);
-        
-        // Oda boşsa temizle (5 dakika sonra)
         if (room.users.size === 0) {
           setTimeout(() => {
             if (rooms.get(currentRoomCode)?.users.size === 0) {
@@ -565,30 +470,22 @@ io.on('connection', (socket) => {
               messages.delete(currentRoomCode);
               console.log(`🗑️ Boş oda silindi: ${currentRoomCode}`);
             }
-          }, 300000); // 5 dakika
+          }, 300000);
         }
       }
     }
   });
 });
 
-// API Routes
+// ✅ API ROUTES
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
     rooms: rooms.size,
     users: users.size,
-    environment: process.env.NODE_ENV || 'development',
-    features: {
-      videoUpload: true,
-      youtubeSharing: true,
-      fileSharing: true,
-      voiceMessages: true,
-      videoCalls: true,
-      audioCalls: true,
-      realtimeChat: true
-    }
+    connections: connectionWatchdog.size,
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -603,15 +500,14 @@ app.get('/api/room/:code', (req, res) => {
       code: room.code,
       name: room.name,
       userCount: room.users.size,
-      createdAt: room.createdAt,
-      joinUrl: `https://your-app.onrender.com?room=${room.code}`
+      createdAt: room.createdAt
     });
   } catch (error) {
     res.status(500).json({ error: 'Oda bilgisi alınamadı' });
   }
 });
 
-// Static files
+// ✅ STATIC FILES
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -620,21 +516,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start server
+// ✅ SERVER BAŞLATMA
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SERVER ${PORT} PORTUNDA ÇALIŞIYOR`);
-  console.log(`🎯 MONGODB OLMADAN - BELLEK TABANLI`);
-  console.log(`📸 TÜM ÖZELLİKLER AKTİF:`);
-  console.log(`   ✅ Oda Oluşturma/Katılma`);
-  console.log(`   ✅ Video Yükleme & YouTube`);
-  console.log(`   ✅ Fotoğraf Paylaşımı (50MB)`);
-  console.log(`   ✅ Ses Kaydı & Dosya Paylaşımı`);
-  console.log(`   📞 Görüntülü Arama (Optimized)`);
-  console.log(`   📞 Sesli Arama (Optimized)`);
-  console.log(`   💬 Gerçek Zamanlı Sohbet`);
-  console.log(`   🔗 Oda Kodu Paylaşımı`);
-  console.log(`   🎮 Video Senkronizasyonu`);
-  console.log(`   📊 Kalite Monitörü`);
+  console.log(`✅ WEBRTC UZAK BAĞLANTI DESTEĞİ AKTİF`);
+  console.log(`✅ YOUTUBE SENKRONİZASYONU AKTİF`);
+  console.log(`✅ BAĞLANTI SAĞLIK KONTROLÜ AKTİF`);
 });
 
 process.on('SIGTERM', () => {
