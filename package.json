@@ -1,125 +1,43 @@
 {
   "name": "video-oyun-platformu",
-  "version": "2.5.0",
-  "description": "Gerçek zamanlı video izleme, sohbet ve görüntülü arama platformu - Gelişmiş WebRTC & YouTube Senkronizasyonu",
+  "version": "2.5.0", 
+  "description": "Gerçek zamanlı video izleme, sohbet ve görüntülü arama platformu",
   "main": "server.js",
   "type": "module",
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "prod": "NODE_ENV=production node server.js",
     "render-start": "node render-start.js",
-    "test": "jest --verbose",
-    "test:watch": "jest --watch",
-    "lint": "eslint . --ext .js",
-    "lint:fix": "eslint . --ext .js --fix",
-    "security": "npm audit --audit-level=moderate",
-    "clean": "rm -rf node_modules package-lock.json && npm install",
-    "optimize": "node --max-old-space-size=4096 server.js",
-    "health-check": "curl -f http://localhost:10000/api/health || exit 1",
-    "build": "npm run lint && npm run security",
-    "postinstall": "npm run build",
-    "monitor": "node -e \"console.log('🔄 Monitoring active...')\""
+    "health-check": "curl -f http://localhost:10000/api/health || exit 1"
   },
   "keywords": [
     "video",
-    "realtime",
+    "realtime", 
     "chat",
     "webrtc",
     "socket.io",
     "streaming",
-    "turkey",
-    "turkish",
-    "youtube-api",
-    "video-sync",
-    "webrtc-stun",
-    "video-chat",
-    "render",
-    "capacitor"
+    "youtube-api"
   ],
   "author": "Video Platform Team",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.5",
+    "socket.io": "^4.7.2",
     "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "compression": "^1.7.4",
-    "rate-limiter-flexible": "^3.0.8",
-    "express-rate-limit": "^7.1.3",
-    "cookie-parser": "^1.4.6",
-    "uuid": "^9.0.1",
-    "node-cron": "^3.0.3",
-    "winston": "^3.11.0",
-    "morgan": "^1.10.0",
+    "uuid": "^9.0.0",
     "dotenv": "^16.3.1",
     "axios": "^1.5.0",
-    "multer": "^1.4.5-lts.1",
-    "sharp": "^0.32.6",
-    "fluent-ffmpeg": "^2.1.2",
-    "jsdom": "^23.0.1",
-    "canvas": "^2.11.2",
-    "youtube-api": "^2.0.9",
-    "googleapis": "^126.0.1",
-    "node-media-server": "^2.8.0",
-    "ws": "^8.14.2"
+    "googleapis": "^126.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "jest": "^29.7.0",
-    "supertest": "^6.3.3",
-    "eslint": "^8.52.0",
-    "eslint-config-standard": "^17.1.0",
-    "eslint-plugin-import": "^2.29.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^6.1.1",
-    "@types/node": "^20.8.7",
-    "@types/express": "^4.17.20",
-    "@types/ws": "^8.5.7"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "collectCoverage": true,
-    "coverageDirectory": "coverage",
-    "collectCoverageFrom": [
-      "**/*.js",
-      "!node_modules/**",
-      "!coverage/**",
-      "!public/**"
-    ],
-    "testMatch": [
-      "**/__tests__/**/*.js",
-      "**/?(*.)+(spec|test).js"
-    ],
-    "setupFilesAfterEnv": ["./tests/setup.js"]
+    "nodemon": "^3.0.1"
   },
   "render": {
-    "start": "npm run render-start",
-    "healthCheckPath": "/api/health",
-    "healthCheckTimeout": 300,
-    "env": {
-      "NODE_ENV": "production",
-      "PORT": "10000",
-      "NODE_OPTIONS": "--max-old-space-size=4096"
-    }
-  },
-  "volta": {
-    "node": "18.18.2"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/crha-spec/snake-onlines.git"
-  },
-  "bugs": {
-    "url": "https://github.com/crha-spec/snake-onlines/issues"
-  },
-  "homepage": "https://github.com/crha-spec/snake-onlines#readme",
-  "funding": {
-    "type": "individual",
-    "url": "https://github.com/sponsors/chra-spec"
+    "start": "npm run render-start", 
+    "healthCheckPath": "/api/health"
   }
 }
