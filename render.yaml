@@ -1,10 +1,9 @@
-# render.yaml
 services:
   - type: web
     name: video-oyun-platformu
     env: node
     plan: free
-    buildCommand: npm install && npm run lint
+    buildCommand: npm install
     startCommand: npm run render-start
     healthCheckPath: /api/health
     envVars:
@@ -13,9 +12,21 @@ services:
       - key: PORT
         value: 10000
       - key: NODE_OPTIONS
-        value: "--max-old-space-size=4096"
+        value: "--max-old-space-size=4096 --max-http-header-size=16384"
+      - key: UV_THREADPOOL_SIZE
+        value: "128"
     autoDeploy: true
     disk:
       name: tmp
       mountPath: /tmp
       sizeGB: 1
+
+  # Optional: Add a cron job for cleanup (if needed)
+  - type: cron
+    name: cleanup-job
+    schedule: "0 3 * * *"  # Daily at 3 AM
+    buildCommand: npm install
+    startCommand: node cleanup.js
+    envVars:
+      - key: NODE_ENV
+        value: production
