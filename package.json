@@ -9,7 +9,7 @@
     "npm": ">=9.0.0"
   },
   "scripts": {
-    "start": "node server.js",
+    "render-start": "node render-start.js",
     "dev": "nodemon server.js",
     "prod": "NODE_ENV=production node server.js",
     "render-start": "node server.js",
