@@ -1,7 +1,7 @@
 {
   "name": "video-oyun-platformu",
-  "version": "3.0.0",
-  "description": "Gerçek zamanlı video izleme, sohbet ve görüntülü arama platformu - İzleyici Kontrollü",
+  "version": "3.1.0",
+  "description": "Gerçek zamanlı video izleme, sohbet ve görüntülü arama platformu - Gelişmiş YouTube Entegrasyonlu",
   "main": "server.js",
   "type": "module",
   "engines": {
@@ -14,7 +14,9 @@
     "render-start": "node render-start.js",
     "health-check": "curl -f http://localhost:10000/api/health || exit 1",
     "test": "echo \"No tests specified\" && exit 0",
-    "lint": "echo \"No linting configured\" && exit 0"
+    "lint": "echo \"No linting configured\" && exit 0",
+    "setup": "npm install && npm run render-start",
+    "production": "NODE_ENV=production node server.js"
   },
   "keywords": [
     "video",
@@ -25,7 +27,9 @@
     "streaming",
     "youtube-api",
     "video-sync",
-    "watch-party"
+    "watch-party",
+    "youtube-integration",
+    "movie-platform"
   ],
   "author": "Video Platform Team",
   "license": "MIT",
@@ -52,5 +56,9 @@
   "bugs": {
     "url": "https://github.com/crha-spec/snake-onlines/issues"
   },
-  "homepage": "https://github.com/crha-spec/snake-onlines#readme"
+  "homepage": "https://github.com/crha-spec/snake-onlines#readme",
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/sponsors/crha-spec"
+  }
 }
