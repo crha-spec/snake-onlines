@@ -10,6 +10,9 @@ const __dirname = dirname(__filename);
 process.env.UV_THREADPOOL_SIZE = 128;
 process.env.NODE_ENV = process.env.NODE_ENV || 'production';
 
+// Memory optimization for Render
+process.env.NODE_OPTIONS = '--max-old-space-size=4096 --max-http-header-size=16384';
+
 // Graceful shutdown handler
 const gracefulShutdown = (signal) => {
   console.log(`🛑 ${signal} received, shutting down gracefully...`);
@@ -32,6 +35,10 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Start the main server
+console.log('🚀 Starting Video Oyun Platformu on Render...');
+console.log('📊 Environment:', process.env.NODE_ENV);
+console.log('🔧 Node Options:', process.env.NODE_OPTIONS);
+
 const server = spawn('node', ['server.js'], {
   stdio: 'inherit',
   env: process.env
@@ -39,4 +46,10 @@ const server = spawn('node', ['server.js'], {
 
 server.on('close', (code) => {
   console.log(`🚀 Server process exited with code ${code}`);
+  process.exit(code);
+});
+
+server.on('error', (error) => {
+  console.error('💥 Server startup error:', error);
+  process.exit(1);
 });
