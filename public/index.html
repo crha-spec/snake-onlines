@@ -85,6 +85,34 @@
             transform: none;
         }
         
+        /* Bağlantı durumu göstergesi */
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 10000;
+            transition: all 0.3s ease;
+        }
+        
+        .connection-connected {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .connection-disconnected {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .connection-reconnecting {
+            background: #f39c12;
+            color: white;
+        }
+        
         /* Modal Stilleri */
         .modal { 
             display: none; 
@@ -391,6 +419,38 @@
         
         .delete-btn:hover {
             background: #c0392b;
+        }
+        
+        /* İzleyici Kontrolleri */
+        .viewer-controls {
+            padding: 15px 20px;
+            background: #1a1a2e;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            border-top: 1px solid #444;
+        }
+        
+        .viewer-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            background: #2d2d44;
+            color: #fff;
+            border: 1px solid #444;
+        }
+        
+        .viewer-btn:hover {
+            background: #3d3d54;
+        }
+        
+        .fullscreen-btn {
+            background: #667eea;
+            border-color: #667eea;
         }
         
         /* WebRTC Video Call */
@@ -789,12 +849,12 @@
                 width: 100%;
             }
             
-            .video-controls {
+            .video-controls, .viewer-controls {
                 padding: 10px;
                 gap: 8px;
             }
             
-            .control-btn {
+            .control-btn, .viewer-btn {
                 padding: 8px 12px;
                 font-size: 12px;
             }
@@ -852,39 +912,53 @@
             font-size: 14px;
         }
         
-        /* Connection Status */
-        .connection-status {
+        /* Movie Search Results */
+        .movie-result {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            border-bottom: 1px solid #444;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .movie-result:hover {
+            background: #2d2d44;
+            border-radius: 8px;
+        }
+
+        /* Recording Indicator */
+        #recordingIndicator {
+            display: none;
             position: fixed;
-            top: 10px;
-            right: 10px;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            z-index: 1000;
-            transition: all 0.3s ease;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(231, 76, 60, 0.9);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            z-index: 10000;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 2px solid #fff;
         }
         
-        .connection-good {
-            background: #27ae60;
-            color: white;
+        .recording-pulse {
+            animation: pulse 1.5s infinite;
         }
         
-        .connection-warning {
-            background: #f39c12;
-            color: white;
-        }
-        
-        .connection-bad {
-            background: #e74c3c;
-            color: white;
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
     </style>
 </head>
 <body>
-    <!-- Connection Status Indicator -->
-    <div class="connection-status connection-good" id="connectionStatus" style="display: none;">
-        ✅ Bağlantı İyi
+    <!-- Bağlantı Durumu Göstergesi -->
+    <div class="connection-status connection-connected" id="connectionStatus">
+        ✅ Bağlantı Kuruldu
     </div>
 
     <!-- Landing Page -->
@@ -1068,6 +1142,7 @@
                     <div id="youtubeContainer" style="width: 100%; height: 100%; display: none;"></div>
                 </div>
                 
+                <!-- Admin Kontrolleri -->
                 <div class="video-controls" id="videoControls" style="display: none;">
                     <button class="control-btn" onclick="videoPlatform.seek(-10)">⏪ 10s</button>
                     <button class="control-btn" id="playPauseBtn" onclick="videoPlatform.togglePlay()">⏸️ Duraklat</button>
@@ -1090,6 +1165,16 @@
                     <button class="control-btn delete-btn" onclick="videoPlatform.deleteVideo()">
                         🗑️ Sil
                     </button>
+                </div>
+                
+                <!-- İzleyici Kontrolleri -->
+                <div class="viewer-controls" id="viewerControls" style="display: none;">
+                    <button class="viewer-btn fullscreen-btn" onclick="videoPlatform.toggleFullscreen()">
+                        ⛶ Tam Ekran
+                    </button>
+                    <div style="color: #667eea; font-size: 14px; padding: 0 15px;">
+                        🔒 Sadece izleme modu - Kontrol admin'de
+                    </div>
                 </div>
             </div>
 
@@ -1167,19 +1252,33 @@
                 this.recordingStartTime = null;
                 this.recordingTimer = null;
 
-                // YouTube Player
-                this.youTubePlayer = null;
+                // Yeni değişkenler
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 10;
+                this.reconnectInterval = 5000;
+                this.connectionTimeout = null;
+                this.lastPingTime = Date.now();
+                this.youtubePlayer = null;
                 this.isYouTubeReady = false;
+                this.isFullscreen = false;
 
-                // Bağlantı kontrolü
-                this.connectionHealth = 'good';
-                this.lastHeartbeat = Date.now();
+                // WebRTC için gelişmiş ICE sunucuları
+                this.rtcConfiguration = {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                        { urls: 'stun:stun3.l.google.com:19302' },
+                        { urls: 'stun:stun4.l.google.com:19302' }
+                    ],
+                    iceCandidatePoolSize: 10
+                };
 
                 this.initElements();
                 this.initEvents();
+                this.initYouTubeAPI();
                 this.showLanding();
                 this.initFileUploads();
-                this.initWebRTC();
                 this.startConnectionMonitor();
             }
 
@@ -1204,62 +1303,53 @@
                 return colors[index % colors.length];
             }
 
-            initWebRTC() {
-                // Gelişmiş WebRTC konfigürasyonu - UZAK BAĞLANTI İÇİN
-                this.rtcConfiguration = {
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
-                        { urls: 'stun:stun3.l.google.com:19302' },
-                        { urls: 'stun:stun4.l.google.com:19302' },
-                        { urls: 'stun:stun.voiparound.com' },
-                        { urls: 'stun:stun.voipbuster.com' },
-                        { urls: 'stun:stun.voipstunt.com' }
-                    ],
-                    iceCandidatePoolSize: 10,
-                    bundlePolicy: 'max-bundle',
-                    rtcpMuxPolicy: 'require'
+            // YouTube API yükleme
+            initYouTubeAPI() {
+                const tag = document.createElement('script');
+                tag.src = "https://www.youtube.com/iframe_api";
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+                window.onYouTubeIframeAPIReady = () => {
+                    this.isYouTubeReady = true;
+                    console.log('✅ YouTube API hazır');
                 };
             }
 
+            // Bağlantı izleme sistemi
             startConnectionMonitor() {
-                // Bağlantı durumunu monitor et
                 setInterval(() => {
                     const now = Date.now();
-                    const timeSinceLastHeartbeat = now - this.lastHeartbeat;
+                    const timeSinceLastPing = now - this.lastPingTime;
                     
-                    if (timeSinceLastHeartbeat > 30000) { // 30 saniye
-                        this.connectionHealth = 'bad';
-                        this.updateConnectionStatus();
-                    } else if (timeSinceLastHeartbeat > 15000) { // 15 saniye
-                        this.connectionHealth = 'warning';
-                        this.updateConnectionStatus();
+                    if (this.socket && this.socket.connected) {
+                        if (timeSinceLastPing > 30000) { // 30 saniye
+                            this.updateConnectionStatus('reconnecting');
+                        } else {
+                            this.updateConnectionStatus('connected');
+                        }
                     } else {
-                        this.connectionHealth = 'good';
-                        this.updateConnectionStatus();
+                        this.updateConnectionStatus('disconnected');
                     }
                 }, 5000);
             }
 
-            updateConnectionStatus() {
-                const statusElement = document.getElementById('connectionStatus');
-                if (!statusElement) return;
-
-                statusElement.style.display = 'block';
+            updateConnectionStatus(status) {
+                const statusEl = document.getElementById('connectionStatus');
+                statusEl.className = 'connection-status';
                 
-                switch (this.connectionHealth) {
-                    case 'good':
-                        statusElement.className = 'connection-status connection-good';
-                        statusElement.textContent = '✅ Bağlantı İyi';
+                switch(status) {
+                    case 'connected':
+                        statusEl.classList.add('connection-connected');
+                        statusEl.textContent = '✅ Bağlantı Kuruldu';
                         break;
-                    case 'warning':
-                        statusElement.className = 'connection-status connection-warning';
-                        statusElement.textContent = '⚠️ Bağlantı Zayıf';
+                    case 'disconnected':
+                        statusEl.classList.add('connection-disconnected');
+                        statusEl.textContent = '❌ Bağlantı Kesildi';
                         break;
-                    case 'bad':
-                        statusElement.className = 'connection-status connection-bad';
-                        statusElement.textContent = '❌ Bağlantı Kopuk';
+                    case 'reconnecting':
+                        statusEl.classList.add('connection-reconnecting');
+                        statusEl.textContent = '🔄 Yeniden Bağlanılıyor...';
                         break;
                 }
             }
@@ -1304,6 +1394,7 @@
                 this.uploadZone = document.getElementById('uploadZone');
                 this.videoPlayer = document.getElementById('videoPlayer');
                 this.videoControls = document.getElementById('videoControls');
+                this.viewerControls = document.getElementById('viewerControls');
                 this.videoFileInput = document.getElementById('videoFileInput');
                 this.playPauseBtn = document.getElementById('playPauseBtn');
                 this.playbackRate = document.getElementById('playbackRate');
@@ -1378,7 +1469,6 @@
                 this.videoPlayer.addEventListener('pause', () => this.onVideoPause());
                 this.videoPlayer.addEventListener('seeked', () => this.onVideoSeek());
                 this.videoPlayer.addEventListener('ratechange', () => this.onVideoRateChange());
-                this.videoPlayer.addEventListener('timeupdate', () => this.onVideoTimeUpdate());
                 
                 // Oda Kodu Kopyalama
                 this.copyRoomCodeBtn.addEventListener('click', () => this.copyRoomCode());
@@ -1392,6 +1482,11 @@
                 });
                 this.roomCodeInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') this.joinRoom();
+                });
+
+                // Fullscreen change event
+                document.addEventListener('fullscreenchange', () => {
+                    this.isFullscreen = !!document.fullscreenElement;
                 });
             }
 
@@ -1503,6 +1598,7 @@
 
             connectSocket() {
                 this.showLoading('Sunucuya bağlanılıyor...');
+                this.reconnectAttempts = 0;
                 
                 const serverUrl = window.location.hostname === 'localhost' 
                     ? 'http://localhost:10000' 
@@ -1513,18 +1609,32 @@
                 this.socket = io(serverUrl, {
                     transports: ['websocket', 'polling'],
                     timeout: 30000,
-                    reconnectionAttempts: 5,
-                    reconnectionDelay: 2000
+                    reconnectionAttempts: this.maxReconnectAttempts,
+                    reconnectionDelay: 2000,
+                    reconnectionDelayMax: 10000,
+                    randomizationFactor: 0.5
                 });
 
                 this.setupSocketEvents();
             }
 
             setupSocketEvents() {
+                // Ping-pong mekanizması
+                this.socket.on('ping', () => {
+                    this.lastPingTime = Date.now();
+                    this.socket.emit('pong');
+                });
+
+                this.socket.on('pong', () => {
+                    this.lastPingTime = Date.now();
+                });
+
                 this.socket.on('connect', () => {
                     console.log('✅ Socket bağlantısı kuruldu');
+                    this.lastPingTime = Date.now();
+                    this.reconnectAttempts = 0;
+                    this.updateConnectionStatus('connected');
                     this.hideLoading();
-                    this.lastHeartbeat = Date.now();
                     
                     if (this.currentAction === 'create') {
                         this.finalizeCreateRoom();
@@ -1544,6 +1654,22 @@
                     
                     this.showSuccess(`${this.roomName} odası oluşturuldu! Oda Kodu: ${this.roomCode}`);
                 });
+                
+                this.socket.on('upload-progress', (data) => {
+                    if (data.status === 'preparing') {
+                        this.loadingText.textContent = `Film hazırlanıyor... %${data.progress}`;
+                    } else if (data.status === 'uploading') {
+                        this.loadingText.textContent = `Yükleniyor... %${data.progress}`;
+                    } else if (data.status === 'processing') {
+                        this.loadingText.textContent = `İşleniyor... %${data.progress}`;
+                    } else if (data.status === 'completed') {
+                        this.hideLoading();
+                        this.showSuccess('Film başarıyla yüklendi!');
+                    } else if (data.status === 'error') {
+                        this.hideLoading();
+                        this.showError('Film yüklenirken hata oluştu');
+                    }
+                });
 
                 this.socket.on('room-joined', (data) => {
                     console.log('✅ Odaya katıldı:', data.roomCode);
@@ -1554,11 +1680,6 @@
                     this.userColor = data.userColor || this.userColor;
                     
                     this.showChatInterface();
-                    
-                    // WebRTC config'i güncelle
-                    if (data.rtcConfig) {
-                        this.rtcConfiguration = data.rtcConfig;
-                    }
                     
                     // Geçmiş mesajları göster
                     if (data.previousMessages && data.previousMessages.length > 0) {
@@ -1586,10 +1707,29 @@
                     this.onlineCount.textContent = `${users.length} kişi`;
                 });
 
+                this.socket.on('video-uploaded', (data) => {
+                    console.log('🎬 Video yüklendi eventi alındı');
+                    this.displayVideo(data.videoUrl);
+                    this.addSystemMessage(`🎬 "${data.title}" videosu yüklendi`);
+                });
+
                 this.socket.on('youtube-video-shared', (data) => {
                     console.log('🎬 YouTube video paylaşıldı:', data);
                     this.displayYouTubeVideo(data.videoId, data.title);
                     this.addSystemMessage(`🎬 "${data.title}" YouTube videosu paylaşıldı`);
+                });
+
+                // YouTube video kontrolü için yeni event'lar
+                this.socket.on('youtube-control', (controlData) => {
+                    if (!this.isOwner && this.youtubePlayer) {
+                        this.syncYouTubeState(controlData);
+                    }
+                });
+
+                this.socket.on('youtube-seek', (data) => {
+                    if (!this.isOwner && this.youtubePlayer) {
+                        this.youtubePlayer.seekTo(data.currentTime, true);
+                    }
                 });
 
                 this.socket.on('video-control', (controlData) => {
@@ -1608,7 +1748,6 @@
                 this.socket.on('message', (msg) => {
                     console.log('💬 Mesaj alındı:', msg);
                     this.displayMessage(msg);
-                    this.lastHeartbeat = Date.now();
                 });
 
                 this.socket.on('user-joined', (data) => {
@@ -1619,29 +1758,12 @@
                     this.addSystemMessage(`🚪 ${data.userName} odadan ayrıldı`);
                 });
 
-                // ✅ BAĞLANTI SAĞLIK KONTROLÜ
-                this.socket.on('connection-health-check', () => {
-                    this.socket.emit('connection-health-response');
-                    this.lastHeartbeat = Date.now();
-                });
-
-                this.socket.on('server-heartbeat', (data) => {
-                    this.lastHeartbeat = Date.now();
-                    this.connectionHealth = 'good';
-                    this.updateConnectionStatus();
-                });
-
                 // WebRTC Events
                 this.socket.on('webrtc-offer', async (data) => {
                     console.log('📞 Gelen çağrı:', data);
                     this.callerId = data.caller;
-                    this.showIncomingCall(data.callerName, data.type);
-                    this.currentCallType = data.type;
-                    
-                    // WebRTC config güncelle
-                    if (data.rtcConfig) {
-                        this.rtcConfiguration = data.rtcConfig;
-                    }
+                    this.showIncomingCall(data.callerName, data.type || 'video');
+                    this.currentCallType = data.type || 'video';
                 });
 
                 this.socket.on('webrtc-answer', async (data) => {
@@ -1658,12 +1780,52 @@
                     }
                 });
 
-                this.socket.on('webrtc-end-call', (data) => {
-                    console.log('📞 Çağrı sonlandırıldı:', data);
+                this.socket.on('webrtc-end-call', () => {
+                    console.log('📞 Çağrı sonlandırıldı');
                     this.endCall();
-                    if (data.endedBy) {
-                        this.addSystemMessage(`📞 ${data.endedBy} çağrıyı sonlandırdı`);
+                });
+
+                // Bağlantı kesilme durumları
+                this.socket.on('disconnect', (reason) => {
+                    console.log('🔌 Bağlantı kesildi:', reason);
+                    
+                    if (reason === 'io server disconnect') {
+                        this.showError('Sunucu bağlantıyı kesti. Lütfen yeniden bağlanın.');
+                    } else if (reason === 'ping timeout') {
+                        this.updateConnectionStatus('reconnecting');
+                    } else if (reason === 'transport close') {
+                        this.updateConnectionStatus('reconnecting');
+                    } else {
+                        this.updateConnectionStatus('disconnected');
                     }
+                });
+
+                this.socket.on('reconnect_attempt', (attempt) => {
+                    console.log('🔄 Yeniden bağlanma denemesi:', attempt);
+                    this.reconnectAttempts = attempt;
+                    this.updateConnectionStatus('reconnecting');
+                });
+
+                this.socket.on('reconnect', (attempt) => {
+                    console.log('✅ Yeniden bağlandı. Deneme:', attempt);
+                    this.updateConnectionStatus('connected');
+                    this.showSuccess('Bağlantı yeniden kuruldu!');
+                    
+                    // Yeniden odaya katıl
+                    if (this.roomCode) {
+                        this.socket.emit('join-room', {
+                            roomCode: this.roomCode,
+                            userName: this.userName,
+                            userPhoto: this.userPhoto,
+                            deviceId: this.deviceId
+                        });
+                    }
+                });
+
+                this.socket.on('reconnect_failed', () => {
+                    console.log('❌ Yeniden bağlanma başarısız');
+                    this.updateConnectionStatus('disconnected');
+                    this.showError('Bağlantı kurulamadı. Lütfen sayfayı yenileyin.');
                 });
 
                 this.socket.on('error', (data) => {
@@ -1671,33 +1833,6 @@
                     this.showError(data.message);
                     this.showLanding();
                 });
-
-                this.socket.on('disconnect', (reason) => {
-                    console.log('🔌 Bağlantı kesildi:', reason);
-                    this.connectionHealth = 'bad';
-                    this.updateConnectionStatus();
-                    
-                    if (reason !== 'io client disconnect') {
-                        setTimeout(() => {
-                            if (!this.socket.connected) {
-                                this.showError('Bağlantı kesildi. Lütfen sayfayı yenileyin.');
-                            }
-                        }, 5000);
-                    }
-                });
-
-                this.socket.on('connect_error', (error) => {
-                    this.hideLoading();
-                    this.showError('Sunucuya bağlanılamadı: ' + error.message);
-                    this.showLanding();
-                });
-
-                // Her 10 saniyede bir heartbeat gönder
-                setInterval(() => {
-                    if (this.socket && this.socket.connected) {
-                        this.socket.emit('client-heartbeat');
-                    }
-                }, 10000);
             }
 
             createRoom() {
@@ -1772,9 +1907,15 @@
                 this.roomCodeVisual.textContent = this.roomCode;
                 this.roomCodeDisplayArea.style.display = 'flex';
                 
+                // Kontrolleri ayarla - İzleyiciler sadece tam ekran yapabilir
                 if (this.isOwner) {
                     this.uploadZone.style.display = 'block';
                     this.videoControls.style.display = 'flex';
+                    this.viewerControls.style.display = 'none';
+                } else {
+                    this.uploadZone.style.display = 'none';
+                    this.videoControls.style.display = 'none';
+                    this.viewerControls.style.display = 'flex';
                 }
                 
                 this.messageInput.disabled = false;
@@ -1894,90 +2035,135 @@
                 this.youtubeContainer.style.display = 'none';
                 this.videoPlayer.src = url;
                 this.hideLoading();
-                
-                if (this.isOwner) {
-                    this.videoControls.style.display = 'flex';
-                }
             }
 
+            // YouTube Video Gösterme - İzleyiciler için kısıtlı
             displayYouTubeVideo(videoId, title) {
                 console.log('🎬 YouTube video gösteriliyor:', videoId);
                 this.noVideo.style.display = 'none';
                 this.videoPlayer.style.display = 'none';
                 this.youtubeContainer.style.display = 'block';
-                
-                // İzleyiciler için kontrolü kısıtla, sadece admin kontrol edebilir
-                const controlsEnabled = this.isOwner ? '?enablejsapi=1' : '?enablejsapi=1&controls=0';
-                
-                this.youtubeContainer.innerHTML = `
-                    <iframe 
-                        width="100%" 
-                        height="100%" 
-                        src="https://www.youtube.com/embed/${videoId}${controlsEnabled}" 
-                        frameborder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        allowfullscreen
-                        id="youtubePlayer">
-                    </iframe>
-                `;
-                
-                // YouTube API yüklendikten sonra
-                this.setupYouTubePlayer(videoId);
-                
-                this.videoControls.style.display = 'flex';
-                this.updateVideoControlsForYouTube();
-                
-                this.showSuccess(`"${title}" videosu yüklendi!`);
-            }
+                this.youtubeContainer.innerHTML = '';
 
-            setupYouTubePlayer(videoId) {
-                // YouTube IFrame API yükleme
-                if (!window.YT) {
-                    const tag = document.createElement('script');
-                    tag.src = "https://www.youtube.com/iframe_api";
-                    const firstScriptTag = document.getElementsByTagName('script')[0];
-                    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+                if (!this.isYouTubeReady) {
+                    console.log('⚠️ YouTube API henüz hazır değil, bekleniyor...');
+                    setTimeout(() => this.displayYouTubeVideo(videoId, title), 1000);
+                    return;
                 }
-                
-                window.onYouTubeIframeAPIReady = () => {
-                    this.youTubePlayer = new YT.Player('youtubePlayer', {
+
+                try {
+                    // İzleyiciler için kontroller kısıtlı
+                    const playerVars = {
+                        'playsinline': 1,
+                        'enablejsapi': 1,
+                        'origin': window.location.origin,
+                        'widget_referrer': window.location.origin
+                    };
+
+                    // İzleyiciler için ek kısıtlamalar
+                    if (!this.isOwner) {
+                        playerVars.controls = 0; // Kontrolleri kapat
+                        playerVars.disablekb = 1; // Klavye kontrollerini devre dışı bırak
+                    }
+
+                    this.youtubePlayer = new YT.Player(this.youtubeContainer, {
                         videoId: videoId,
+                        playerVars: playerVars,
                         events: {
-                            'onStateChange': this.onYouTubeStateChange.bind(this),
-                            'onReady': this.onYouTubeReady.bind(this)
+                            'onReady': (event) => this.onYouTubePlayerReady(event),
+                            'onStateChange': (event) => this.onYouTubeStateChange(event),
+                            'onError': (event) => this.onYouTubeError(event)
                         }
                     });
-                    this.isYouTubeReady = true;
-                };
+
+                    this.showSuccess(`"${title}" videosu yüklendi!`);
+
+                } catch (error) {
+                    console.error('❌ YouTube player oluşturma hatası:', error);
+                    // Fallback: iframe kullan
+                    let iframeSrc = `https://www.youtube.com/embed/${videoId}?enablejsapi=1`;
+                    
+                    // İzleyiciler için kontrolleri kapat
+                    if (!this.isOwner) {
+                        iframeSrc += '&controls=0';
+                    }
+                    
+                    this.youtubeContainer.innerHTML = `
+                        <iframe 
+                            width="100%" 
+                            height="100%" 
+                            src="${iframeSrc}" 
+                            frameborder="0" 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowfullscreen
+                            id="youtubeIframe">
+                        </iframe>
+                    `;
+                }
+            }
+
+            onYouTubePlayerReady(event) {
+                console.log('✅ YouTube player hazır');
+                
+                // İzleyiciler için player'ı otomatik başlat
+                if (!this.isOwner) {
+                    event.target.playVideo();
+                }
             }
 
             onYouTubeStateChange(event) {
-                // Sadece admin YouTube player durumunu değiştirebilir
-                if (this.isOwner && this.isYouTubeReady) {
-                    const state = {
-                        playing: event.data === YT.PlayerState.PLAYING,
-                        currentTime: this.youTubePlayer.getCurrentTime(),
-                        playbackRate: 1,
-                        isYouTube: true
-                    };
-                    this.sendVideoControl(state);
+                // Sadece admin kontrol gönderebilir
+                if (!this.isOwner || !this.youtubePlayer) return;
+
+                const state = {
+                    playing: event.data === YT.PlayerState.PLAYING,
+                    currentTime: this.youtubePlayer.getCurrentTime(),
+                    playbackRate: this.youtubePlayer.getPlaybackRate()
+                };
+
+                this.sendYouTubeControl(state);
+
+                // Seek işlemleri için ayrı event
+                if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED) {
+                    this.socket.emit('youtube-seek', {
+                        currentTime: this.youtubePlayer.getCurrentTime()
+                    });
                 }
             }
 
-            onYouTubeReady(event) {
-                console.log('✅ YouTube Player hazır');
-                this.isYouTubeReady = true;
+            onYouTubeError(event) {
+                console.error('❌ YouTube player hatası:', event.data);
+                this.showError('YouTube videosu yüklenirken hata oluştu: ' + event.data);
             }
 
-            updateVideoControlsForYouTube() {
-                if (this.isOwner) {
-                    // Admin için tam kontrol butonları
-                    this.playPauseBtn.style.display = 'block';
-                    this.playbackRate.style.display = 'block';
-                } else {
-                    // İzleyiciler için sadece görüntüleme butonları
-                    this.playPauseBtn.style.display = 'none';
-                    this.playbackRate.style.display = 'none';
+            sendYouTubeControl(state) {
+                if (!this.isOwner || !this.socket) return;
+
+                this.socket.emit('youtube-control', state);
+            }
+
+            syncYouTubeState(state) {
+                // İzleyiciler sadece sync alır, kontrol edemez
+                if (this.isOwner || !this.youtubePlayer) return;
+
+                try {
+                    // Mevcut zamanı kontrol et, büyük fark varsa sync et
+                    const currentTime = this.youtubePlayer.getCurrentTime();
+                    if (state.currentTime && Math.abs(currentTime - state.currentTime) > 2) {
+                        this.youtubePlayer.seekTo(state.currentTime, true);
+                    }
+
+                    // Oynatma durumunu sync et
+                    if (state.playing !== undefined) {
+                        if (state.playing && this.youtubePlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+                            this.youtubePlayer.playVideo();
+                        } else if (!state.playing && this.youtubePlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                            this.youtubePlayer.pauseVideo();
+                        }
+                    }
+
+                } catch (error) {
+                    console.error('❌ YouTube sync hatası:', error);
                 }
             }
 
@@ -1986,8 +2172,6 @@
                 this.videoPlayer.style.display = 'none';
                 this.youtubeContainer.style.display = 'none';
                 this.videoPlayer.src = '';
-                this.youTubePlayer = null;
-                this.isYouTubeReady = false;
                 
                 if (this.isOwner) {
                     this.noVideo.innerHTML = `
@@ -2000,47 +2184,56 @@
                             </button>
                         </div>
                     `;
+                } else {
+                    this.noVideo.innerHTML = `
+                        <div class="no-video-icon">📹</div>
+                        <h3>Video Yok</h3>
+                        <p>Admin yeni video yükleyene kadar bekleyin</p>
+                    `;
                 }
             }
 
-            togglePlay() {
-                if (this.youTubePlayer && this.isYouTubeReady) {
-                    // YouTube kontrolü
-                    if (this.youTubePlayer.getPlayerState() === YT.PlayerState.PLAYING) {
-                        this.youTubePlayer.pauseVideo();
-                        this.playPauseBtn.textContent = '▶️ Oynat';
-                    } else {
-                        this.youTubePlayer.playVideo();
-                        this.playPauseBtn.textContent = '⏸️ Duraklat';
+            // Tam ekran fonksiyonu
+            toggleFullscreen() {
+                const videoContainer = this.videoContainer;
+                
+                if (!this.isFullscreen) {
+                    if (videoContainer.requestFullscreen) {
+                        videoContainer.requestFullscreen();
+                    } else if (videoContainer.webkitRequestFullscreen) {
+                        videoContainer.webkitRequestFullscreen();
+                    } else if (videoContainer.msRequestFullscreen) {
+                        videoContainer.msRequestFullscreen();
                     }
                 } else {
-                    // Normal video kontrolü
-                    if (this.videoPlayer.paused) {
-                        this.videoPlayer.play();
-                        this.playPauseBtn.textContent = '⏸️ Duraklat';
-                    } else {
-                        this.videoPlayer.pause();
-                        this.playPauseBtn.textContent = '▶️ Oynat';
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
                     }
                 }
-                this.sendVideoControl();
+            }
+
+            // Admin video kontrolleri
+            togglePlay() {
+                if (this.videoPlayer.paused) {
+                    this.videoPlayer.play();
+                    this.playPauseBtn.textContent = '⏸️ Duraklat';
+                } else {
+                    this.videoPlayer.pause();
+                    this.playPauseBtn.textContent = '▶️ Oynat';
+                }
             }
 
             seek(seconds) {
-                if (this.youTubePlayer && this.isYouTubeReady) {
-                    const newTime = this.youTubePlayer.getCurrentTime() + seconds;
-                    this.youTubePlayer.seekTo(newTime, true);
-                } else {
-                    this.videoPlayer.currentTime += seconds;
-                }
+                this.videoPlayer.currentTime += seconds;
                 this.sendVideoControl();
             }
 
             changePlaybackRate(rate) {
-                if (!this.youTubePlayer) {
-                    this.videoPlayer.playbackRate = parseFloat(rate);
-                }
-                // YouTube playback rate değişimi karmaşık, desteklemiyoruz
+                this.videoPlayer.playbackRate = parseFloat(rate);
                 this.sendVideoControl();
             }
 
@@ -2058,60 +2251,26 @@
                 this.sendVideoControl();
             }
 
-            onVideoTimeUpdate() {
-                // Sık güncelleme göndermemek için throttle
-                if (this.isOwner && Date.now() - (this.lastTimeUpdate || 0) > 1000) {
-                    this.sendVideoControl();
-                    this.lastTimeUpdate = Date.now();
-                }
-            }
-
             onVideoRateChange() {
                 this.playbackRate.value = this.videoPlayer.playbackRate;
                 this.sendVideoControl();
             }
 
-            sendVideoControl(state = null) {
+            sendVideoControl() {
                 if (!this.isOwner) return;
                 
-                let controlData;
-                
-                if (state) {
-                    controlData = state;
-                } else if (this.youTubePlayer && this.isYouTubeReady) {
-                    controlData = {
-                        playing: this.youTubePlayer.getPlayerState() === YT.PlayerState.PLAYING,
-                        currentTime: this.youTubePlayer.getCurrentTime(),
-                        playbackRate: 1,
-                        isYouTube: true,
-                        timestamp: Date.now()
-                    };
-                } else {
-                    controlData = {
-                        playing: !this.videoPlayer.paused,
-                        currentTime: this.videoPlayer.currentTime,
-                        playbackRate: this.videoPlayer.playbackRate,
-                        isYouTube: false,
-                        timestamp: Date.now()
-                    };
-                }
-                
-                this.socket.emit('video-control', controlData);
+                this.socket.emit('video-control', {
+                    playing: !this.videoPlayer.paused,
+                    currentTime: this.videoPlayer.currentTime,
+                    playbackRate: this.videoPlayer.playbackRate
+                });
             }
 
             syncVideoState(state) {
                 if (this.isOwner) return;
                 
-                console.log('🎮 Video senkronizasyonu:', state);
-                
                 if (state.playing !== undefined) {
-                    if (this.youTubePlayer && this.isYouTubeReady) {
-                        if (state.playing) {
-                            this.youTubePlayer.playVideo();
-                        } else {
-                            this.youTubePlayer.pauseVideo();
-                        }
-                    } else if (state.playing && this.videoPlayer.paused) {
+                    if (state.playing && this.videoPlayer.paused) {
                         this.videoPlayer.play().catch(e => console.log('Play error:', e));
                     } else if (!state.playing && !this.videoPlayer.paused) {
                         this.videoPlayer.pause();
@@ -2119,17 +2278,12 @@
                 }
                 
                 if (state.currentTime !== undefined) {
-                    if (this.youTubePlayer && this.isYouTubeReady) {
-                        const currentTime = this.youTubePlayer.getCurrentTime();
-                        if (Math.abs(currentTime - state.currentTime) > 2) {
-                            this.youTubePlayer.seekTo(state.currentTime, true);
-                        }
-                    } else if (Math.abs(this.videoPlayer.currentTime - state.currentTime) > 2) {
+                    if (Math.abs(this.videoPlayer.currentTime - state.currentTime) > 2) {
                         this.videoPlayer.currentTime = state.currentTime;
                     }
                 }
                 
-                if (state.playbackRate !== undefined && !state.isYouTube) {
+                if (state.playbackRate !== undefined) {
                     this.videoPlayer.playbackRate = state.playbackRate;
                     this.playbackRate.value = state.playbackRate;
                 }
@@ -2160,7 +2314,6 @@
                 this.messageInput.value = '';
                 this.messageInput.style.height = 'auto';
                 this.messageInput.focus();
-                this.lastHeartbeat = Date.now();
             }
 
             async handleFileUpload(event, type) {
@@ -2188,7 +2341,6 @@
                         this.socket.emit('message', fileData);
                         this.hideLoading();
                         this.showSuccess('Dosya gönderildi!');
-                        this.lastHeartbeat = Date.now();
                     };
                     reader.readAsDataURL(file);
                 } catch (error) {
@@ -2203,31 +2355,21 @@
             // Ses kaydı fonksiyonları
             async startRecording() {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: {
-                            channelCount: 1,
-                            echoCancellation: true,
-                            noiseSuppression: true
-                        } 
-                    });
-                    this.mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'audio/webm;codecs=opus'
-                    });
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    this.mediaRecorder = new MediaRecorder(stream);
                     this.audioChunks = [];
                     
                     this.mediaRecorder.ondataavailable = (event) => {
-                        if (event.data.size > 0) {
-                            this.audioChunks.push(event.data);
-                        }
+                        this.audioChunks.push(event.data);
                     };
                     
                     this.mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                        const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
                         this.sendAudioRecording(audioBlob);
                         stream.getTracks().forEach(track => track.stop());
                     };
                     
-                    this.mediaRecorder.start(1000); // Her 1 saniyede bir data
+                    this.mediaRecorder.start();
                     this.recordingStartTime = Date.now();
                     
                     // UI güncelleme
@@ -2274,14 +2416,13 @@
                 reader.onload = (e) => {
                     const audioData = {
                         fileUrl: e.target.result,
-                        fileName: `ses-kaydi-${Date.now()}.webm`,
+                        fileName: `ses-kaydi-${Date.now()}.wav`,
                         fileSize: audioBlob.size,
                         type: 'audio'
                     };
                     
                     this.socket.emit('message', audioData);
                     this.showSuccess('Ses kaydı gönderildi!');
-                    this.lastHeartbeat = Date.now();
                 };
                 reader.readAsDataURL(audioBlob);
             }
@@ -2313,7 +2454,7 @@
                         <div class="message-text">${this.escapeHtml(msg.text || '')}</div>
                         <div class="message-file">
                             <audio controls style="width: 250px; margin: 5px 0;">
-                                <source src="${msg.fileUrl}" type="audio/webm">
+                                <source src="${msg.fileUrl}" type="audio/wav">
                             </audio>
                             <div>
                                 <a href="${msg.fileUrl}" download="${msg.fileName}" class="file-download">
@@ -2418,12 +2559,7 @@
                 return div.innerHTML;
             }
 
-            showIncomingCall(callerName, type) {
-                this.callerInfo.textContent = `${callerName} ${type === 'video' ? 'görüntülü' : 'sesli'} çağrı yapıyor`;
-                this.showModal(this.incomingCallModal);
-            }
-
-            // WebRTC Functions - GELİŞMİŞ UZAK BAĞLANTI DESTEĞİ
+            // WebRTC Functions
             async startVideoCall() {
                 await this.startCall('video');
             }
@@ -2436,7 +2572,7 @@
                 try {
                     this.currentCallType = type;
                     
-                    // Media stream al - GELİŞMİŞ AYARLAR
+                    // Gelişmiş media constraints
                     const constraints = {
                         video: type === 'video' ? {
                             width: { ideal: 1280 },
@@ -2444,63 +2580,76 @@
                             frameRate: { ideal: 30 }
                         } : false,
                         audio: {
-                            channelCount: 1,
                             echoCancellation: true,
                             noiseSuppression: true,
                             autoGainControl: true,
+                            channelCount: 2,
                             sampleRate: 48000
                         }
                     };
                     
+                    console.log('🎥 Media constraints:', constraints);
+                    
                     this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
                     this.localVideo.srcObject = this.localStream;
                     
-                    // Peer connection oluştur
+                    // Gelişmiş peer connection
                     this.peerConnection = new RTCPeerConnection(this.rtcConfiguration);
+                    
+                    // Connection state monitoring
+                    this.peerConnection.onconnectionstatechange = () => {
+                        console.log('📞 Peer connection state:', this.peerConnection.connectionState);
+                        switch(this.peerConnection.connectionState) {
+                            case 'connected':
+                                this.showSuccess('📞 Bağlantı kuruldu!');
+                                break;
+                            case 'disconnected':
+                            case 'failed':
+                                this.showError('📞 Bağlantı kesildi');
+                                this.endCall();
+                                break;
+                        }
+                    };
                     
                     // Add local stream to connection
                     this.localStream.getTracks().forEach(track => {
                         this.peerConnection.addTrack(track, this.localStream);
+                        console.log('🎯 Track eklendi:', track.kind);
                     });
                     
                     // Handle remote stream
                     this.peerConnection.ontrack = (event) => {
-                        console.log('📹 Uzak stream alındı');
+                        console.log('📹 Remote track alındı:', event.streams.length);
                         this.remoteVideo.srcObject = event.streams[0];
                         this.remoteStream = event.streams[0];
                     };
                     
-                    // Handle ICE candidates - GELİŞMİŞ
+                    // Handle ICE candidates
                     this.peerConnection.onicecandidate = (event) => {
                         if (event.candidate) {
-                            console.log('❄️ ICE candidate gönderiliyor:', event.candidate);
+                            console.log('❄️ ICE candidate gönderiliyor');
                             this.socket.emit('webrtc-ice-candidate', {
                                 target: this.getOtherUser(),
                                 candidate: event.candidate
                             });
-                        } else {
-                            console.log('✅ Tüm ICE candidate\'ler gönderildi');
                         }
                     };
                     
-                    this.peerConnection.oniceconnectionstatechange = () => {
-                        console.log('🔌 ICE connection state:', this.peerConnection.iceConnectionState);
+                    // Create offer with better options
+                    const offerOptions = {
+                        offerToReceiveAudio: true,
+                        offerToReceiveVideo: type === 'video',
+                        voiceActivityDetection: false
                     };
                     
-                    // Create offer
-                    const offer = await this.peerConnection.createOffer({
-                        offerToReceiveAudio: true,
-                        offerToReceiveVideo: type === 'video'
-                    });
-                    
+                    const offer = await this.peerConnection.createOffer(offerOptions);
                     await this.peerConnection.setLocalDescription(offer);
                     
                     // Send offer to other user
                     this.socket.emit('webrtc-offer', {
                         target: this.getOtherUser(),
                         offer: offer,
-                        type: type,
-                        rtcConfig: this.rtcConfiguration
+                        type: type
                     });
                     
                     // Show call UI
@@ -2508,26 +2657,37 @@
                     this.endCallBtn.style.display = 'block';
                     this.isInCall = true;
                     
-                    console.log('📞 Çağrı başlatıldı:', type);
+                    console.log('✅ Çağrı başlatıldı:', type);
                     
                 } catch (error) {
                     console.error('❌ Çağrı başlatma hatası:', error);
                     this.showError('Çağrı başlatılamadı: ' + error.message);
+                    
+                    // Hata durumunda temizlik
+                    if (this.localStream) {
+                        this.localStream.getTracks().forEach(track => track.stop());
+                    }
                 }
+            }
+
+            showIncomingCall(callerName, type) {
+                this.callerInfo.textContent = `${callerName} ${type === 'video' ? 'görüntülü' : 'sesli'} çağrı yapıyor`;
+                this.showModal(this.incomingCallModal);
             }
 
             async acceptCall() {
                 this.hideModal(this.incomingCallModal);
                 
                 try {
-                    // Get local media stream
+                    // Gelişmiş media constraints
                     const constraints = {
-                        video: this.currentCallType === 'video',
+                        video: this.currentCallType === 'video' ? {
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        } : false,
                         audio: {
-                            channelCount: 1,
                             echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true
+                            noiseSuppression: true
                         }
                     };
                     
@@ -2544,9 +2704,7 @@
                     
                     // Handle remote stream
                     this.peerConnection.ontrack = (event) => {
-                        console.log('📹 Uzak stream alındı');
                         this.remoteVideo.srcObject = event.streams[0];
-                        this.remoteStream = event.streams[0];
                     };
                     
                     // Handle ICE candidates
@@ -2563,8 +2721,6 @@
                     this.endCallBtn.style.display = 'block';
                     this.isInCall = true;
                     
-                    console.log('📞 Çağrı kabul edildi');
-                    
                 } catch (error) {
                     console.error('❌ Çağrı kabul etme hatası:', error);
                     this.showError('Çağrı kabul edilemedi: ' + error.message);
@@ -2575,7 +2731,6 @@
                 this.hideModal(this.incomingCallModal);
                 this.socket.emit('webrtc-end-call', { target: this.callerId });
                 this.callerId = null;
-                this.addSystemMessage('📞 Gelen çağrı reddedildi');
             }
 
             endCall() {
@@ -2592,30 +2747,16 @@
                 this.webrtcContainer.style.display = 'none';
                 this.endCallBtn.style.display = 'none';
                 this.isInCall = false;
+                this.callerId = null;
                 
                 // Notify other user
                 if (this.socket) {
-                    this.socket.emit('webrtc-end-call', { 
-                        target: this.getOtherUser(),
-                        endedBy: this.userName
-                    });
+                    this.socket.emit('webrtc-end-call', { target: this.getOtherUser() });
                 }
-                
-                this.callerId = null;
-                this.addSystemMessage('📞 Çağrı sonlandırıldı');
             }
 
             getOtherUser() {
-                // Odadaki diğer kullanıcıyı bul
-                const roomUsers = Array.from(document.querySelectorAll('.user-item'));
-                for (const userEl of roomUsers) {
-                    const userName = userEl.querySelector('.user-name').textContent.replace('SAHİP', '').trim();
-                    if (userName !== this.userName) {
-                        // Bu basit bir implementasyon, gerçek uygulamada socket ID kullanılmalı
-                        return 'other-user'; // Gerçek uygulamada doğru kullanıcı ID'si
-                    }
-                }
-                return 'other-user';
+                return this.callerId;
             }
 
             toggleMute() {
@@ -2623,8 +2764,6 @@
                     const audioTrack = this.localStream.getAudioTracks()[0];
                     if (audioTrack) {
                         audioTrack.enabled = !audioTrack.enabled;
-                        const muteBtn = document.querySelector('.webrtc-mute');
-                        muteBtn.textContent = audioTrack.enabled ? '🎤' : '🔇';
                     }
                 }
             }
@@ -2634,8 +2773,6 @@
                     const videoTrack = this.localStream.getVideoTracks()[0];
                     if (videoTrack) {
                         videoTrack.enabled = !videoTrack.enabled;
-                        const cameraBtn = document.querySelector('.webrtc-camera');
-                        cameraBtn.textContent = videoTrack.enabled ? '📹' : '📷❌';
                     }
                 }
             }
@@ -2801,6 +2938,13 @@
         function stopRecording() {
             if (videoPlatform) {
                 videoPlatform.stopRecording();
+            }
+        }
+
+        // Tam ekran fonksiyonu
+        function toggleFullscreen() {
+            if (videoPlatform) {
+                videoPlatform.toggleFullscreen();
             }
         }
 
