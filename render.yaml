@@ -1,0 +1,21 @@
+# render.yaml
+services:
+  - type: web
+    name: video-oyun-platformu
+    env: node
+    plan: free
+    buildCommand: npm install && npm run lint
+    startCommand: npm run render-start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=4096"
+    autoDeploy: true
+    disk:
+      name: tmp
+      mountPath: /tmp
+      sizeGB: 1
